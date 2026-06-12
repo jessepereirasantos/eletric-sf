@@ -4,12 +4,12 @@ deployment:
     - export DEPLOYPATH=/home1/hg9a3205/cursoseloha.online/
     - /bin/rm -rf $DEPLOYPATH/server/dist
     - /bin/rm -rf $DEPLOYPATH/client/dist
-    - /bin/mkdir -p $DEPLOYPATH/server/dist
-    - /bin/mkdir -p $DEPLOYPATH/client/dist
-    - /bin/cp -rf server/dist/* $DEPLOYPATH/server/dist/
+    - /bin/mkdir -p $DEPLOYPATH/server
+    - /bin/mkdir -p $DEPLOYPATH/client
+    - /bin/cp -rf server/dist $DEPLOYPATH/server/
     - /bin/cp -f server/package.json $DEPLOYPATH/server/
     - /bin/cp -f server/package-lock.json $DEPLOYPATH/server/
     - /bin/cp -f package.json $DEPLOYPATH/
     - /bin/cp -f package-lock.json $DEPLOYPATH/
-    - /bin/cp -rf client/dist/* $DEPLOYPATH/client/dist/
+    - /bin/cp -rf client/dist $DEPLOYPATH/client/
     - echo "Deploy efetuado com sucesso via cp!"
