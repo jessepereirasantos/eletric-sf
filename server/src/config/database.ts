@@ -1,5 +1,7 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import fs from 'fs/promises';
+import path from 'path';
 
 dotenv.config();
 
@@ -14,6 +16,31 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0
 });
+
+// Flag global de modo de banco de dados
+export let useLocalFallback = false;
+
+// Caminho do arquivo de banco de dados simulado local
+const fallbackFilePath = path.join(__dirname, '../../../db_fallback.json');
+
+export const initializeFallbackFile = async () => {
+  try {
+    await fs.access(fallbackFilePath);
+  } catch {
+    // Se o arquivo não existir, inicializa a estrutura básica
+    await fs.writeFile(fallbackFilePath, JSON.stringify({ users: [], projects: [] }, null, 2));
+  }
+};
+
+export const getFallbackData = async () => {
+  await initializeFallbackFile();
+  const data = await fs.readFile(fallbackFilePath, 'utf8');
+  return JSON.parse(data);
+};
+
+export const saveFallbackData = async (data: any) => {
+  await fs.writeFile(fallbackFilePath, JSON.stringify(data, null, 2));
+};
 
 export const initializeDatabase = async () => {
   try {
@@ -47,8 +74,13 @@ export const initializeDatabase = async () => {
     console.log('[Banco de Dados] Tabela "projects" verificada/criada com sucesso.');
     
     connection.release();
+    useLocalFallback = false;
+    console.log('[Banco de Dados] MODO ATIVO: MySQL de Produção.');
   } catch (error: any) {
-    console.error('[Banco de Dados] Erro ao inicializar o banco de dados:', error.message);
+    useLocalFallback = true;
+    console.warn('[Banco de Dados] Não foi possível conectar ao MySQL local/remoto:', error.message);
+    console.warn('[Banco de Dados] MODO ATIVO: Fallback Local (Armazenando em server/db_fallback.json).');
+    await initializeFallbackFile();
   }
 };
 

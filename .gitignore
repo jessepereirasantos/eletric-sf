@@ -8,6 +8,7 @@ node_modules/
 .env.production.local
 *.log
 npm-debug.log*
+db_fallback.json
 
 # Arquivos de Configuração de IDEs e SO
 .vscode/

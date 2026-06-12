@@ -3,9 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.initializeDatabase = void 0;
+exports.initializeDatabase = exports.saveFallbackData = exports.getFallbackData = exports.initializeFallbackFile = exports.useLocalFallback = void 0;
 const promise_1 = __importDefault(require("mysql2/promise"));
 const dotenv_1 = __importDefault(require("dotenv"));
+const promises_1 = __importDefault(require("fs/promises"));
+const path_1 = __importDefault(require("path"));
 dotenv_1.default.config();
 // Pool de conexões MySQL preparado para o HostGator / Ambiente Local
 const pool = promise_1.default.createPool({
@@ -18,6 +20,30 @@ const pool = promise_1.default.createPool({
     connectionLimit: 10,
     queueLimit: 0
 });
+// Flag global de modo de banco de dados
+exports.useLocalFallback = false;
+// Caminho do arquivo de banco de dados simulado local
+const fallbackFilePath = path_1.default.join(__dirname, '../../../db_fallback.json');
+const initializeFallbackFile = async () => {
+    try {
+        await promises_1.default.access(fallbackFilePath);
+    }
+    catch {
+        // Se o arquivo não existir, inicializa a estrutura básica
+        await promises_1.default.writeFile(fallbackFilePath, JSON.stringify({ users: [], projects: [] }, null, 2));
+    }
+};
+exports.initializeFallbackFile = initializeFallbackFile;
+const getFallbackData = async () => {
+    await (0, exports.initializeFallbackFile)();
+    const data = await promises_1.default.readFile(fallbackFilePath, 'utf8');
+    return JSON.parse(data);
+};
+exports.getFallbackData = getFallbackData;
+const saveFallbackData = async (data) => {
+    await promises_1.default.writeFile(fallbackFilePath, JSON.stringify(data, null, 2));
+};
+exports.saveFallbackData = saveFallbackData;
 const initializeDatabase = async () => {
     try {
         const connection = await pool.getConnection();
@@ -47,9 +73,14 @@ const initializeDatabase = async () => {
     `);
         console.log('[Banco de Dados] Tabela "projects" verificada/criada com sucesso.');
         connection.release();
+        exports.useLocalFallback = false;
+        console.log('[Banco de Dados] MODO ATIVO: MySQL de Produção.');
     }
     catch (error) {
-        console.error('[Banco de Dados] Erro ao inicializar o banco de dados:', error.message);
+        exports.useLocalFallback = true;
+        console.warn('[Banco de Dados] Não foi possível conectar ao MySQL local/remoto:', error.message);
+        console.warn('[Banco de Dados] MODO ATIVO: Fallback Local (Armazenando em server/db_fallback.json).');
+        await (0, exports.initializeFallbackFile)();
     }
 };
 exports.initializeDatabase = initializeDatabase;

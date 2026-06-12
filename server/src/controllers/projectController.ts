@@ -1,14 +1,39 @@
 import { Response } from 'express';
-import pool from '../config/database';
+import pool, { useLocalFallback, getFallbackData, saveFallbackData } from '../config/database';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
 
-// Listar todos os projetos do usuário logado (sem o JSON completo de dados, para performance)
+// Listar todos os projetos do usuário logado
 export const getProjects = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   if (!req.user) {
     res.status(401).json({ success: false, message: 'Não autorizado.' });
     return;
   }
 
+  // MODO FALLBACK LOCAL (Leitura em Arquivo)
+  if (useLocalFallback) {
+    try {
+      const data = await getFallbackData();
+      const userProjects = data.projects
+        .filter((p: any) => p.user_id === req.user!.id)
+        .map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          created_at: p.created_at,
+          updated_at: p.updated_at
+        }));
+
+      res.json({
+        success: true,
+        projects: userProjects
+      });
+      return;
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+      return;
+    }
+  }
+
+  // MODO PRODUÇÃO (MySQL Real)
   try {
     const connection = await pool.getConnection();
     const [rows] = await connection.query<any[]>(
@@ -27,7 +52,7 @@ export const getProjects = async (req: AuthenticatedRequest, res: Response): Pro
   }
 };
 
-// Obter detalhes de um projeto específico (incluindo a estrutura JSON)
+// Obter detalhes de um projeto específico
 export const getProjectById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   if (!req.user) {
     res.status(401).json({ success: false, message: 'Não autorizado.' });
@@ -35,7 +60,31 @@ export const getProjectById = async (req: AuthenticatedRequest, res: Response): 
   }
 
   const { id } = req.params;
+  const numericId = Number(id);
 
+  // MODO FALLBACK LOCAL (Leitura em Arquivo)
+  if (useLocalFallback) {
+    try {
+      const data = await getFallbackData();
+      const project = data.projects.find((p: any) => p.id === numericId && p.user_id === req.user!.id);
+
+      if (!project) {
+        res.status(404).json({ success: false, message: 'Projeto local não encontrado ou acesso negado.' });
+        return;
+      }
+
+      res.json({
+        success: true,
+        project
+      });
+      return;
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+      return;
+    }
+  }
+
+  // MODO PRODUÇÃO (MySQL Real)
   try {
     const connection = await pool.getConnection();
     const [rows] = await connection.query<any[]>(
@@ -73,9 +122,62 @@ export const saveProject = async (req: AuthenticatedRequest, res: Response): Pro
     return;
   }
 
-  // Se data vier como objeto, convertemos para string JSON
   const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
 
+  // MODO FALLBACK LOCAL (Gravação em Arquivo)
+  if (useLocalFallback) {
+    try {
+      const fallbackData = await getFallbackData();
+      const now = new Date().toISOString();
+
+      if (id) {
+        const numericId = Number(id);
+        const projectIndex = fallbackData.projects.findIndex((p: any) => p.id === numericId && p.user_id === req.user!.id);
+
+        if (projectIndex === -1) {
+          res.status(404).json({ success: false, message: 'Projeto local não encontrado para atualização.' });
+          return;
+        }
+
+        fallbackData.projects[projectIndex].name = name;
+        fallbackData.projects[projectIndex].data = dataString;
+        fallbackData.projects[projectIndex].updated_at = now;
+
+        await saveFallbackData(fallbackData);
+
+        res.json({
+          success: true,
+          message: 'Projeto local atualizado com sucesso!',
+          project: { id: numericId, name, updated_at: now }
+        });
+      } else {
+        const newProjectId = Date.now();
+        const newProject = {
+          id: newProjectId,
+          user_id: req.user.id,
+          name,
+          data: dataString,
+          created_at: now,
+          updated_at: now
+        };
+
+        fallbackData.projects.push(newProject);
+        await saveFallbackData(fallbackData);
+
+        res.status(201).json({
+          success: true,
+          message: 'Projeto local criado e salvo com sucesso!',
+          project: { id: newProjectId, name, created_at: now }
+        });
+      }
+      return;
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+      return;
+    }
+  }
+
+  // MODO PRODUÇÃO (MySQL Real)
   try {
     const connection = await pool.getConnection();
 
@@ -131,7 +233,34 @@ export const deleteProject = async (req: AuthenticatedRequest, res: Response): P
   }
 
   const { id } = req.params;
+  const numericId = Number(id);
 
+  // MODO FALLBACK LOCAL (Remoção em Arquivo)
+  if (useLocalFallback) {
+    try {
+      const fallbackData = await getFallbackData();
+      const checkIndex = fallbackData.projects.findIndex((p: any) => p.id === numericId && p.user_id === req.user!.id);
+
+      if (checkIndex === -1) {
+        res.status(404).json({ success: false, message: 'Projeto local não encontrado ou acesso negado.' });
+        return;
+      }
+
+      fallbackData.projects.splice(checkIndex, 1);
+      await saveFallbackData(fallbackData);
+
+      res.json({
+        success: true,
+        message: 'Projeto local excluído com sucesso!'
+      });
+      return;
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+      return;
+    }
+  }
+
+  // MODO PRODUÇÃO (MySQL Real)
   try {
     const connection = await pool.getConnection();
     const [check] = await connection.query<any[]>(

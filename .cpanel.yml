@@ -2,8 +2,12 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home1/hg9a3205/cursoseloha.online/
-    - /bin/mkdir -p $DEPLOYPATH/server
+    - /bin/rm -rf $DEPLOYPATH/server/dist
+    - /bin/rm -rf $DEPLOYPATH/client/dist
+    - /bin/mkdir -p $DEPLOYPATH/server/dist
     - /bin/mkdir -p $DEPLOYPATH/client/dist
-    - /usr/bin/rsync -av --exclude="node_modules" --exclude=".git" server/ $DEPLOYPATH/server/
-    - /usr/bin/rsync -av client/dist/ $DEPLOYPATH/client/dist/
-    - echo "Deploy efetuado com sucesso via cPanel Git!"
+    - /bin/cp -rf server/dist/* $DEPLOYPATH/server/dist/
+    - /bin/cp -f server/package.json $DEPLOYPATH/server/
+    - /bin/cp -f server/package-lock.json $DEPLOYPATH/server/
+    - /bin/cp -rf client/dist/* $DEPLOYPATH/client/dist/
+    - echo "Deploy efetuado com sucesso via cp!"
