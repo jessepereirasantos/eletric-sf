@@ -32,7 +32,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 // Em Produção (como na HostGator), servimos o frontend React a partir do mesmo servidor Node
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
   const clientDistPath = path.join(__dirname, '../../client/dist');
   app.use(express.static(clientDistPath));
   
