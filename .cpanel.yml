@@ -9,5 +9,7 @@ deployment:
     - /bin/cp -rf server/dist/* $DEPLOYPATH/server/dist/
     - /bin/cp -f server/package.json $DEPLOYPATH/server/
     - /bin/cp -f server/package-lock.json $DEPLOYPATH/server/
+    - /bin/cp -f package.json $DEPLOYPATH/
+    - /bin/cp -f package-lock.json $DEPLOYPATH/
     - /bin/cp -rf client/dist/* $DEPLOYPATH/client/dist/
     - echo "Deploy efetuado com sucesso via cp!"

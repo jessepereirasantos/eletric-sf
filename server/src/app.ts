@@ -6,6 +6,17 @@ import apiRoutes from './routes';
 import { initializeDatabase } from './config/database';
 
 dotenv.config();
+// Tenta carregar do diretório server/ caso o processo inicie na raiz do domínio
+if (!process.env.DB_HOST) {
+  dotenv.config({ path: path.join(process.cwd(), 'server/.env') });
+}
+// Tenta carregar de caminhos relativos ao executável compiled (server/dist/app.js)
+if (!process.env.DB_HOST) {
+  dotenv.config({ path: path.join(__dirname, '../.env') });
+}
+if (!process.env.DB_HOST) {
+  dotenv.config({ path: path.join(__dirname, '../../.env') });
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;

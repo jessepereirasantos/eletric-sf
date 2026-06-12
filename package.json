@@ -9,9 +9,17 @@
     "build:client": "cd client && npm run build",
     "build:server": "cd server && npm run build",
     "build-all": "npm run build:client && npm run build:server",
-    "start": "cd server && npm run start",
+    "start": "node server/dist/app.js",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mysql2": "^3.22.5"
   },
   "keywords": [],
   "author": "Jesse Pereira Santos",

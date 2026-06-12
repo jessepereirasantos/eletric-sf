@@ -10,6 +10,17 @@ const path_1 = __importDefault(require("path"));
 const routes_1 = __importDefault(require("./routes"));
 const database_1 = require("./config/database");
 dotenv_1.default.config();
+// Tenta carregar do diretório server/ caso o processo inicie na raiz do domínio
+if (!process.env.DB_HOST) {
+    dotenv_1.default.config({ path: path_1.default.join(process.cwd(), 'server/.env') });
+}
+// Tenta carregar de caminhos relativos ao executável compiled (server/dist/app.js)
+if (!process.env.DB_HOST) {
+    dotenv_1.default.config({ path: path_1.default.join(__dirname, '../.env') });
+}
+if (!process.env.DB_HOST) {
+    dotenv_1.default.config({ path: path_1.default.join(__dirname, '../../.env') });
+}
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
 app.use((0, cors_1.default)());
