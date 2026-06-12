@@ -1,0 +1,7 @@
+---
+deployment:
+  tasks:
+    - echo "Iniciando deploy no cPanel da HostGator para Eletric SF"
+    - export DEPLOYPATH=/home1/hg9a3205/repositories/eletric-sf/
+    - /bin/cp -R * $DEPLOYPATH
+    - echo "Deploy concluído com sucesso!"
