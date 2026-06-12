@@ -11,6 +11,14 @@
       "destination": "/api/test-import.ts"
     },
     {
+      "source": "/api/health-clean",
+      "destination": "/api/health-clean.ts"
+    },
+    {
+      "source": "/api/health-db",
+      "destination": "/api/health-db.ts"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index.ts"
     }
