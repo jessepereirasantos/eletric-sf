@@ -44,13 +44,17 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Inicializar banco e abrir porta do servidor
+// Inicializar banco e abrir porta do servidor se não estiver na Vercel
 const startServer = async () => {
   await initializeDatabase();
   
-  app.listen(PORT, () => {
-    console.log(`[servidor] Rodando na porta ${PORT}`);
-  });
+  if (!process.env.VERCEL) {
+    app.listen(PORT, () => {
+      console.log(`[servidor] Rodando na porta ${PORT}`);
+    });
+  }
 };
 
 startServer();
+
+export default app;
