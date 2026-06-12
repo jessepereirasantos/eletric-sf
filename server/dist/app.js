@@ -31,7 +31,7 @@ app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', message: 'Servidor elétrico rodando com sucesso!' });
 });
 // Em Produção (como na HostGator), servimos o frontend React a partir do mesmo servidor Node
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
     const clientDistPath = path_1.default.join(__dirname, '../../client/dist');
     app.use(express_1.default.static(clientDistPath));
     // Qualquer rota que não seja /api será redirecionada ao index.html do React

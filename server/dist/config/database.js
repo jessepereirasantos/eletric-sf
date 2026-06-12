@@ -66,6 +66,15 @@ const initializeDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
         console.log('[Banco de Dados] Tabela "users" verificada/criada com sucesso.');
+        // Seeding automático do Administrador
+        const [userCheck] = await connection.query('SELECT id FROM users LIMIT 1');
+        if (userCheck.length === 0) {
+            const bcrypt = require('bcryptjs');
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash('AdminPassword123!', salt);
+            await connection.query('INSERT INTO users (name, email, password) VALUES (?, ?, ?)', ['Administrador', 'admin@cursoseloha.online', hashedPassword]);
+            console.log('[Banco de Dados] Seeding: Usuário administrador padrão criado com sucesso!');
+        }
         // Tabela de projetos
         await connection.query(`
       CREATE TABLE IF NOT EXISTS projects (
