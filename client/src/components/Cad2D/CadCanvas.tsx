@@ -1,0 +1,1409 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { Stage, Layer, Line, Rect, Image, Circle, Group, Text, Transformer } from 'react-konva';
+import { useCadStore } from '../../store/useCadStore';
+import type { Point2D, Device, Wall } from '../../store/useCadStore';
+import { snapToGrid, getClosestPointOnSegment, getWallVertices, computeMiterJoints } from '../../utils/geometry';
+import { DeviceSymbol } from './DeviceSymbol';
+import { calculateWiringRouting } from '../../utils/pathfinding';
+
+interface CadCanvasProps {
+  width: number;
+  height: number;
+}
+
+const getConduitPoints = (p1: Point2D, p2: Point2D) => {
+  const midX = (p1.x + p2.x) / 2;
+  const midY = (p1.y + p2.y) / 2;
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  if (dist === 0) return { points: [p1.x, p1.y, p2.x, p2.y], midPoint: p1, angle: 0 };
+
+  const offset = Math.min(dist * 0.12, 40);
+  const nx = -dy / dist;
+  const ny = dx / dist;
+  const ctrlX = midX + nx * offset;
+  const ctrlY = midY + ny * offset;
+
+  return {
+    points: [p1.x, p1.y, ctrlX, ctrlY, p2.x, p2.y],
+    midPoint: { x: ctrlX, y: ctrlY },
+    angle: Math.atan2(dy, dx) * (180 / Math.PI),
+  };
+};
+
+const isEsquadria = (type: string) => {
+  return type.startsWith('door') || type === 'window' || type === 'open_van';
+};
+
+const getWallVans = (wall: Wall, devs: Device[]) => {
+  const vans: { start: number; end: number }[] = [];
+  const L = Math.sqrt(Math.pow(wall.p2.x - wall.p1.x, 2) + Math.pow(wall.p2.y - wall.p1.y, 2));
+  if (L === 0) return [];
+  const dx = (wall.p2.x - wall.p1.x) / L;
+  const dy = (wall.p2.y - wall.p1.y) / L;
+
+  devs.forEach(dev => {
+    if (!isEsquadria(dev.type)) return;
+
+    const toDevX = dev.x - wall.p1.x;
+    const toDevY = dev.y - wall.p1.y;
+    const t = toDevX * dx + toDevY * dy;
+    const projX = wall.p1.x + t * dx;
+    const projY = wall.p1.y + t * dy;
+    const dist = Math.sqrt(Math.pow(dev.x - projX, 2) + Math.pow(dev.y - projY, 2));
+
+    if (dist < wall.thickness * 1.5 && t >= -0.1 && t <= L + 0.1) {
+      let width = dev.width;
+      if (width === undefined) {
+        width = 0.8;
+        if (dev.type === 'window') width = 1.2;
+        else if (dev.type === 'open_van') width = 1.0;
+      }
+
+      let start = t;
+      let end = t + width;
+
+      if (dev.type === 'window' || dev.type === 'open_van' || dev.type === 'door_correr') {
+        start = t - width / 2;
+        end = t + width / 2;
+      }
+
+      start = Math.max(0, start);
+      end = Math.min(L, end);
+
+      if (start < end) {
+        vans.push({ start, end });
+      }
+    }
+  });
+
+  vans.sort((a, b) => a.start - b.start);
+  const mergedVans: { start: number; end: number }[] = [];
+  vans.forEach(v => {
+    if (mergedVans.length === 0) {
+      mergedVans.push(v);
+    } else {
+      const last = mergedVans[mergedVans.length - 1];
+      if (v.start <= last.end) {
+        last.end = Math.max(last.end, v.end);
+      } else {
+        mergedVans.push(v);
+      }
+    }
+  });
+
+  return mergedVans;
+};
+
+export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
+  const {
+    ppm, bgImageSrc, bgImageLock, bgImageScale, bgImagePos,
+    isCalibrating, calibrationPoints, zoom, pan,
+    walls, devices, circuits, conduits,
+    currentTool, selectedDeviceType, activeWallPoints, selectedDeviceId, selectedWallId,
+    setZoom, setPan, setBgImagePos, addCalibrationPoint, setPpm, setIsCalibrating,
+    setSelectedDeviceId, setSelectedWallId, clearSelection,
+    addWall, addActiveWallPoint, clearActiveWallPoints,
+    addDevice, addConduit, removeConduit,
+    paperSpaceActive, paperSize, paperScale, paperPos,
+    paperTitle, paperOwner, paperDesigner, paperDate, paperSheetNum,
+    setPaperPos,
+    // Novos estados e ações adicionados
+    guideLines, selectedGuideLineId, selectedGuideType,
+    texts, selectedTextId,
+    dimensions, selectedDimensionId, activeDimensionPoints,
+    addGuideLine, setSelectedGuideLineId,
+    addText, updateTextPosition, setSelectedTextId,
+    addDimension, addActiveDimensionPoint, clearActiveDimensionPoints, setSelectedDimensionId,
+    updateWall,
+  } = useCadStore();
+
+  const stageRef = useRef<any>(null);
+  const transformerRef = useRef<any>(null);
+  const [imageObj, setImageObj] = useState<HTMLImageElement | null>(null);
+  const [conduitStartDeviceId, setConduitStartDeviceId] = useState<string | null>(null);
+  const [mousePos, setMousePos] = useState<Point2D>({ x: 0, y: 0 });
+  const [snappedMousePos, setSnappedMousePos] = useState<Point2D>({ x: 0, y: 0 });
+  const [deviceSnapInfo, setDeviceSnapInfo] = useState<{
+    point: Point2D; rotation: number; isSnapped: boolean;
+  } | null>(null);
+
+  const { updateDeviceProperties } = useCadStore();
+
+  const isPointConnected = (pt: Point2D, currentWallId: string) => {
+    return walls.some(w => {
+      if (w.id === currentWallId) return false;
+      const res = getClosestPointOnSegment(pt, w.p1, w.p2);
+      return res.distance <= 0.05; // tolerância de 5cm
+    });
+  };
+
+  const getDeviceWallThickness = (dev: Device) => {
+    if (!isEsquadria(dev.type)) return undefined;
+    
+    let minDistance = Infinity;
+    let snapWall: Wall | null = null;
+    walls.forEach(wall => {
+      const res = getClosestPointOnSegment(dev, wall.p1, wall.p2);
+      if (res.distance < minDistance) {
+        minDistance = res.distance;
+        snapWall = wall;
+      }
+    });
+    if (snapWall && minDistance <= 0.45) {
+      return (snapWall as Wall).thickness;
+    }
+    return undefined;
+  };
+
+  useEffect(() => {
+    if (stageRef.current) {
+      (window as any).cadStage = stageRef.current;
+    }
+    return () => {
+      (window as any).cadStage = null;
+    };
+  }, [stageRef.current]);
+
+  useEffect(() => {
+    if (!stageRef.current || !transformerRef.current) return;
+    if (selectedDeviceId) {
+      const node = stageRef.current.findOne('#' + selectedDeviceId);
+      if (node) {
+        transformerRef.current.nodes([node]);
+        transformerRef.current.getLayer().batchDraw();
+        return;
+      }
+    }
+    transformerRef.current.nodes([]);
+    transformerRef.current.getLayer()?.batchDraw();
+  }, [selectedDeviceId, devices]);
+
+  const isPanning = useRef(false);
+  const startPanPos = useRef<Point2D>({ x: 0, y: 0 });
+  const stageOffset = useRef<Point2D>({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (bgImageSrc) {
+      const img = new window.Image();
+      img.src = bgImageSrc;
+      img.onload = () => setImageObj(img);
+    } else {
+      setImageObj(null);
+    }
+  }, [bgImageSrc]);
+
+  useEffect(() => {
+    const { undo, redo, removeDevice: delDev, removeWall: delWall } = useCadStore.getState();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); return; }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); redo(); return; }
+
+      if (e.key === 'Escape') {
+        clearActiveWallPoints();
+        setConduitStartDeviceId(null);
+        clearSelection();
+        clearActiveDimensionPoints();
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const {
+          selectedDeviceId: sid,
+          selectedWallId: wid,
+          selectedGuideLineId: gid,
+          selectedTextId: tid,
+          selectedDimensionId: did,
+          removeGuideLine: delGuide,
+          removeText: delText,
+          removeDimension: delDim,
+        } = useCadStore.getState();
+        if (sid) delDev(sid);
+        if (wid) delWall(wid);
+        if (gid) delGuide(gid);
+        if (tid) delText(tid);
+        if (did) delDim(did);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [clearActiveWallPoints, clearSelection, clearActiveDimensionPoints]);
+
+  const handleWheel = (e: any) => {
+    e.evt.preventDefault();
+    const stage = stageRef.current;
+    if (!stage) return;
+    const oldScale = stage.scaleX();
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+    const mousePointTo = {
+      x: (pointer.x - stage.x()) / oldScale,
+      y: (pointer.y - stage.y()) / oldScale,
+    };
+    const scaleBy = 1.15;
+    const newScale = Math.max(0.05, Math.min(e.evt.deltaY < 0 ? oldScale * scaleBy : oldScale / scaleBy, 30));
+    stage.scale({ x: newScale, y: newScale });
+    const newPos = { x: pointer.x - mousePointTo.x * newScale, y: pointer.y - mousePointTo.y * newScale };
+    stage.position(newPos);
+    setZoom(newScale);
+    setPan(newPos);
+    stage.batchDraw();
+  };
+
+  const handleMouseDown = (e: any) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    if (e.evt.button === 1 || e.evt.button === 2) {
+      e.evt.preventDefault();
+      isPanning.current = true;
+      startPanPos.current = { x: e.evt.clientX, y: e.evt.clientY };
+      stageOffset.current = { x: stage.x(), y: stage.y() };
+    }
+  };
+
+  const handleMouseMove = (e: any) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    if (isPanning.current) {
+      const dx = e.evt.clientX - startPanPos.current.x;
+      const dy = e.evt.clientY - startPanPos.current.y;
+      const newPos = { x: stageOffset.current.x + dx, y: stageOffset.current.y + dy };
+      stage.position(newPos);
+      setPan(newPos);
+      stage.batchDraw();
+      return;
+    }
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+    const realPos = {
+      x: (pointer.x - stage.x()) / (ppm * zoom),
+      y: (pointer.y - stage.y()) / (ppm * zoom),
+    };
+    setMousePos(realPos);
+    
+    const { meterSpacing } = getGridConfig();
+    let snappedX = realPos.x;
+    let snappedY = realPos.y;
+    let snappedToGuideX = false;
+    let snappedToGuideY = false;
+
+    if (guideLines && guideLines.length > 0) {
+      guideLines.forEach(g => {
+        if (g.type === 'vertical') {
+          if (Math.abs(realPos.x - g.value) <= 0.15) {
+            snappedX = g.value;
+            snappedToGuideX = true;
+          }
+        } else if (g.type === 'horizontal') {
+          if (Math.abs(realPos.y - g.value) <= 0.15) {
+            snappedY = g.value;
+            snappedToGuideY = true;
+          }
+        }
+      });
+    }
+
+    if (!snappedToGuideX) {
+      snappedX = Math.round(realPos.x / meterSpacing) * meterSpacing;
+    }
+    if (!snappedToGuideY) {
+      snappedY = Math.round(realPos.y / meterSpacing) * meterSpacing;
+    }
+
+    const snappedPos = { x: snappedX, y: snappedY };
+    setSnappedMousePos(snappedPos);
+
+    if (currentTool === 'device' && selectedDeviceType) {
+      calculateDeviceSnap(realPos);
+    } else {
+      setDeviceSnapInfo(null);
+    }
+  };
+
+  const handleMouseUp = () => { isPanning.current = false; };
+
+  const calculateDeviceSnap = (mouseReal: Point2D) => {
+    const freeTypes = ['lampada', 'qdc', 'poste', 'medidor'];
+    if (freeTypes.includes(selectedDeviceType!)) {
+      setDeviceSnapInfo({ point: mouseReal, rotation: 0, isSnapped: false });
+      return;
+    }
+    let minDistance = Infinity;
+    let snapPos: Point2D = mouseReal;
+    let snapRotation = 0;
+    walls.forEach(wall => {
+      const res = getClosestPointOnSegment(mouseReal, wall.p1, wall.p2);
+      if (res.distance < minDistance) {
+        minDistance = res.distance;
+        snapPos = res.point;
+        if (isEsquadria(selectedDeviceType!)) {
+          snapRotation = res.angle; // Rotação paralela para esquadrias
+        } else {
+          const sideOffset = res.side > 0 ? 90 : -90;
+          snapRotation = res.angle + sideOffset; // Rotação perpendicular para tomadas/interruptores
+        }
+      }
+    });
+    const isSnapped = minDistance <= 0.45;
+    setDeviceSnapInfo({ point: isSnapped ? snapPos : mouseReal, rotation: isSnapped ? snapRotation : 0, isSnapped });
+  };
+
+  const handleStageClick = (e: any) => {
+    if (e.evt.button === 1 || e.evt.button === 2) {
+      e.evt.preventDefault();
+      if (e.evt.button === 2) {
+        if (currentTool === 'wall') clearActiveWallPoints();
+        else if (currentTool === 'conduit') setConduitStartDeviceId(null);
+        else if (currentTool === 'dimension') clearActiveDimensionPoints();
+      }
+      return;
+    }
+    const stage = stageRef.current;
+    if (!stage) return;
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+    const clickPixels = {
+      x: (pointer.x - stage.x()) / stage.scaleX(),
+      y: (pointer.y - stage.y()) / stage.scaleY(),
+    };
+    const clickMetres = { x: clickPixels.x / ppm, y: clickPixels.y / ppm };
+
+    if (isCalibrating) {
+      if (calibrationPoints.length < 2) {
+        addCalibrationPoint(clickPixels);
+        if (calibrationPoints.length === 1) {
+          const p1 = calibrationPoints[0];
+          const p2 = clickPixels;
+          setTimeout(() => {
+            const distPx = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+            const m = window.prompt(`Distância no canvas: ${distPx.toFixed(1)}px.\nDigite a distância real em metros:`);
+            if (m) {
+              const metros = parseFloat(m.replace(',', '.'));
+              if (!isNaN(metros) && metros > 0) setPpm(distPx / metros);
+            }
+            setIsCalibrating(false);
+          }, 100);
+        }
+      }
+      return;
+    }
+
+    if (currentTool === 'wall') {
+      const { meterSpacing } = getGridConfig();
+      const snapped = snapToGrid(clickMetres, meterSpacing);
+      if (activeWallPoints.length === 0) {
+        addActiveWallPoint(snapped);
+      } else {
+        const p1 = activeWallPoints[0];
+        if (p1.x !== snapped.x || p1.y !== snapped.y) {
+          addWall(p1, snapped, 0.15);
+          clearActiveWallPoints();
+          addActiveWallPoint(snapped);
+        }
+      }
+      return;
+    }
+
+    if (currentTool === 'guide_line') {
+      const { meterSpacing } = getGridConfig();
+      const snapped = snapToGrid(clickMetres, meterSpacing);
+      addGuideLine(selectedGuideType, selectedGuideType === 'vertical' ? snapped.x : snapped.y);
+      return;
+    }
+
+    if (currentTool === 'text') {
+      const textVal = window.prompt('Digite o texto da anotação:');
+      if (textVal && textVal.trim() !== '') {
+        addText({
+          x: clickMetres.x,
+          y: clickMetres.y,
+          text: textVal.trim(),
+          fontSize: 14,
+        });
+      }
+      return;
+    }
+
+    if (currentTool === 'dimension') {
+      const { meterSpacing } = getGridConfig();
+      const snapped = snapToGrid(clickMetres, meterSpacing);
+      if (!activeDimensionPoints || activeDimensionPoints.length === 0) {
+        addActiveDimensionPoint(snapped);
+      } else {
+        const p1 = activeDimensionPoints[0];
+        if (p1.x !== snapped.x || p1.y !== snapped.y) {
+          addDimension(p1, snapped);
+          clearActiveDimensionPoints();
+        }
+      }
+      return;
+    }
+
+    if (currentTool === 'device' && selectedDeviceType && deviceSnapInfo) {
+      const powerMap: Record<string, number> = {
+        tomada_baixa: 100, tomada_media: 100, tomada_alta: 100, tomada_220: 1500,
+        lampada: 60, interruptor: 0, interruptor_duplo: 0,
+        qdc: 0, poste: 0, medidor: 0,
+      };
+      const voltageMap: Record<string, 127 | 220> = { tomada_220: 220 };
+      addDevice({
+        type: selectedDeviceType,
+        name: getDeviceFriendlyName(selectedDeviceType),
+        x: deviceSnapInfo.point.x,
+        y: deviceSnapInfo.point.y,
+        rotation: deviceSnapInfo.rotation,
+        power: powerMap[selectedDeviceType] ?? 100,
+        voltage: voltageMap[selectedDeviceType] ?? 127,
+      });
+      return;
+    }
+
+    if (currentTool === 'conduit') {
+      let clickedDevice: Device | null = null;
+      let minDist = Infinity;
+      devices.forEach(d => {
+        const dist = Math.sqrt(Math.pow(clickMetres.x - d.x, 2) + Math.pow(clickMetres.y - d.y, 2));
+        if (dist < 0.35 && dist < minDist) { minDist = dist; clickedDevice = d; }
+      });
+      if (clickedDevice) {
+        if (!conduitStartDeviceId) { setConduitStartDeviceId((clickedDevice as Device).id); }
+        else { addConduit(conduitStartDeviceId, (clickedDevice as Device).id); setConduitStartDeviceId(null); }
+      } else { setConduitStartDeviceId(null); }
+      return;
+    }
+
+    if (currentTool === 'select') {
+      let closestWallId: string | null = null;
+      let minDist = Infinity;
+      walls.forEach(wall => {
+        const res = getClosestPointOnSegment(clickMetres, wall.p1, wall.p2);
+        if (res.distance < wall.thickness * 1.2 && res.distance < minDist) {
+          minDist = res.distance;
+          closestWallId = wall.id;
+        }
+      });
+      if (closestWallId) {
+        setSelectedWallId(closestWallId);
+      } else {
+        clearSelection();
+      }
+    }
+  };
+
+  const getDeviceFriendlyName = (type: string): string => {
+    const names: Record<string, string> = {
+      tomada_baixa: 'Tomada Baixa 10A (0.3m)',
+      tomada_media: 'Tomada Média 10A (1.1m)',
+      tomada_alta: 'Tomada Alta 10A (2.2m)',
+      tomada_220: 'Tomada Específica 20A 220V',
+      interruptor: 'Interruptor Simples (1.1m)',
+      interruptor_duplo: 'Interruptor Duplo (1.1m)',
+      lampada: 'Ponto de Luz (Teto)',
+      qdc: 'Quadro de Distribuição (QDC)',
+      poste: 'Poste Padrão de Entrada',
+      medidor: 'Caixa de Medição Concessionária',
+    };
+    return names[type] ?? 'Dispositivo Elétrico';
+  };
+
+  const getGridConfig = () => {
+    let spacingMeters = 1.0;
+    const minPx = 40;
+    const pixPerMeter = ppm * zoom;
+    if (pixPerMeter < minPx) {
+      for (const r of [1, 2, 5, 10, 20, 50, 100]) {
+        if (pixPerMeter * r >= minPx) { spacingMeters = r; break; }
+      }
+    } else {
+      for (const s of [0.5, 0.2, 0.1, 0.05, 0.01]) {
+        if (pixPerMeter * s >= minPx) spacingMeters = s; else break;
+      }
+    }
+    return { spacing: spacingMeters * ppm, meterSpacing: spacingMeters };
+  };
+
+  const { spacing } = getGridConfig();
+
+  // ─── Grid técnico fino (sempre visível) ──────────────────────
+  const gridLines: React.ReactNode[] = [];
+  if (spacing > 0) {
+    const stageX = stageRef.current?.x() ?? pan.x;
+    const stageY = stageRef.current?.y() ?? pan.y;
+    const startX = Math.floor((-stageX / zoom) / spacing) * spacing;
+    const endX = startX + (width / zoom) + spacing * 2;
+    const startY = Math.floor((-stageY / zoom) / spacing) * spacing;
+    const endY = startY + (height / zoom) + spacing * 2;
+
+    for (let gx = startX; gx <= endX; gx += spacing) {
+      const m = Math.round(gx / ppm);
+      const isMajor = m % 5 === 0;
+      gridLines.push(
+        <Line key={`v-${gx}`}
+          points={[gx, startY, gx, endY]}
+          stroke={isMajor ? '#d4d4d8' : '#e5e7eb'}
+          strokeWidth={isMajor ? 0.6 : 0.3}
+          listening={false}
+        />
+      );
+    }
+    for (let gy = startY; gy <= endY; gy += spacing) {
+      const m = Math.round(gy / ppm);
+      const isMajor = m % 5 === 0;
+      gridLines.push(
+        <Line key={`h-${gy}`}
+          points={[startX, gy, endX, gy]}
+          stroke={isMajor ? '#d4d4d8' : '#e5e7eb'}
+          strokeWidth={isMajor ? 0.6 : 0.3}
+          listening={false}
+        />
+      );
+    }
+  }
+
+  const miterMap = computeMiterJoints(walls);
+
+  const wiringRouting = calculateWiringRouting(devices, conduits, circuits);
+
+  const cursorStyle = isCalibrating ? 'crosshair'
+    : currentTool === 'wall' || currentTool === 'conduit' ? 'crosshair'
+    : currentTool === 'device' ? 'cell'
+    : 'default';
+
+  const renderedWallsData = walls.map(wall => {
+    const miter = miterMap.get(wall.id);
+    const isSelected = selectedWallId === wall.id;
+    const strokeColor = isSelected ? '#0078d7' : '#475569';
+    const fillColor = isSelected ? 'rgba(0, 120, 215, 0.08)' : '#e2e8f0';
+    const sw = (isSelected ? 2.0 : 1.5) / zoom;
+
+    const L = Math.sqrt(Math.pow(wall.p2.x - wall.p1.x, 2) + Math.pow(wall.p2.y - wall.p1.y, 2));
+    if (L === 0) return null;
+    const dx = (wall.p2.x - wall.p1.x) / L;
+    const dy = (wall.p2.y - wall.p1.y) / L;
+
+    const vans = getWallVans(wall, devices);
+
+    const segments: { s1: number; s2: number }[] = [];
+    let lastPos = 0;
+    vans.forEach(v => {
+      if (v.start > lastPos + 0.01) {
+        segments.push({ s1: lastPos, s2: v.start });
+      }
+      lastPos = v.end;
+    });
+    if (L > lastPos + 0.01) {
+      segments.push({ s1: lastPos, s2: L });
+    }
+    if (segments.length === 0 && vans.length === 0) {
+      segments.push({ s1: 0, s2: L });
+    }
+
+    const segmentsPoints = segments.map((seg) => {
+      const subP1 = { x: wall.p1.x + seg.s1 * dx, y: wall.p1.y + seg.s1 * dy };
+      const subP2 = { x: wall.p1.x + seg.s2 * dx, y: wall.p1.y + seg.s2 * dy };
+
+      const nx = -dy * wall.thickness / 2;
+      const ny = dx * wall.thickness / 2;
+
+      let p1Top = { x: subP1.x + nx, y: subP1.y + ny };
+      let p1Bot = { x: subP1.x - nx, y: subP1.y - ny };
+      let p2Top = { x: subP2.x + nx, y: subP2.y + ny };
+      let p2Bot = { x: subP2.x - nx, y: subP2.y - ny };
+
+      if (seg.s1 === 0 && miter) {
+        p1Top = miter.p1Top;
+        p1Bot = miter.p1Bot;
+      }
+      if (seg.s2 === L && miter) {
+        p2Top = miter.p2Top;
+        p2Bot = miter.p2Bot;
+      }
+
+      const vertices = [
+        p1Top.x * ppm, p1Top.y * ppm,
+        p2Top.x * ppm, p2Top.y * ppm,
+        p2Bot.x * ppm, p2Bot.y * ppm,
+        p1Bot.x * ppm, p1Bot.y * ppm,
+      ];
+
+      return {
+        seg,
+        p1Top,
+        p1Bot,
+        p2Top,
+        p2Bot,
+        vertices,
+      };
+    });
+
+    return {
+      wall,
+      isSelected,
+      strokeColor,
+      fillColor,
+      sw,
+      segmentsPoints,
+      L,
+    };
+  }).filter(Boolean) as Array<{
+    wall: Wall;
+    isSelected: boolean;
+    strokeColor: string;
+    fillColor: string;
+    sw: number;
+    L: number;
+    segmentsPoints: Array<{
+      seg: { s1: number; s2: number };
+      p1Top: Point2D;
+      p1Bot: Point2D;
+      p2Top: Point2D;
+      p2Bot: Point2D;
+      vertices: number[];
+    }>;
+  }>;
+
+  return (
+    <Stage
+      ref={stageRef}
+      width={width}
+      height={height}
+      onWheel={handleWheel}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onClick={handleStageClick}
+      x={pan.x}
+      y={pan.y}
+      scaleX={zoom}
+      scaleY={zoom}
+      style={{ cursor: cursorStyle, display: 'block', background: paperSpaceActive ? '#e2e8f0' : '#ffffff' }}
+    >
+      <Layer>
+        <Rect
+          x={-10000 / zoom}
+          y={-10000 / zoom}
+          width={width / zoom + 20000 / zoom}
+          height={height / zoom + 20000 / zoom}
+          fill={paperSpaceActive ? '#f1f5f9' : '#ffffff'}
+          listening={false}
+        />
+
+        {!paperSpaceActive && gridLines}
+
+        {imageObj && (
+          <Image
+            image={imageObj}
+            x={bgImagePos.x}
+            y={bgImagePos.y}
+            scaleX={bgImageScale}
+            scaleY={bgImageScale}
+            opacity={0.45}
+            listening={!bgImageLock}
+            onDragEnd={(e) => setBgImagePos({ x: e.target.x(), y: e.target.y() })}
+          />
+        )}
+      </Layer>
+
+      <Layer>
+        {paperSpaceActive && (() => {
+          const dims = {
+            A0: { w: 1189, h: 841 },
+            A1: { w: 841, h: 594 },
+            A2: { w: 594, h: 420 },
+            A3: { w: 420, h: 297 },
+            A4: { w: 297, h: 210 },
+          };
+          const paperDim = dims[paperSize] || dims.A3;
+          const paperW = (paperDim.w * paperScale) / 1000;
+          const paperH = (paperDim.h * paperScale) / 1000;
+          const mLeft = (25 * paperScale) / 1000;
+          const mOther = ((paperSize === 'A4' ? 5 : 10) * paperScale) / 1000;
+          const stampW = (paperSize === 'A4' ? (paperDim.w - 25 - 5) : 175) * paperScale / 1000;
+          const stampH = 60 * paperScale / 1000;
+
+          return (
+            <Group
+              x={paperPos.x * ppm}
+              y={paperPos.y * ppm}
+              draggable={currentTool === 'select'}
+              onDragEnd={(e) => {
+                setPaperPos({ x: e.target.x() / ppm, y: e.target.y() / ppm });
+              }}
+            >
+              {/* Folha física branca com borda escura e sombra */}
+              <Rect
+                x={0}
+                y={0}
+                width={paperW * ppm}
+                height={paperH * ppm}
+                fill="#ffffff"
+                stroke="#cbd5e1"
+                strokeWidth={1.5 / zoom}
+                shadowColor="#000000"
+                shadowBlur={12}
+                shadowOpacity={0.12}
+                shadowOffset={{ x: 3, y: 3 }}
+              />
+              {/* Linha vermelha tracejada para representar área de corte física */}
+              <Rect
+                x={0}
+                y={0}
+                width={paperW * ppm}
+                height={paperH * ppm}
+                stroke="#ef4444"
+                strokeWidth={0.7 / zoom}
+                dash={[5, 5]}
+                listening={false}
+              />
+              {/* Margens internas regulamentadas pela ABNT */}
+              <Rect
+                x={mLeft * ppm}
+                y={mOther * ppm}
+                width={(paperW - mLeft - mOther) * ppm}
+                height={(paperH - 2 * mOther) * ppm}
+                stroke="#0f172a"
+                strokeWidth={1.8 / zoom}
+                listening={false}
+              />
+              {/* Carimbo / Selo ABNT no canto inferior direito */}
+              <Group x={(paperW - mOther - stampW) * ppm} y={(paperH - mOther - stampH) * ppm}>
+                <Rect
+                  x={0}
+                  y={0}
+                  width={stampW * ppm}
+                  height={stampH * ppm}
+                  fill="#f8fafc"
+                  stroke="#0f172a"
+                  strokeWidth={1.5 / zoom}
+                  listening={false}
+                />
+                {/* Linhas horizontais do selo */}
+                <Line points={[0, stampH * 0.35 * ppm, stampW * ppm, stampH * 0.35 * ppm]} stroke="#0f172a" strokeWidth={0.8 / zoom} listening={false} />
+                <Line points={[0, stampH * 0.7 * ppm, stampW * ppm, stampH * 0.7 * ppm]} stroke="#0f172a" strokeWidth={0.8 / zoom} listening={false} />
+                
+                {/* Linhas verticais da base do selo */}
+                <Line points={[stampW * 0.35 * ppm, stampH * 0.7 * ppm, stampW * 0.35 * ppm, stampH * ppm]} stroke="#0f172a" strokeWidth={0.8 / zoom} listening={false} />
+                <Line points={[stampW * 0.7 * ppm, stampH * 0.7 * ppm, stampW * 0.7 * ppm, stampH * ppm]} stroke="#0f172a" strokeWidth={0.8 / zoom} listening={false} />
+
+                {/* Textos Informativos */}
+                <Text
+                  text={`PROJETO: ${paperTitle}`}
+                  x={8}
+                  y={8}
+                  fontSize={Math.max(9, stampH * 0.08 * ppm)}
+                  fontStyle="bold"
+                  fill="#0f172a"
+                  listening={false}
+                />
+                <Text
+                  text={`PROPRIETÁRIO: ${paperOwner}`}
+                  x={8}
+                  y={stampH * 0.38 * ppm}
+                  fontSize={Math.max(7.5, stampH * 0.065 * ppm)}
+                  fill="#334155"
+                  listening={false}
+                />
+                <Text
+                  text={`RESP. TÉCNICO: ${paperDesigner}`}
+                  x={8}
+                  y={stampH * 0.54 * ppm}
+                  fontSize={Math.max(7.5, stampH * 0.065 * ppm)}
+                  fill="#334155"
+                  listening={false}
+                />
+                <Text
+                  text={`ESCALA: 1:${paperScale}`}
+                  x={8}
+                  y={stampH * 0.75 * ppm}
+                  fontSize={Math.max(7, stampH * 0.06 * ppm)}
+                  fill="#475569"
+                  listening={false}
+                />
+                <Text
+                  text={`DATA: ${paperDate}`}
+                  x={stampW * 0.38 * ppm}
+                  y={stampH * 0.75 * ppm}
+                  fontSize={Math.max(7, stampH * 0.06 * ppm)}
+                  fill="#475569"
+                  listening={false}
+                />
+                <Text
+                  text={`FOLHA: ${paperSheetNum}`}
+                  x={stampW * 0.73 * ppm}
+                  y={stampH * 0.75 * ppm}
+                  fontSize={Math.max(7, stampH * 0.06 * ppm)}
+                  fontStyle="bold"
+                  fill="#0f172a"
+                  listening={false}
+                />
+              </Group>
+            </Group>
+          );
+        })()}
+
+        {/* Renderização das Linhas de Guia (Construction Lines) */}
+        {guideLines && guideLines.map((g) => {
+          const isSelected = selectedGuideLineId === g.id;
+          const color = isSelected ? '#0078d7' : '#94a3b8';
+          const strokeW = (isSelected ? 2.0 : 1.0) / zoom;
+          const points = g.type === 'vertical'
+            ? [g.value * ppm, -10000, g.value * ppm, 10000]
+            : [-10000, g.value * ppm, 10000, g.value * ppm];
+
+          return (
+            <Line
+              key={g.id}
+              points={points}
+              stroke={color}
+              strokeWidth={strokeW}
+              dash={[6, 4]}
+              draggable={currentTool === 'select'}
+              onDragEnd={(e) => {
+                const node = e.target;
+                const deltaX = node.x() / ppm;
+                const deltaY = node.y() / ppm;
+                const { meterSpacing } = getGridConfig();
+
+                if (g.type === 'vertical') {
+                  const rawNewValue = g.value + deltaX;
+                  const snappedValue = Math.round(rawNewValue / meterSpacing) * meterSpacing;
+                  useCadStore.setState((s) => ({
+                    guideLines: s.guideLines.map(gl => gl.id === g.id ? { ...gl, value: snappedValue } : gl)
+                  }));
+                } else {
+                  const rawNewValue = g.value + deltaY;
+                  const snappedValue = Math.round(rawNewValue / meterSpacing) * meterSpacing;
+                  useCadStore.setState((s) => ({
+                    guideLines: s.guideLines.map(gl => gl.id === g.id ? { ...gl, value: snappedValue } : gl)
+                  }));
+                }
+                node.position({ x: 0, y: 0 });
+                node.getLayer()?.batchDraw();
+              }}
+              onClick={(e) => {
+                e.cancelBubble = true;
+                if (currentTool === 'select') {
+                  setSelectedGuideLineId(g.id);
+                }
+              }}
+              onMouseEnter={(e) => {
+                if (currentTool === 'select') {
+                  e.target.getStage()!.container().style.cursor = g.type === 'vertical' ? 'col-resize' : 'row-resize';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.target.getStage()!.container().style.cursor = cursorStyle;
+              }}
+            />
+          );
+        })}
+
+        {/* Renderização das Cotas Técnicas (Medidas) */}
+        {dimensions && dimensions.map((d) => {
+          const isSelected = selectedDimensionId === d.id;
+          const strokeColor = isSelected ? '#0078d7' : '#475569';
+          const textColor = isSelected ? '#0078d7' : '#1e293b';
+          const sw = (isSelected ? 2 : 1) / zoom;
+
+          const dx = d.p2.x - d.p1.x;
+          const dy = d.p2.y - d.p1.y;
+          const L = Math.sqrt(dx * dx + dy * dy);
+          if (L === 0) return null;
+
+          const angle = Math.atan2(dy, dx);
+          const angleDeg = angle * (180 / Math.PI);
+
+          const midX = (d.p1.x + d.p2.x) / 2 * ppm;
+          const midY = (d.p1.y + d.p2.y) / 2 * ppm;
+
+          let textRot = angleDeg;
+          if (textRot > 90 || textRot < -90) {
+            textRot += 180;
+          }
+
+          const tickLength = 6;
+
+          return (
+            <Group
+              key={d.id}
+              onClick={(e) => {
+                e.cancelBubble = true;
+                if (currentTool === 'select') {
+                  setSelectedDimensionId(d.id);
+                }
+              }}
+            >
+              {/* Linha principal de cota */}
+              <Line
+                points={[d.p1.x * ppm, d.p1.y * ppm, d.p2.x * ppm, d.p2.y * ppm]}
+                stroke={strokeColor}
+                strokeWidth={sw}
+              />
+
+              {/* Ticks oblíquos de cota */}
+              <Line
+                points={[
+                  d.p1.x * ppm - Math.cos(angle + Math.PI / 4) * tickLength,
+                  d.p1.y * ppm - Math.sin(angle + Math.PI / 4) * tickLength,
+                  d.p1.x * ppm + Math.cos(angle + Math.PI / 4) * tickLength,
+                  d.p1.y * ppm + Math.sin(angle + Math.PI / 4) * tickLength,
+                ]}
+                stroke={strokeColor}
+                strokeWidth={sw * 1.5}
+              />
+              <Line
+                points={[
+                  d.p2.x * ppm - Math.cos(angle + Math.PI / 4) * tickLength,
+                  d.p2.y * ppm - Math.sin(angle + Math.PI / 4) * tickLength,
+                  d.p2.x * ppm + Math.cos(angle + Math.PI / 4) * tickLength,
+                  d.p2.y * ppm + Math.sin(angle + Math.PI / 4) * tickLength,
+                ]}
+                stroke={strokeColor}
+                strokeWidth={sw * 1.5}
+              />
+
+              {/* Rótulo de distância com máscara de fundo */}
+              <Group x={midX} y={midY} rotation={textRot}>
+                <Rect
+                  x={-24}
+                  y={-8}
+                  width={48}
+                  height={16}
+                  fill="#ffffff"
+                  stroke={isSelected ? '#0078d7' : undefined}
+                  strokeWidth={0.5 / zoom}
+                  cornerRadius={2}
+                />
+                <Text
+                  text={`${L.toFixed(2)} m`}
+                  x={-24}
+                  y={-6}
+                  width={48}
+                  fontSize={10}
+                  fontFamily="Inter, sans-serif"
+                  fill={textColor}
+                  align="center"
+                  fontStyle="bold"
+                />
+              </Group>
+            </Group>
+          );
+        })}
+
+        {/* Preview da Cota Ativa em Desenho */}
+        {currentTool === 'dimension' && activeDimensionPoints && activeDimensionPoints.length === 1 && (
+          <Group>
+            <Line
+              points={[activeDimensionPoints[0].x * ppm, activeDimensionPoints[0].y * ppm, snappedMousePos.x * ppm, snappedMousePos.y * ppm]}
+              stroke="#2563eb"
+              strokeWidth={1.5}
+              dash={[4, 4]}
+            />
+            <Circle x={activeDimensionPoints[0].x * ppm} y={activeDimensionPoints[0].y * ppm} radius={4} fill="#2563eb" />
+            <Circle x={snappedMousePos.x * ppm} y={snappedMousePos.y * ppm} radius={4} fill="#2563eb" />
+          </Group>
+        )}
+
+        {/* Renderização das Anotações de Texto */}
+        {texts && texts.map((t) => {
+          const isSelected = selectedTextId === t.id;
+          return (
+            <Group
+              key={t.id}
+              x={t.x * ppm}
+              y={t.y * ppm}
+              draggable={currentTool === 'select'}
+              onDragEnd={(e) => {
+                const node = e.target;
+                updateTextPosition(t.id, node.x() / ppm, node.y() / ppm);
+                node.position({ x: 0, y: 0 });
+              }}
+              onClick={(e) => {
+                e.cancelBubble = true;
+                if (currentTool === 'select') {
+                  setSelectedTextId(t.id);
+                }
+              }}
+            >
+              <Text
+                text={t.text}
+                fontSize={t.fontSize || 14}
+                fontFamily="Inter, sans-serif"
+                fill={isSelected ? '#0078d7' : '#1e293b'}
+                fontStyle={isSelected ? 'bold' : 'normal'}
+                align="center"
+                verticalAlign="middle"
+              />
+              {isSelected && (
+                <Rect
+                  x={-4}
+                  y={-4}
+                  width={t.text.length * 8 + 8}
+                  height={24}
+                  stroke="#0078d7"
+                  strokeWidth={1 / zoom}
+                  dash={[3, 3]}
+                  listening={false}
+                />
+              )}
+            </Group>
+          );
+        })}
+
+        {/* Passagem 1: Contornos de paredes por baixo com espessura duplicada */}
+        {renderedWallsData.map((data) => {
+          const { wall, strokeColor, sw, segmentsPoints, L } = data;
+          return (
+            <Group key={`wall-contours-${wall.id}`} listening={false}>
+              {segmentsPoints.map((sp, idx) => {
+                const { seg, p1Top, p1Bot, p2Top, p2Bot } = sp;
+                return (
+                  <Group key={`${wall.id}-contour-${idx}`}>
+                    <Line
+                      points={[p1Top.x * ppm, p1Top.y * ppm, p2Top.x * ppm, p2Top.y * ppm]}
+                      stroke={strokeColor}
+                      strokeWidth={sw * 2}
+                      lineCap="square"
+                    />
+                    <Line
+                      points={[p1Bot.x * ppm, p1Bot.y * ppm, p2Bot.x * ppm, p2Bot.y * ppm]}
+                      stroke={strokeColor}
+                      strokeWidth={sw * 2}
+                      lineCap="square"
+                    />
+                    {(seg.s1 > 0 || !isPointConnected(wall.p1, wall.id)) && (
+                      <Line
+                        points={[p1Top.x * ppm, p1Top.y * ppm, p1Bot.x * ppm, p1Bot.y * ppm]}
+                        stroke={strokeColor}
+                        strokeWidth={sw * 2}
+                        lineCap="square"
+                      />
+                    )}
+                    {(seg.s2 < L || !isPointConnected(wall.p2, wall.id)) && (
+                      <Line
+                        points={[p2Top.x * ppm, p2Top.y * ppm, p2Bot.x * ppm, p2Bot.y * ppm]}
+                        stroke={strokeColor}
+                        strokeWidth={sw * 2}
+                        lineCap="square"
+                      />
+                    )}
+                  </Group>
+                );
+              })}
+            </Group>
+          );
+        })}
+
+        {/* Passagem 2: Preenchimentos sólidos por cima para fundir quinas divisórias */}
+        {renderedWallsData.map((data) => {
+          const { wall, fillColor, segmentsPoints } = data;
+
+          const clickHandler = (e: any) => {
+            e.cancelBubble = true;
+            if (currentTool === 'select') setSelectedWallId(wall.id);
+          };
+          const enterHandler = (e: any) => {
+            if (currentTool === 'select') e.target.getStage()!.container().style.cursor = 'pointer';
+          };
+          const leaveHandler = (e: any) => {
+            e.target.getStage()!.container().style.cursor = cursorStyle;
+          };
+
+          return (
+            <Group
+              key={`wall-fills-${wall.id}`}
+              draggable={currentTool === 'select'}
+              onDragEnd={(e) => {
+                const node = e.target;
+                const dx = node.x() / ppm;
+                const dy = node.y() / ppm;
+
+                const { meterSpacing } = getGridConfig();
+                const newP1 = snapToGrid({ x: wall.p1.x + dx, y: wall.p1.y + dy }, meterSpacing);
+                const newP2 = snapToGrid({ x: wall.p2.x + dx, y: wall.p2.y + dy }, meterSpacing);
+
+                updateWall(wall.id, { p1: newP1, p2: newP2 });
+                node.position({ x: 0, y: 0 });
+                node.getLayer()?.batchDraw();
+              }}
+            >
+              {segmentsPoints.map((sp, idx) => {
+                return (
+                  <Line
+                    key={`${wall.id}-fill-${idx}`}
+                    points={sp.vertices}
+                    closed
+                    fill={fillColor}
+                    stroke={undefined}
+                    onClick={clickHandler}
+                    onMouseEnter={enterHandler}
+                    onMouseLeave={leaveHandler}
+                  />
+                );
+              })}
+            </Group>
+          );
+        })}
+
+        {/* Passagem 3: Highlight da parede selecionada desenhada por cima de tudo em azul */}
+        {renderedWallsData.filter(d => d.isSelected).map((data) => {
+          const { wall, sw, segmentsPoints, L } = data;
+          return (
+            <Group key={`wall-highlight-${wall.id}`} listening={false}>
+              {segmentsPoints.map((sp, idx) => {
+                const { seg, p1Top, p1Bot, p2Top, p2Bot } = sp;
+                return (
+                  <Group key={`${wall.id}-hl-${idx}`}>
+                    <Line
+                      points={[p1Top.x * ppm, p1Top.y * ppm, p2Top.x * ppm, p2Top.y * ppm]}
+                      stroke="#0078d7"
+                      strokeWidth={sw}
+                      lineCap="square"
+                    />
+                    <Line
+                      points={[p1Bot.x * ppm, p1Bot.y * ppm, p2Bot.x * ppm, p2Bot.y * ppm]}
+                      stroke="#0078d7"
+                      strokeWidth={sw}
+                      lineCap="square"
+                    />
+                    {(seg.s1 > 0 || !isPointConnected(wall.p1, wall.id)) && (
+                      <Line
+                        points={[p1Top.x * ppm, p1Top.y * ppm, p1Bot.x * ppm, p1Bot.y * ppm]}
+                        stroke="#0078d7"
+                        strokeWidth={sw}
+                        lineCap="square"
+                      />
+                    )}
+                    {(seg.s2 < L || !isPointConnected(wall.p2, wall.id)) && (
+                      <Line
+                        points={[p2Top.x * ppm, p2Top.y * ppm, p2Bot.x * ppm, p2Bot.y * ppm]}
+                        stroke="#0078d7"
+                        strokeWidth={sw}
+                        lineCap="square"
+                      />
+                    )}
+                  </Group>
+                );
+              })}
+            </Group>
+          );
+        })}
+
+        {conduits.map((conduit) => {
+          const fromDev = devices.find(d => d.id === conduit.fromDeviceId);
+          const toDev = devices.find(d => d.id === conduit.toDeviceId);
+          if (!fromDev || !toDev) return null;
+          const p1 = { x: fromDev.x * ppm, y: fromDev.y * ppm };
+          const p2 = { x: toDev.x * ppm, y: toDev.y * ppm };
+          const curve = getConduitPoints(p1, p2);
+          const wires = wiringRouting[conduit.id] || [];
+          return (
+            <Group key={conduit.id}>
+              <Line
+                points={curve.points}
+                stroke="#6b7280"
+                strokeWidth={2.5}
+                tension={0.4}
+                opacity={0.85}
+                onClick={(e) => {
+                  e.cancelBubble = true;
+                  if (currentTool === 'select') {
+                    if (window.confirm('Deseja remover este eletroduto?')) removeConduit(conduit.id);
+                  }
+                }}
+                onMouseEnter={(e) => { e.target.getStage()!.container().style.cursor = 'pointer'; }}
+                onMouseLeave={(e) => { e.target.getStage()!.container().style.cursor = cursorStyle; }}
+              />
+              {wires.length > 0 && (
+                <Group x={curve.midPoint.x} y={curve.midPoint.y} rotation={curve.angle}>
+                  <Circle radius={10 * Math.max(1, wires.length)} fill="rgba(240,240,240,0.9)" opacity={0.9} listening={false} />
+                  {wires.map((wire, wIdx) => {
+                    const elements: React.ReactNode[] = [];
+                    const xOffset = (wIdx - (wires.length - 1) / 2) * 16;
+                    let off = -((wire.phase + wire.neutral + wire.ground + wire.ret - 1) * 4) / 2;
+                    for (let i = 0; i < wire.phase; i++) {
+                      elements.push(<Line key={`f-${wIdx}-${i}`} points={[xOffset + off, -6, xOffset + off, 6]} stroke="#dc2626" strokeWidth={1.5} listening={false} />);
+                      off += 4;
+                    }
+                    for (let i = 0; i < wire.neutral; i++) {
+                      elements.push(<Line key={`n-${wIdx}-${i}`} points={[xOffset + off, 0, xOffset + off, -6, xOffset + off + 3, -6]} stroke="#2563eb" strokeWidth={1.5} listening={false} />);
+                      off += 4;
+                    }
+                    for (let i = 0; i < wire.ground; i++) {
+                      elements.push(<Group key={`g-${wIdx}-${i}`} x={xOffset + off} y={0} listening={false}><Line points={[0, 0, 0, -6]} stroke="#16a34a" strokeWidth={1.5} /><Line points={[-3, -6, 3, -6]} stroke="#16a34a" strokeWidth={1.5} /></Group>);
+                      off += 4;
+                    }
+                    for (let i = 0; i < wire.ret; i++) {
+                      elements.push(<Line key={`r-${wIdx}-${i}`} points={[xOffset + off, 0, xOffset + off, -4]} stroke="#ca8a04" strokeWidth={1.5} listening={false} />);
+                      off += 4;
+                    }
+                    elements.push(<Text key={`lbl-${wIdx}`} text={wire.circuitNumber.toString()} x={xOffset - 4} y={8} fontSize={8} fill="#374151" fontStyle="bold" align="center" listening={false} />);
+                    return elements;
+                  })}
+                </Group>
+              )}
+            </Group>
+          );
+        })}
+
+        {currentTool === 'conduit' && conduitStartDeviceId && (() => {
+          const startDev = devices.find(d => d.id === conduitStartDeviceId);
+          if (!startDev) return null;
+          return (
+            <Line
+              points={[startDev.x * ppm, startDev.y * ppm, mousePos.x * ppm, mousePos.y * ppm]}
+              stroke="#eab308"
+              strokeWidth={2}
+              dash={[4, 4]}
+              opacity={0.8}
+            />
+          );
+        })()}
+
+        {devices.map((dev) => (
+          <DeviceSymbol
+            key={dev.id}
+            id={dev.id}
+            type={dev.type}
+            x={dev.x * ppm}
+            y={dev.y * ppm}
+            rotation={dev.rotation}
+            ppm={ppm}
+            zoom={zoom}
+            isSelected={selectedDeviceId === dev.id}
+            currentTool={currentTool}
+            wallThickness={getDeviceWallThickness(dev)}
+            draggable={currentTool === 'select'}
+            width={dev.width}
+            modules={dev.modules}
+            onClick={(e) => {
+              e.cancelBubble = true;
+              if (currentTool === 'select') setSelectedDeviceId(dev.id);
+            }}
+            onDragEnd={(e) => {
+              const node = e.target;
+              const newX = node.x() / ppm;
+              const newY = node.y() / ppm;
+
+              const freeTypes = ['lampada', 'qdc', 'poste', 'medidor'];
+              let finalX = newX;
+              let finalY = newY;
+              let finalRotation = dev.rotation;
+
+              if (!freeTypes.includes(dev.type)) {
+                let minDistance = Infinity;
+                let snapPos: Point2D = { x: newX, y: newY };
+                let snapRotation = dev.rotation;
+
+                walls.forEach(wall => {
+                  const res = getClosestPointOnSegment({ x: newX, y: newY }, wall.p1, wall.p2);
+                  if (res.distance < minDistance) {
+                    minDistance = res.distance;
+                    snapPos = res.point;
+                    if (isEsquadria(dev.type)) {
+                      snapRotation = res.angle; // Rotação paralela
+                    } else {
+                      const sideOffset = res.side > 0 ? 90 : -90;
+                      snapRotation = res.angle + sideOffset; // Rotação perpendicular
+                    }
+                  }
+                });
+
+                if (minDistance <= 0.45) {
+                  finalX = snapPos.x;
+                  finalY = snapPos.y;
+                  finalRotation = snapRotation;
+                }
+              }
+
+              updateDeviceProperties(dev.id, {
+                x: finalX,
+                y: finalY,
+                rotation: finalRotation,
+              });
+            }}
+          />
+        ))}
+
+        <Transformer
+          ref={transformerRef}
+          rotateEnabled={true}
+          resizeEnabled={false}
+          borderDash={[3, 3]}
+          anchorStroke="#0078d7"
+          anchorFill="#ffffff"
+          anchorSize={6}
+          borderStroke="#0078d7"
+          onTransformEnd={(e) => {
+            if (selectedDeviceId) {
+              const node = e.target;
+              updateDeviceProperties(selectedDeviceId, {
+                rotation: node.rotation(),
+              });
+            }
+          }}
+        />
+
+        {currentTool === 'wall' && activeWallPoints.length === 1 && (
+          <Group>
+            <Line
+              points={[activeWallPoints[0].x * ppm, activeWallPoints[0].y * ppm, snappedMousePos.x * ppm, snappedMousePos.y * ppm]}
+              stroke="#2563eb"
+              strokeWidth={2}
+              dash={[5, 5]}
+            />
+            <Line
+              points={getWallVertices({
+                id: 'preview', p1: activeWallPoints[0], p2: snappedMousePos,
+                thickness: 0.15, height: 2.8, material: 'alvenaria',
+              }).map(v => v * ppm)}
+              closed
+              fill="rgba(148,163,184,0.4)"
+              stroke="#2563eb"
+              strokeWidth={1.5}
+              opacity={0.7}
+            />
+            <Circle x={snappedMousePos.x * ppm} y={snappedMousePos.y * ppm} radius={5} fill="#2563eb" />
+            <Circle x={activeWallPoints[0].x * ppm} y={activeWallPoints[0].y * ppm} radius={5} fill="#2563eb" />
+          </Group>
+        )}
+
+        {currentTool === 'device' && selectedDeviceType && deviceSnapInfo && (
+          <Group opacity={0.65}>
+            <DeviceSymbol
+              id="preview"
+              type={selectedDeviceType}
+              x={deviceSnapInfo.point.x * ppm}
+              y={deviceSnapInfo.point.y * ppm}
+              rotation={deviceSnapInfo.rotation}
+              ppm={ppm}
+              zoom={zoom}
+              isSelected={false}
+            />
+            {deviceSnapInfo.isSnapped && (
+              <Circle
+                x={deviceSnapInfo.point.x * ppm}
+                y={deviceSnapInfo.point.y * ppm}
+                radius={8}
+                stroke="#16a34a"
+                strokeWidth={1.5}
+                dash={[2, 2]}
+              />
+            )}
+          </Group>
+        )}
+
+        {calibrationPoints.map((pt, idx) => (
+          <React.Fragment key={`cal-${idx}`}>
+            <Circle x={pt.x} y={pt.y} radius={6} fill="#eab308" stroke="#374151" strokeWidth={1.5} />
+            {idx === 1 && (
+              <Line points={[calibrationPoints[0].x, calibrationPoints[0].y, pt.x, pt.y]} stroke="#eab308" strokeWidth={2} dash={[5, 5]} />
+            )}
+          </React.Fragment>
+        ))}
+      </Layer>
+    </Stage>
+  );
+};

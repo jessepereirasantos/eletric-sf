@@ -1,0 +1,16 @@
+# Pastas de Dependências
+node_modules/
+
+# Arquivos de Variáveis de Ambiente e Logs
+.env
+.env.local
+.env.development.local
+.env.production.local
+*.log
+npm-debug.log*
+
+# Arquivos de Configuração de IDEs e SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

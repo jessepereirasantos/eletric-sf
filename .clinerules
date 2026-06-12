@@ -1,0 +1,49 @@
+# Regras Estritas do Sistema - eletric-sf
+
+Este arquivo estabelece as regras de desenvolvimento que devem ser seguidas de forma rigorosa e inquebrável em todas as interações e fases deste projeto.
+
+---
+
+## 1. Citação de Skills e Modos de Operação
+- **Regra:** É estritamente obrigatório citar e descrever qual skill de front-end, back-end ou sistema está sendo utilizada/ativada ANTES de executar qualquer ação externa (criação de arquivos, comandos de compilação ou instalação).
+- **Lista de Skills Centrais:**
+  - *Front-End:* `react-best-practices`, `react-patterns`, `zustand-store-ts`, `canvas-design` (Konva), `threejs-skills` (Three.js), `react-flow-architect` (Unifilar).
+  - *Back-End & DB:* `nodejs-best-practices`, `backend-architect`, `database-design`, `sql-pro`.
+  - *Tipagem & Auxiliares:* `typescript-expert`, `typescript-pro`, `similarity-search-patterns`.
+
+---
+
+## 2. Blindagem Visual Estrita
+- **Paleta de Cores e Estilo Visual:** Adotamos um padrão visual de engenharia sóbrio, limpo e de altíssima legibilidade.
+  - **Fundo (Dark Mode):** `#0f172a` (Slate 900) ou `#1e293b` (Slate 800) para áreas de trabalho e painéis.
+  - **Fundo (Light Mode):** `#f8fafc` (Slate 50) ou `#f1f5f9` (Slate 100).
+  - **Canvas CAD:** Tons de cinza escuro ou preto clássico de AutoCAD para máxima legibilidade de traçados elétricos.
+  - **Acentos e Destaques:** Cores sólidas normativas:
+    *   *Fase:* Vermelho ou Preto.
+    *   *Neutro:* Azul Claro.
+    *   *Terra:* Verde ou Verde-Amarelo.
+    *   *Retorno:* Amarelo ou Cinza.
+- **Tipografia:** Uso exclusivo de fontes limpas de largura constante ou sans-serif moderna (ex: `Inter` ou `Fira Code` para coordenadas e dados).
+- **Imutabilidade Visual:** Temas, cores, paddings, margens e fontes, uma vez validados pelo usuário, não podem ser alterados nas refatorações seguintes sob nenhuma circunstância.
+
+---
+
+## 3. Tipagem Estrita no TypeScript
+- **Regra:** É proibido o uso de `any` ou tipos implícitos. Todas as estruturas de dados elétricos e físicos devem usar interfaces estritas definidas globalmente.
+- **Estruturas Obrigatórias:**
+  - **Condutor (Cable):** Deve conter `bitola (crossSection: number)`, `material: 'cobre' | 'aluminio'`, `isolamento: 'PVC' | 'EPR'`, `capacidadeConducao: number` e `circuitoId: string`.
+  - **Circuito (Circuit):** Deve conter `numero: number`, `tensao: 127 | 220 | 380`, `correnteProjeto: number`, `correnteDisjuntor: number`, `quedaTensaoMax: number` e `dispositivos: string[]`.
+  - **Dispositivo (Device):** Coordenadas tridimensionais estritas `posX: number`, `posY: number`, `posZ: number` e propriedades de carga (`potencia: number`, `fase: 'R' | 'S' | 'T'`).
+
+---
+
+## 4. Imutabilidade de Funcionalidades CAD
+- **Regra:** Se uma funcionalidade CAD (ex: algoritmo de snap, desenho de parede ou cálculo de bitola) foi testada e aprovada pelo usuário, ela torna-se **imutável**.
+- **Refatoração Proibida:** É proibido refatorar ou reescrever funções de controle CAD 2D/3D já validadas a menos que haja um pedido explícito de correção de bug ou melhoria de performance devidamente aprovado pelo usuário.
+
+---
+
+## 5. Validação com Testes Reais
+- **Regra:** Nenhuma entrega ou validação de código pode ser finalizada baseada apenas em "revisão estática".
+- **Execução:** O assistente deve programar e realizar **testes reais no navegador** usando o plugin de testes automatizados/navegador (Chrome DevTools ou Browser Subagent), gerando logs reais ou prints do navegador antes de apresentar a validação ao usuário.
+- **Relatório de Testes:** Todo avanço deve ser acompanhado de um relatório contendo a prova de que o código executou com sucesso no ambiente e respondeu adequadamente às interações no browser.
