@@ -7,6 +7,10 @@
       "destination": "/api/test-env.ts"
     },
     {
+      "source": "/api/test-import",
+      "destination": "/api/test-import.ts"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index.ts"
     }
