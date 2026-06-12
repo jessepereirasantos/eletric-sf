@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.initializeDatabase = exports.saveFallbackData = exports.getFallbackData = exports.initializeFallbackFile = exports.useLocalFallback = void 0;
+exports.getConnectionSafe = exports.initializeDatabase = exports.saveFallbackData = exports.getFallbackData = exports.initializeFallbackFile = exports.useLocalFallback = void 0;
 const promise_1 = __importDefault(require("mysql2/promise"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const promises_1 = __importDefault(require("fs/promises"));
@@ -18,7 +18,12 @@ const pool = promise_1.default.createPool({
     port: 3306,
     waitForConnections: true,
     connectionLimit: 10,
-    queueLimit: 0
+    queueLimit: 0,
+    connectTimeout: 5000 // Limita espera de conexão a 5 segundos
+});
+// Adiciona listener de erro no pool para evitar quedas da função na Vercel
+pool.on('error', (err) => {
+    console.error('[Banco de Dados] Erro assíncrono inesperado no pool do MySQL:', err);
 });
 // Flag global de modo de banco de dados
 exports.useLocalFallback = false;
@@ -86,4 +91,19 @@ const initializeDatabase = async () => {
     }
 };
 exports.initializeDatabase = initializeDatabase;
+const getConnectionSafe = async () => {
+    if (exports.useLocalFallback) {
+        throw new Error('MODO_FALLBACK');
+    }
+    try {
+        return await pool.getConnection();
+    }
+    catch (error) {
+        console.warn('[Banco de Dados] Erro ao obter conexão, ativando Fallback Local:', error.message);
+        exports.useLocalFallback = true;
+        await (0, exports.initializeFallbackFile)();
+        throw new Error('MODO_FALLBACK');
+    }
+};
+exports.getConnectionSafe = getConnectionSafe;
 exports.default = pool;

@@ -43,8 +43,8 @@ if (process.env.NODE_ENV === 'production') {
 }
 // Inicializar banco e abrir porta do servidor se não estiver na Vercel
 const startServer = async () => {
-    await (0, database_1.initializeDatabase)();
     if (!process.env.VERCEL) {
+        await (0, database_1.initializeDatabase)();
         app.listen(PORT, () => {
             console.log(`[servidor] Rodando na porta ${PORT}`);
         });

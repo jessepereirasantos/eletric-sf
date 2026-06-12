@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import pool, { useLocalFallback, getFallbackData, saveFallbackData } from '../config/database';
+import pool, { useLocalFallback, getFallbackData, saveFallbackData, getConnectionSafe } from '../config/database';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'eletric_sf_super_secret_key_123';
@@ -15,54 +15,55 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  // MODO FALLBACK LOCAL (Salvamento em Arquivo)
-  if (useLocalFallback) {
-    try {
-      const data = await getFallbackData();
-      const existing = data.users.find((u: any) => u.email === email);
-      if (existing) {
-        res.status(400).json({ success: false, message: 'Este e-mail já está cadastrado.' });
-        return;
-      }
+  const registerLocal = async () => {
+    const data = await getFallbackData();
+    const existing = data.users.find((u: any) => u.email === email);
+    if (existing) {
+      res.status(400).json({ success: false, message: 'Este e-mail já está cadastrado.' });
+      return;
+    }
 
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
-      const newUserId = Date.now();
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    const newUserId = Date.now();
 
-      const newUser = {
+    const newUser = {
+      id: newUserId,
+      name,
+      email,
+      password: hashedPassword,
+      created_at: new Date().toISOString()
+    };
+
+    data.users.push(newUser);
+    await saveFallbackData(data);
+
+    const token = jwt.sign({ id: newUserId, email }, JWT_SECRET, { expiresIn: '7d' });
+
+    res.status(201).json({
+      success: true,
+      message: 'Usuário registrado com sucesso (Modo Local)!',
+      token,
+      user: {
         id: newUserId,
         name,
-        email,
-        password: hashedPassword,
-        created_at: new Date().toISOString()
-      };
+        email
+      }
+    });
+  };
 
-      data.users.push(newUser);
-      await saveFallbackData(data);
-
-      const token = jwt.sign({ id: newUserId, email }, JWT_SECRET, { expiresIn: '7d' });
-
-      res.status(201).json({
-        success: true,
-        message: 'Usuário registrado com sucesso (Modo Local)!',
-        token,
-        user: {
-          id: newUserId,
-          name,
-          email
-        }
-      });
+  if (useLocalFallback) {
+    try {
+      await registerLocal();
       return;
-    } catch (error: any) {
-      console.error('[Auth register local] Erro:', error);
-      res.status(500).json({ success: false, message: 'Erro no banco local ao registrar usuário.', error: error.message });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: 'Erro no banco local ao registrar usuário.', error: err.message });
       return;
     }
   }
 
-  // MODO PRODUÇÃO (MySQL Real)
   try {
-    const connection = await pool.getConnection();
+    const connection = await getConnectionSafe();
 
     // Verifica se usuário já existe
     const [existingUsers] = await connection.query<any[]>(
@@ -104,6 +105,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       }
     });
   } catch (error: any) {
+    if (error.message === 'MODO_FALLBACK') {
+      try {
+        await registerLocal();
+        return;
+      } catch (err: any) {
+        res.status(500).json({ success: false, message: 'Erro no banco local ao registrar usuário.', error: err.message });
+        return;
+      }
+    }
     console.error('[Auth register] Erro:', error);
     res.status(500).json({ success: false, message: 'Erro no servidor ao registrar usuário.', error: error.message });
   }
@@ -118,46 +128,47 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  // MODO FALLBACK LOCAL (Leitura em Arquivo)
+  const loginLocal = async () => {
+    const data = await getFallbackData();
+    const user = data.users.find((u: any) => u.email === email);
+
+    if (!user) {
+      res.status(400).json({ success: false, message: 'Credenciais inválidas. E-mail não encontrado.' });
+      return;
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      res.status(400).json({ success: false, message: 'Credenciais inválidas. Senha incorreta.' });
+      return;
+    }
+
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+
+    res.json({
+      success: true,
+      message: 'Login realizado com sucesso (Modo Local)!',
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email
+      }
+    });
+  };
+
   if (useLocalFallback) {
     try {
-      const data = await getFallbackData();
-      const user = data.users.find((u: any) => u.email === email);
-
-      if (!user) {
-        res.status(400).json({ success: false, message: 'Credenciais inválidas. E-mail não encontrado.' });
-        return;
-      }
-
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
-        res.status(400).json({ success: false, message: 'Credenciais inválidas. Senha incorreta.' });
-        return;
-      }
-
-      const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-
-      res.json({
-        success: true,
-        message: 'Login realizado com sucesso (Modo Local)!',
-        token,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email
-        }
-      });
+      await loginLocal();
       return;
-    } catch (error: any) {
-      console.error('[Auth login local] Erro:', error);
-      res.status(500).json({ success: false, message: 'Erro no banco local ao efetuar login.', error: error.message });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: 'Erro no banco local ao efetuar login.', error: err.message });
       return;
     }
   }
 
-  // MODO PRODUÇÃO (MySQL Real)
   try {
-    const connection = await pool.getConnection();
+    const connection = await getConnectionSafe();
 
     // Busca usuário pelo e-mail
     const [users] = await connection.query<any[]>(
@@ -198,6 +209,15 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       }
     });
   } catch (error: any) {
+    if (error.message === 'MODO_FALLBACK') {
+      try {
+        await loginLocal();
+        return;
+      } catch (err: any) {
+        res.status(500).json({ success: false, message: 'Erro no banco local ao efetuar login.', error: err.message });
+        return;
+      }
+    }
     console.error('[Auth login] Erro:', error);
     res.status(500).json({ success: false, message: 'Erro no servidor ao efetuar login.', error: error.message });
   }

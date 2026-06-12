@@ -14,7 +14,13 @@ const pool = mysql.createPool({
   port: 3306,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  connectTimeout: 5000 // Limita espera de conexão a 5 segundos
+});
+
+// Adiciona listener de erro no pool para evitar quedas da função na Vercel
+(pool as any).on('error', (err: any) => {
+  console.error('[Banco de Dados] Erro assíncrono inesperado no pool do MySQL:', err);
 });
 
 // Flag global de modo de banco de dados
@@ -83,6 +89,20 @@ export const initializeDatabase = async () => {
     console.warn('[Banco de Dados] Não foi possível conectar ao MySQL local/remoto:', error.message);
     console.warn('[Banco de Dados] MODO ATIVO: Fallback Local (Armazenando em server/db_fallback.json).');
     await initializeFallbackFile();
+  }
+};
+
+export const getConnectionSafe = async () => {
+  if (useLocalFallback) {
+    throw new Error('MODO_FALLBACK');
+  }
+  try {
+    return await pool.getConnection();
+  } catch (error: any) {
+    console.warn('[Banco de Dados] Erro ao obter conexão, ativando Fallback Local:', error.message);
+    useLocalFallback = true;
+    await initializeFallbackFile();
+    throw new Error('MODO_FALLBACK');
   }
 };
 
