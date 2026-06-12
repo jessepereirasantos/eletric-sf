@@ -21,7 +21,9 @@ const pool = mysql.createPool({
 export let useLocalFallback = false;
 
 // Caminho do arquivo de banco de dados simulado local
-const fallbackFilePath = path.join(__dirname, '../../../db_fallback.json');
+const fallbackFilePath = process.env.VERCEL
+  ? path.join('/tmp', 'db_fallback.json')
+  : path.join(__dirname, '../../../db_fallback.json');
 
 export const initializeFallbackFile = async () => {
   try {

@@ -23,7 +23,9 @@ const pool = promise_1.default.createPool({
 // Flag global de modo de banco de dados
 exports.useLocalFallback = false;
 // Caminho do arquivo de banco de dados simulado local
-const fallbackFilePath = path_1.default.join(__dirname, '../../../db_fallback.json');
+const fallbackFilePath = process.env.VERCEL
+    ? path_1.default.join('/tmp', 'db_fallback.json')
+    : path_1.default.join(__dirname, '../../../db_fallback.json');
 const initializeFallbackFile = async () => {
     try {
         await promises_1.default.access(fallbackFilePath);
