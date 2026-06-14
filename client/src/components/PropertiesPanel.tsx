@@ -336,6 +336,24 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
         </div>
       )}
 
+      {/* Letra do Comando (apenas para interruptores e lâmpadas) */}
+      {(isInterruptor || isLampada) && (
+        <div className="props-field">
+          <label>Letra do Comando (Acionamento)</label>
+          <input
+            type="text"
+            className="props-input"
+            maxLength={5}
+            value={device.commandLetter ?? ''}
+            onChange={e => update({ commandLetter: e.target.value.toLowerCase() })}
+            placeholder="Ex: a, b, c..."
+          />
+          <div className="props-hint">
+            Letra que vincula o interruptor ao ponto de luz correspondente.
+          </div>
+        </div>
+      )}
+
       {/* Seção de Módulos da Caixa Elétrica (Modularidade) */}
       {isModular && (
         <div className="props-field" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '12px' }}>

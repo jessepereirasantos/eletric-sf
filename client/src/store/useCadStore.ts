@@ -39,6 +39,7 @@ export interface Device {
   modules?: string[];
   width?: number; // Largura paramétrica em metros
   flip?: boolean;  // Sentido de abertura (True = Esquerda, False/undefined = Direita)
+  commandLetter?: string; // Letra do comando (acionamento de iluminação)
 }
 
 export interface Circuit {

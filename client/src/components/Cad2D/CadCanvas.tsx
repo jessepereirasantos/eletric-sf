@@ -146,6 +146,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
   const [snappedWallPoint, setSnappedWallPoint] = useState<Point2D | null>(null);
   const [doorCycle, setDoorCycle] = useState<number>(0);
   const [activeHandle, setActiveHandle] = useState<{ wallId: string; pointKey: 'p1' | 'p2' } | null>(null);
+  const [conduitSnapDevice, setConduitSnapDevice] = useState<Device | null>(null);
 
   const { updateDeviceProperties, setBgImageScale } = useCadStore();
 
@@ -414,6 +415,32 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     setMousePos(realPos);
     
     const tolerance = 12 / (ppm * zoom);
+
+    // Se estivermos na ferramenta de eletroduto manual
+    if (currentTool === 'conduit') {
+      let closestDev: Device | null = null;
+      let minDist = Infinity;
+      const snapRadius = 40 / (ppm * zoom); // 40 pixels na tela
+      
+      devices.forEach(d => {
+        const dist = Math.sqrt(Math.pow(realPos.x - d.x, 2) + Math.pow(realPos.y - d.y, 2));
+        if (dist < snapRadius && dist < minDist) {
+          minDist = dist;
+          closestDev = d;
+        }
+      });
+      
+      setConduitSnapDevice(closestDev);
+      
+      if (closestDev) {
+        setSnappedMousePos({ x: (closestDev as Device).x, y: (closestDev as Device).y });
+      } else {
+        setSnappedMousePos(realPos);
+      }
+      return;
+    } else {
+      setConduitSnapDevice(null);
+    }
 
     // Se estivermos arrastando uma alça de parede
     if (activeHandle) {
@@ -713,16 +740,17 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     }
 
     if (currentTool === 'conduit') {
-      let clickedDevice: Device | null = null;
-      let minDist = Infinity;
-      devices.forEach(d => {
-        const dist = Math.sqrt(Math.pow(clickMetres.x - d.x, 2) + Math.pow(clickMetres.y - d.y, 2));
-        if (dist < 0.35 && dist < minDist) { minDist = dist; clickedDevice = d; }
-      });
-      if (clickedDevice) {
-        if (!conduitStartDeviceId) { setConduitStartDeviceId((clickedDevice as Device).id); }
-        else { addConduit(conduitStartDeviceId, (clickedDevice as Device).id); setConduitStartDeviceId(null); }
-      } else { setConduitStartDeviceId(null); }
+      const targetDev = conduitSnapDevice;
+      if (targetDev) {
+        if (!conduitStartDeviceId) {
+          setConduitStartDeviceId(targetDev.id);
+        } else {
+          addConduit(conduitStartDeviceId, targetDev.id);
+          setConduitStartDeviceId(null);
+        }
+      } else {
+        setConduitStartDeviceId(null);
+      }
       return;
     }
 
@@ -1632,9 +1660,11 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
         {currentTool === 'conduit' && conduitStartDeviceId && (() => {
           const startDev = devices.find(d => d.id === conduitStartDeviceId);
           if (!startDev) return null;
+          const endX = conduitSnapDevice ? conduitSnapDevice.x : mousePos.x;
+          const endY = conduitSnapDevice ? conduitSnapDevice.y : mousePos.y;
           return (
             <Line
-              points={[startDev.x * ppm, startDev.y * ppm, mousePos.x * ppm, mousePos.y * ppm]}
+              points={[startDev.x * ppm, startDev.y * ppm, endX * ppm, endY * ppm]}
               stroke="#eab308"
               strokeWidth={2}
               dash={[4, 4]}
@@ -1642,6 +1672,18 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
             />
           );
         })()}
+
+        {currentTool === 'conduit' && conduitSnapDevice && (
+          <Circle
+            x={conduitSnapDevice.x * ppm}
+            y={conduitSnapDevice.y * ppm}
+            radius={22 / zoom}
+            stroke="#eab308"
+            strokeWidth={1.5}
+            dash={[4, 3]}
+            listening={false}
+          />
+        )}
 
         {devices.map((dev) => (
           <DeviceSymbol
@@ -1659,6 +1701,13 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
             draggable={currentTool === 'select'}
             width={dev.width}
             modules={dev.modules}
+            power={dev.power}
+            circuitNumber={(() => {
+              if (!dev.circuitId) return '';
+              const circ = circuits.find(c => c.id === dev.circuitId);
+              return circ ? circ.number : '';
+            })()}
+            commandLetter={dev.commandLetter}
             onClick={(e) => {
               e.cancelBubble = true;
               if (currentTool === 'select') setSelectedDeviceId(dev.id);

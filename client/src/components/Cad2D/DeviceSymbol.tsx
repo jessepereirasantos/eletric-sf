@@ -18,6 +18,9 @@ interface DeviceSymbolProps {
   modules?: string[];
   width?: number; // Largura paramétrica
   flip?: boolean;  // Sentido de abertura
+  power?: number;  // Potência para iluminação
+  circuitNumber?: number | string; // Número do circuito
+  commandLetter?: string; // Letra do comando
 }
 
 // ─── Cores técnicas NBR (canvas branco) ────────────────────────
@@ -43,6 +46,9 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
   modules,
   width,
   flip,
+  power,
+  circuitNumber,
+  commandLetter,
 }) => {
   // Tamanho base: 0.20m reais no canvas
   const S = 0.20 * ppm;
@@ -255,6 +261,17 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
           <WallMountGroup>
             <Line points={[0, 0, 0, -H * 1.5]} stroke={stroke} strokeWidth={sw} />
             <Circle x={0} y={-H * 1.5} radius={H * 0.5} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
+            {(commandLetter || circuitNumber) && (
+              <Text
+                text={`${commandLetter ?? ''}${circuitNumber ?? ''}`}
+                x={H * 0.7}
+                y={-H * 1.95}
+                fontSize={H * 0.65}
+                fontStyle="bold"
+                fill={stroke}
+                listening={false}
+              />
+            )}
             <SelectionRing cy={-H * 0.75} r={S * 0.75} />
           </WallMountGroup>
         </Group>
@@ -267,6 +284,17 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
           <WallMountGroup>
             <Line points={[0, 0, 0, -H * 1.5]} stroke={stroke} strokeWidth={sw} />
             <Circle x={0} y={-H * 1.5} radius={H * 0.5} fill={stroke} stroke={stroke} strokeWidth={sw} />
+            {(commandLetter || circuitNumber) && (
+              <Text
+                text={`${commandLetter ?? ''}${circuitNumber ?? ''}`}
+                x={H * 0.7}
+                y={-H * 1.95}
+                fontSize={H * 0.65}
+                fontStyle="bold"
+                fill={stroke}
+                listening={false}
+              />
+            )}
             <SelectionRing cy={-H * 0.75} r={S * 0.75} />
           </WallMountGroup>
         </Group>
@@ -285,6 +313,17 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
               angle={180} rotation={90}
               fill={stroke} stroke={stroke} strokeWidth={sw}
             />
+            {(commandLetter || circuitNumber) && (
+              <Text
+                text={`${commandLetter ?? ''}${circuitNumber ?? ''}`}
+                x={H * 0.7}
+                y={-H * 1.95}
+                fontSize={H * 0.65}
+                fontStyle="bold"
+                fill={stroke}
+                listening={false}
+              />
+            )}
             <SelectionRing cy={-H * 0.75} r={S * 0.75} />
           </WallMountGroup>
         </Group>
@@ -299,6 +338,17 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
             <Line points={[ H * 0.3, 0,  H * 0.3, -H * 1.5]} stroke={stroke} strokeWidth={sw} />
             <Circle x={-H * 0.3} y={-H * 1.5} radius={H * 0.4} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
             <Circle x={ H * 0.3} y={-H * 1.5} radius={H * 0.4} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
+            {(commandLetter || circuitNumber) && (
+              <Text
+                text={`${commandLetter ?? ''}${circuitNumber ?? ''}`}
+                x={H * 0.9}
+                y={-H * 1.95}
+                fontSize={H * 0.65}
+                fontStyle="bold"
+                fill={stroke}
+                listening={false}
+              />
+            )}
             <SelectionRing cy={-H * 0.75} r={S * 0.85} />
           </WallMountGroup>
         </Group>
@@ -315,6 +365,17 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
                 <Circle x={ox} y={-H * 1.5} radius={H * 0.35} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
               </React.Fragment>
             ))}
+            {(commandLetter || circuitNumber) && (
+              <Text
+                text={`${commandLetter ?? ''}${circuitNumber ?? ''}`}
+                x={H * 1.1}
+                y={-H * 1.95}
+                fontSize={H * 0.65}
+                fontStyle="bold"
+                fill={stroke}
+                listening={false}
+              />
+            )}
             <SelectionRing cy={-H * 0.75} r={S * 1.0} />
           </WallMountGroup>
         </Group>
@@ -328,6 +389,17 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
             <Line points={[0, 0, 0, -H * 1.5]} stroke={stroke} strokeWidth={sw} />
             <Circle x={0} y={-H * 1.5} radius={H * 0.5} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
             <Circle x={0} y={-H * 1.5} radius={H * 0.2} fill={stroke} stroke={stroke} strokeWidth={sw} />
+            {(commandLetter || circuitNumber) && (
+              <Text
+                text={`${commandLetter ?? ''}${circuitNumber ?? ''}`}
+                x={H * 0.7}
+                y={-H * 1.95}
+                fontSize={H * 0.65}
+                fontStyle="bold"
+                fill={stroke}
+                listening={false}
+              />
+            )}
             <SelectionRing cy={-H * 0.75} r={S * 0.75} />
           </WallMountGroup>
         </Group>
@@ -341,6 +413,40 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
           <Circle x={0} y={0} radius={H} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
           <Line points={[-H * 0.65, -H * 0.65,  H * 0.65,  H * 0.65]} stroke={stroke} strokeWidth={sw} />
           <Line points={[-H * 0.65,  H * 0.65,  H * 0.65, -H * 0.65]} stroke={stroke} strokeWidth={sw} />
+          
+          <Text
+            text={`${power ?? 60}W`}
+            x={-H * 1.5}
+            y={-H * 0.3}
+            width={H * 3}
+            fontSize={H * 0.5}
+            fontStyle="bold"
+            align="center"
+            fill={stroke}
+            listening={false}
+          />
+          {circuitNumber && (
+            <Text
+              text={String(circuitNumber)}
+              x={H * 1.1}
+              y={-H * 0.35}
+              fontSize={H * 0.65}
+              fontStyle="bold"
+              fill={stroke}
+              listening={false}
+            />
+          )}
+          {commandLetter && (
+            <Text
+              text={commandLetter}
+              x={-H * 1.7}
+              y={-H * 0.35}
+              fontSize={H * 0.65}
+              fontStyle="italic"
+              fill={stroke}
+              listening={false}
+            />
+          )}
           <SelectionRing r={H * 1.35} />
         </Group>
       );
@@ -354,6 +460,23 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
             <Line points={[-H, 0, H, 0]} stroke={stroke} strokeWidth={sw} />
             <Arc x={0} y={0} innerRadius={0} outerRadius={H} angle={180} rotation={-180} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
             <Line points={[-H * 0.5, -H * 0.5, H * 0.5, H * 0] } stroke={stroke} strokeWidth={sw} />
+            
+            <Text
+              text={`${power ?? 60}W`}
+              x={-H * 2}
+              y={-H * 1.6}
+              width={H * 4}
+              fontSize={H * 0.5}
+              align="center"
+              fill={stroke}
+              listening={false}
+            />
+            {circuitNumber && (
+              <Text text={String(circuitNumber)} x={H * 1.2} y={-H * 0.8} fontSize={H * 0.6} fontStyle="bold" fill={stroke} listening={false} />
+            )}
+            {commandLetter && (
+              <Text text={commandLetter} x={-H * 1.8} y={-H * 0.8} fontSize={H * 0.6} fontStyle="italic" fill={stroke} listening={false} />
+            )}
             <SelectionRing cy={-H * 0.3} r={S * 0.75} />
           </WallMountGroup>
         </Group>
@@ -370,6 +493,40 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
           />
           <Line points={[-S * 0.9, -H * 0.3, S * 0.9, H * 0.3]} stroke={stroke} strokeWidth={sw * 0.7} />
           <Line points={[-S * 0.9, H * 0.3, S * 0.9, -H * 0.3]} stroke={stroke} strokeWidth={sw * 0.7} />
+          
+          <Text
+            text={`${power ?? 60}W`}
+            x={-S * 0.9}
+            y={-H * 1.3}
+            width={S * 1.8}
+            fontSize={H * 0.5}
+            fontStyle="bold"
+            align="center"
+            fill={stroke}
+            listening={false}
+          />
+          {circuitNumber && (
+            <Text
+              text={String(circuitNumber)}
+              x={S * 0.95}
+              y={-H * 0.35}
+              fontSize={H * 0.65}
+              fontStyle="bold"
+              fill={stroke}
+              listening={false}
+            />
+          )}
+          {commandLetter && (
+            <Text
+              text={commandLetter}
+              x={-S * 1.3}
+              y={-H * 0.35}
+              fontSize={H * 0.65}
+              fontStyle="italic"
+              fill={stroke}
+              listening={false}
+            />
+          )}
           <SelectionRing r={S * 1.1} />
         </Group>
       );
