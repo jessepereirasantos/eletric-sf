@@ -9,9 +9,13 @@ const dotenv_1 = __importDefault(require("dotenv"));
 const promises_1 = __importDefault(require("fs/promises"));
 const path_1 = __importDefault(require("path"));
 dotenv_1.default.config();
+let dbHost = process.env.DB_HOST || 'localhost';
+if (dbHost === 'sn-pro00168.hostgator.com.br') {
+    dbHost = 'sh-pro00168.hostgator.com.br';
+}
 // Pool de conexões MySQL preparado para o HostGator / Ambiente Local
 const pool = promise_1.default.createPool({
-    host: process.env.DB_HOST || 'localhost',
+    host: dbHost,
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASS || '',
     database: process.env.DB_NAME || 'eletric_sf_db',
