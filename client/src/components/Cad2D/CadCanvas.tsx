@@ -103,7 +103,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     isCalibrating, calibrationPoints, zoom, pan, showGrid,
     walls, devices, circuits, conduits,
     currentTool, selectedDeviceType, activeWallPoints, selectedDeviceId, selectedWallId,
-    setZoom, setPan, setBgImagePos, addCalibrationPoint, setPpm, setIsCalibrating,
+    setZoom, setPan, setBgImagePos, addCalibrationPoint, setIsCalibrating,
     setSelectedDeviceId, setSelectedWallId, clearSelection,
     addWall, addActiveWallPoint, clearActiveWallPoints,
     addDevice, addConduit, removeConduit,
@@ -130,8 +130,51 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     point: Point2D; rotation: number; isSnapped: boolean;
   } | null>(null);
   const [snappedWallPoint, setSnappedWallPoint] = useState<Point2D | null>(null);
+  const [doorCycle, setDoorCycle] = useState<number>(0);
 
-  const { updateDeviceProperties } = useCadStore();
+  const { updateDeviceProperties, setBgImageScale } = useCadStore();
+
+  const getWallDragSnap = (pt: Point2D, excludeWallId?: string): Point2D => {
+    let snapPt = { ...pt };
+    let minCornerDist = Infinity;
+
+    // 1. Snap magnético em quinas de outras paredes
+    walls.forEach(w => {
+      if (excludeWallId && w.id === excludeWallId) return;
+      [w.p1, w.p2].forEach(corner => {
+        const dist = Math.sqrt(Math.pow(pt.x - corner.x, 2) + Math.pow(pt.y - corner.y, 2));
+        if (dist < 0.15 && dist < minCornerDist) {
+          minCornerDist = dist;
+          snapPt = { ...corner };
+        }
+      });
+    });
+
+    if (minCornerDist <= 0.15) {
+      return snapPt;
+    }
+
+    // 2. Snap magnético em linhas de referência (guias)
+    let snappedX = false;
+    let snappedY = false;
+    if (guideLines && guideLines.length > 0) {
+      guideLines.forEach(g => {
+        if (g.type === 'vertical' && !snappedX) {
+          if (Math.abs(pt.x - g.value) <= 0.15) {
+            snapPt.x = g.value;
+            snappedX = true;
+          }
+        } else if (g.type === 'horizontal' && !snappedY) {
+          if (Math.abs(pt.y - g.value) <= 0.15) {
+            snapPt.y = g.value;
+            snappedY = true;
+          }
+        }
+      });
+    }
+
+    return snapPt;
+  };
 
   const isPointConnected = (pt: Point2D, currentWallId: string) => {
     return walls.some(w => {
@@ -203,6 +246,31 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
 
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); return; }
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); redo(); return; }
+
+      if (e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        const { selectedDeviceId: sid, devices, currentTool: tool, selectedDeviceType: devType } = useCadStore.getState();
+        if (sid) {
+          const dev = devices.find(d => d.id === sid);
+          if (dev && (dev.type.startsWith('door') || dev.type === 'window' || dev.type === 'open_van')) {
+            const has180 = Math.round(dev.rotation / 180) % 2 === 1;
+            let currentCycle = 0;
+            if (!dev.flip && !has180) currentCycle = 0;
+            else if (dev.flip && !has180) currentCycle = 1;
+            else if (!dev.flip && has180) currentCycle = 2;
+            else if (dev.flip && has180) currentCycle = 3;
+
+            const nextCycle = (currentCycle + 1) % 4;
+            const nextFlip = nextCycle === 1 || nextCycle === 3;
+            const baseRot = dev.rotation - (has180 ? 180 : 0);
+            const nextRot = (baseRot + (nextCycle >= 2 ? 180 : 0)) % 360;
+
+            updateDeviceProperties(sid, { flip: nextFlip, rotation: nextRot });
+          }
+        } else if (tool === 'device' && devType && isEsquadria(devType)) {
+          setDoorCycle(prev => (prev + 1) % 4);
+        }
+      }
 
       if (e.key === 'Escape') {
         clearActiveWallPoints();
@@ -341,7 +409,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
       snappedY = Math.round(realPos.y / meterSpacing) * meterSpacing;
     }
 
-    const snappedPos = { x: snappedX, y: snappedY };
+    const snappedPos = currentTool === 'wall' ? getWallDragSnap(realPos) : { x: snappedX, y: snappedY };
     setSnappedMousePos(snappedPos);
 
     if (currentTool === 'device' && selectedDeviceType) {
@@ -368,7 +436,9 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
         minDistance = res.distance;
         snapPos = res.point;
         if (isEsquadria(selectedDeviceType!)) {
-          snapRotation = res.angle; // Rotação paralela para esquadrias
+          const isDoor = selectedDeviceType!.startsWith('door');
+          const rotationOffset = (isDoor && (doorCycle === 2 || doorCycle === 3)) ? 180 : 0;
+          snapRotation = (res.angle + rotationOffset) % 360;
         } else {
           const sideOffset = res.side > 0 ? 90 : -90;
           snapRotation = res.angle + sideOffset; // Rotação perpendicular para tomadas/interruptores
@@ -411,7 +481,11 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
             const m = window.prompt(`Distância no canvas: ${distPx.toFixed(1)}px.\nDigite a distância real em metros:`);
             if (m) {
               const metros = parseFloat(m.replace(',', '.'));
-              if (!isNaN(metros) && metros > 0) setPpm(distPx / metros);
+              if (!isNaN(metros) && metros > 0) {
+                // Calibração proporcional: ajusta a escala da imagem de fundo para se adequar ao ppm global fixo
+                const newScale = bgImageScale * (metros * ppm) / distPx;
+                setBgImageScale(newScale);
+              }
             }
             setIsCalibrating(false);
           }, 100);
@@ -421,8 +495,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     }
 
     if (currentTool === 'wall') {
-      const { meterSpacing } = getGridConfig();
-      const snapped = snapToGrid(clickMetres, meterSpacing);
+      const snapped = getWallDragSnap(clickMetres);
       if (activeWallPoints.length === 0) {
         addActiveWallPoint(snapped);
       } else {
@@ -437,9 +510,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     }
 
     if (currentTool === 'guide_line') {
-      const { meterSpacing } = getGridConfig();
-      const snapped = snapToGrid(clickMetres, meterSpacing);
-      addGuideLine(selectedGuideType, selectedGuideType === 'vertical' ? snapped.x : snapped.y);
+      addGuideLine(selectedGuideType, selectedGuideType === 'vertical' ? clickMetres.x : clickMetres.y);
       return;
     }
 
@@ -498,6 +569,10 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
         qdc: 0, poste: 0, medidor: 0,
       };
       const voltageMap: Record<string, 127 | 220> = { tomada_220: 220 };
+      
+      const isDoor = selectedDeviceType.startsWith('door');
+      const finalFlip = isDoor ? (doorCycle === 1 || doorCycle === 3) : false;
+
       addDevice({
         type: selectedDeviceType,
         name: getDeviceFriendlyName(selectedDeviceType),
@@ -506,6 +581,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
         rotation: deviceSnapInfo.rotation,
         power: powerMap[selectedDeviceType] ?? 100,
         voltage: voltageMap[selectedDeviceType] ?? 127,
+        flip: finalFlip,
       });
       return;
     }
@@ -908,25 +984,30 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
               points={points}
               stroke={color}
               strokeWidth={strokeW}
+              hitStrokeWidth={16}
               dash={[6, 4]}
               draggable={currentTool === 'select'}
+              dragBoundFunc={(pos) => {
+                const stage = stageRef.current;
+                if (!stage) return pos;
+                return g.type === 'vertical'
+                  ? { x: pos.x, y: stage.y() }
+                  : { x: stage.x(), y: pos.y };
+              }}
               onDragEnd={(e) => {
                 const node = e.target;
                 const deltaX = node.x() / ppm;
                 const deltaY = node.y() / ppm;
-                const { meterSpacing } = getGridConfig();
 
                 if (g.type === 'vertical') {
                   const rawNewValue = g.value + deltaX;
-                  const snappedValue = Math.round(rawNewValue / meterSpacing) * meterSpacing;
                   useCadStore.setState((s) => ({
-                    guideLines: s.guideLines.map(gl => gl.id === g.id ? { ...gl, value: snappedValue } : gl)
+                    guideLines: s.guideLines.map(gl => gl.id === g.id ? { ...gl, value: rawNewValue } : gl)
                   }));
                 } else {
                   const rawNewValue = g.value + deltaY;
-                  const snappedValue = Math.round(rawNewValue / meterSpacing) * meterSpacing;
                   useCadStore.setState((s) => ({
-                    guideLines: s.guideLines.map(gl => gl.id === g.id ? { ...gl, value: snappedValue } : gl)
+                    guideLines: s.guideLines.map(gl => gl.id === g.id ? { ...gl, value: rawNewValue } : gl)
                   }));
                 }
                 node.position({ x: 0, y: 0 });
@@ -1248,9 +1329,15 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                 const dx = node.x() / ppm;
                 const dy = node.y() / ppm;
 
-                const { meterSpacing } = getGridConfig();
-                const newP1 = snapToGrid({ x: wall.p1.x + dx, y: wall.p1.y + dy }, meterSpacing);
-                const newP2 = snapToGrid({ x: wall.p2.x + dx, y: wall.p2.y + dy }, meterSpacing);
+                const targetP1 = { x: wall.p1.x + dx, y: wall.p1.y + dy };
+                const targetP2 = { x: wall.p2.x + dx, y: wall.p2.y + dy };
+
+                const snappedP1 = getWallDragSnap(targetP1, wall.id);
+                const snapDx = snappedP1.x - targetP1.x;
+                const snapDy = snappedP1.y - targetP1.y;
+
+                const newP1 = snappedP1;
+                const newP2 = { x: targetP2.x + snapDx, y: targetP2.y + snapDy };
 
                 updateWall(wall.id, { p1: newP1, p2: newP2 });
                 node.position({ x: 0, y: 0 });
@@ -1315,6 +1402,65 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                   </Group>
                 );
               })}
+            </Group>
+          );
+        })}
+
+        {/* Passagem 4: Alças interativas circulares para esticar as extremidades de paredes selecionadas */}
+        {renderedWallsData.filter(d => d.isSelected).map((data) => {
+          const { wall } = data;
+          return (
+            <Group key={`wall-handles-${wall.id}`}>
+              <Circle
+                x={wall.p1.x * ppm}
+                y={wall.p1.y * ppm}
+                radius={7 / zoom}
+                fill="#ffffff"
+                stroke="#0078d7"
+                strokeWidth={2 / zoom}
+                draggable
+                onDragMove={(e) => {
+                  const node = e.target;
+                  const newPt = {
+                    x: wall.p1.x + node.x() / ppm,
+                    y: wall.p1.y + node.y() / ppm
+                  };
+                  const snapped = getWallDragSnap(newPt, wall.id);
+                  updateWall(wall.id, { p1: snapped });
+                  node.position({ x: 0, y: 0 });
+                }}
+                onDragEnd={(e) => {
+                  e.target.position({ x: 0, y: 0 });
+                  e.target.getLayer()?.batchDraw();
+                }}
+                onMouseEnter={(e) => { e.target.getStage()!.container().style.cursor = 'pointer'; }}
+                onMouseLeave={(e) => { e.target.getStage()!.container().style.cursor = cursorStyle; }}
+              />
+              <Circle
+                x={wall.p2.x * ppm}
+                y={wall.p2.y * ppm}
+                radius={7 / zoom}
+                fill="#ffffff"
+                stroke="#0078d7"
+                strokeWidth={2 / zoom}
+                draggable
+                onDragMove={(e) => {
+                  const node = e.target;
+                  const newPt = {
+                    x: wall.p2.x + node.x() / ppm,
+                    y: wall.p2.y + node.y() / ppm
+                  };
+                  const snapped = getWallDragSnap(newPt, wall.id);
+                  updateWall(wall.id, { p2: snapped });
+                  node.position({ x: 0, y: 0 });
+                }}
+                onDragEnd={(e) => {
+                  e.target.position({ x: 0, y: 0 });
+                  e.target.getLayer()?.batchDraw();
+                }}
+                onMouseEnter={(e) => { e.target.getStage()!.container().style.cursor = 'pointer'; }}
+                onMouseLeave={(e) => { e.target.getStage()!.container().style.cursor = cursorStyle; }}
+              />
             </Group>
           );
         })}
@@ -1517,6 +1663,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                   ppm={ppm}
                   zoom={zoom}
                   isSelected={false}
+                  flip={selectedDeviceType.startsWith('door') ? (doorCycle === 1 || doorCycle === 3) : false}
                 />
                 {deviceSnapInfo.isSnapped && (
                   <Circle
