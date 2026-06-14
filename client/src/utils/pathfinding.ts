@@ -88,9 +88,46 @@ export const calculateWiringRouting = (
 ): RoutingResult => {
   const result: RoutingResult = {};
   
+  // Helpers para identificar tipos de dispositivos
+  const isLampType = (type: string) => {
+    return type === 'lampada' ||
+           type === 'ceiling_light' ||
+           type === 'sconce' ||
+           type === 'fluorescent' ||
+           type === 'lampada_parede';
+  };
+
+  const isSwitchType = (type: string) => {
+    return type.startsWith('switch_') || type.startsWith('interruptor');
+  };
+
+  const isLoadType = (type: string) => {
+    return type.startsWith('tomada') ||
+           type.startsWith('tug_') ||
+           type.startsWith('tue_') ||
+           type === 'tomada_220' ||
+           isLampType(type);
+  };
+
   // Inicializa o resultado para cada conduíte
   conduits.forEach(c => {
-    result[c.id] = [];
+    if (c.isManualWiring && c.manualWires) {
+      // Mapeia fios manuais para o formato ConduitWires
+      result[c.id] = c.manualWires.map(mw => {
+        const circ = circuits.find(circItem => circItem.id === mw.circuitId);
+        return {
+          circuitNumber: circ ? circ.number : 1,
+          circuitType: circ ? circ.type : 'tug',
+          voltage: circ ? circ.voltage : 127,
+          phase: mw.phase,
+          neutral: mw.neutral,
+          ground: mw.ground,
+          ret: mw.ret
+        };
+      }).filter(wires => wires.phase > 0 || wires.neutral > 0 || wires.ground > 0 || wires.ret > 0);
+    } else {
+      result[c.id] = [];
+    }
   });
 
   const qdc = devices.find(d => d.type === 'qdc');
@@ -101,8 +138,11 @@ export const calculateWiringRouting = (
     const circuitDevices = devices.filter(d => d.circuitId === circ.id);
     if (circuitDevices.length === 0) return;
 
-    // Auxiliar para registrar condutores em um conduíte para este circuito
+    // Auxiliar para registrar condutores em um conduíte para este circuito (apenas se for fiação automática)
     const addWires = (conduitId: string, wires: Partial<ConduitWires>) => {
+      const cond = conduits.find(c => c.id === conduitId);
+      if (cond?.isManualWiring) return; // ignora conduíte com fiação manual
+
       const list = result[conduitId];
       if (!list) return;
 
@@ -127,9 +167,7 @@ export const calculateWiringRouting = (
     };
 
     // 1. Roteamento de Cargas (Tomadas e Lâmpadas)
-    const loadDevices = circuitDevices.filter(d => 
-      d.type.startsWith('tomada') || d.type === 'lampada'
-    );
+    const loadDevices = circuitDevices.filter(d => isLoadType(d.type));
 
     loadDevices.forEach(load => {
       const path = findShortestPath(qdc.id, load.id, devices, conduits);
@@ -147,7 +185,7 @@ export const calculateWiringRouting = (
     });
 
     // 2. Roteamento de Interruptores (Comandos de Iluminação)
-    const switches = circuitDevices.filter(d => d.type === 'interruptor');
+    const switches = circuitDevices.filter(d => isSwitchType(d.type));
     switches.forEach(sw => {
       // O interruptor precisa receber a Fase do QDC
       const pathQdcToSw = findShortestPath(qdc.id, sw.id, devices, conduits);
@@ -157,8 +195,14 @@ export const calculateWiringRouting = (
         });
       }
 
-      // O interruptor precisa mandar o Retorno para a lâmpada mais próxima do mesmo circuito
-      const lamps = circuitDevices.filter(d => d.type === 'lampada');
+      // O interruptor precisa mandar o Retorno para a lâmpada com mesma commandLetter no mesmo circuito
+      const swLetter = sw.commandLetter?.trim().toLowerCase();
+      const lamps = circuitDevices.filter(d => {
+        if (!isLampType(d.type)) return false;
+        if (!swLetter) return true; // se o interruptor não tem comando cadastrado, liga a qualquer lâmpada do circuito
+        return d.commandLetter?.trim().toLowerCase() === swLetter;
+      });
+
       let minLength = Infinity;
       let shortestLampPath: string[] | null = null;
 
@@ -180,6 +224,9 @@ export const calculateWiringRouting = (
 
   // Limpa entradas vazias ou duplicadas por conduíte
   Object.keys(result).forEach(conduitId => {
+    const cond = conduits.find(c => c.id === conduitId);
+    if (cond?.isManualWiring) return; // ignora ajuste automático para conduítes manuais
+
     result[conduitId] = result[conduitId].map(wires => {
       // Garante limites físicos lógicos (máximo 2 fase, 1 neutro, 1 terra por circuito por eletroduto)
       return {

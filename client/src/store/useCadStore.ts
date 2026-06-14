@@ -51,12 +51,22 @@ export interface Circuit {
   groupedCircuits: number;
 }
 
+export interface ConduitWireManual {
+  circuitId: string;
+  phase: number;
+  neutral: number;
+  ground: number;
+  ret: number;
+}
+
 export interface Conduit {
   id: string;
   fromDeviceId: string;
   toDeviceId: string;
   diameter: '1/2' | '3/4' | '1' | '1 1/4';
   type: 'flexivel' | 'rigido';
+  isManualWiring?: boolean;
+  manualWires?: ConduitWireManual[];
 }
 
 export interface MaterialItem {
@@ -159,6 +169,7 @@ interface CadState {
   selectedGuideType: 'vertical' | 'horizontal';
   selectedTextId: string | null;
   selectedDimensionId: string | null;
+  selectedConduitId: string | null;
   activeDimensionPoints: Point2D[];
 
   setPpm: (ppm: number) => void;
@@ -184,6 +195,7 @@ interface CadState {
   setSelectedGuideType: (type: 'vertical' | 'horizontal') => void;
   setSelectedTextId: (id: string | null) => void;
   setSelectedDimensionId: (id: string | null) => void;
+  setSelectedConduitId: (id: string | null) => void;
   clearSelection: () => void;
 
   pushHistory: () => void;
@@ -208,6 +220,7 @@ interface CadState {
 
   addConduit: (fromDeviceId: string, toDeviceId: string) => void;
   removeConduit: (id: string) => void;
+  updateConduitProperties: (id: string, properties: Partial<Conduit>) => void;
 
   splitCircuitsLight: () => void;
   splitCircuitsTUG: () => void;
@@ -344,6 +357,7 @@ export const useCadStore = create<CadState>()(
       selectedGuideType: 'vertical',
       selectedTextId: null,
       selectedDimensionId: null,
+      selectedConduitId: null,
       activeDimensionPoints: [],
 
       setPpm: (ppm) => set({ ppm }),
@@ -429,16 +443,18 @@ export const useCadStore = create<CadState>()(
     selectedGuideLineId: null,
     selectedTextId: null,
     selectedDimensionId: null,
+    selectedConduitId: null,
     activeDimensionPoints: [],
   }),
   setSelectedDeviceType: (type) => set({ selectedDeviceType: type }),
-  setSelectedDeviceId: (id) => set({ selectedDeviceId: id, selectedWallId: null, selectedGuideLineId: null, selectedTextId: null, selectedDimensionId: null }),
-  setSelectedWallId: (id) => set({ selectedWallId: id, selectedDeviceId: null, selectedGuideLineId: null, selectedTextId: null, selectedDimensionId: null }),
-  setSelectedGuideLineId: (id) => set({ selectedGuideLineId: id, selectedWallId: null, selectedDeviceId: null, selectedTextId: null, selectedDimensionId: null }),
+  setSelectedDeviceId: (id) => set({ selectedDeviceId: id, selectedWallId: null, selectedGuideLineId: null, selectedTextId: null, selectedDimensionId: null, selectedConduitId: null }),
+  setSelectedWallId: (id) => set({ selectedWallId: id, selectedDeviceId: null, selectedGuideLineId: null, selectedTextId: null, selectedDimensionId: null, selectedConduitId: null }),
+  setSelectedGuideLineId: (id) => set({ selectedGuideLineId: id, selectedWallId: null, selectedDeviceId: null, selectedTextId: null, selectedDimensionId: null, selectedConduitId: null }),
   setSelectedGuideType: (type) => set({ selectedGuideType: type }),
-  setSelectedTextId: (id) => set({ selectedTextId: id, selectedWallId: null, selectedDeviceId: null, selectedGuideLineId: null, selectedDimensionId: null }),
-  setSelectedDimensionId: (id) => set({ selectedDimensionId: id, selectedWallId: null, selectedDeviceId: null, selectedGuideLineId: null, selectedTextId: null }),
-  clearSelection: () => set({ selectedDeviceId: null, selectedWallId: null, selectedGuideLineId: null, selectedTextId: null, selectedDimensionId: null }),
+  setSelectedTextId: (id) => set({ selectedTextId: id, selectedWallId: null, selectedDeviceId: null, selectedGuideLineId: null, selectedDimensionId: null, selectedConduitId: null }),
+  setSelectedDimensionId: (id) => set({ selectedDimensionId: id, selectedWallId: null, selectedDeviceId: null, selectedGuideLineId: null, selectedTextId: null, selectedConduitId: null }),
+  setSelectedConduitId: (id) => set({ selectedConduitId: id, selectedDeviceId: null, selectedWallId: null, selectedGuideLineId: null, selectedTextId: null, selectedDimensionId: null }),
+  clearSelection: () => set({ selectedDeviceId: null, selectedWallId: null, selectedGuideLineId: null, selectedTextId: null, selectedDimensionId: null, selectedConduitId: null }),
 
   pushHistory: () => set((s) => {
     const snap = takeSnapshot(s);
@@ -465,6 +481,7 @@ export const useCadStore = create<CadState>()(
       selectedGuideLineId: null,
       selectedTextId: null,
       selectedDimensionId: null,
+      selectedConduitId: null,
     };
   }),
 
@@ -487,6 +504,7 @@ export const useCadStore = create<CadState>()(
       selectedGuideLineId: null,
       selectedTextId: null,
       selectedDimensionId: null,
+      selectedConduitId: null,
     };
   }),
 
@@ -628,7 +646,19 @@ export const useCadStore = create<CadState>()(
 
   removeConduit: (id) => {
     get().pushHistory();
-    set((s) => ({ conduits: s.conduits.filter(c => c.id !== id) }));
+    set((s) => ({
+      conduits: s.conduits.filter(c => c.id !== id),
+      selectedConduitId: s.selectedConduitId === id ? null : s.selectedConduitId,
+    }));
+    get().recomputeDerivedState();
+  },
+
+  updateConduitProperties: (id, properties) => {
+    get().pushHistory();
+    set((s) => ({
+      conduits: s.conduits.map(c => c.id === id ? { ...c, ...properties } : c),
+    }));
+    get().recomputeDerivedState();
   },
 
   splitCircuitsLight: () => {

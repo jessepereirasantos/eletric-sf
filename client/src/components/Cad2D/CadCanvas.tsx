@@ -118,9 +118,9 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     walls, devices, circuits, conduits,
     currentTool, selectedDeviceType, activeWallPoints, selectedDeviceId, selectedWallId,
     setZoom, setPan, setBgImagePos, addCalibrationPoint, setIsCalibrating,
-    setSelectedDeviceId, setSelectedWallId, clearSelection,
+    setSelectedDeviceId, setSelectedWallId, setSelectedConduitId, clearSelection,
     addWall, addActiveWallPoint, clearActiveWallPoints,
-    addDevice, addConduit, removeConduit,
+    addDevice, addConduit, selectedConduitId,
     paperSpaceActive, paperSize, paperScale, paperPos,
     paperTitle, paperOwner, paperDesigner, paperDate, paperSheetNum,
     setPaperPos,
@@ -1608,23 +1608,26 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
           const p2 = { x: toDev.x * ppm, y: toDev.y * ppm };
           const curve = getConduitPoints(p1, p2);
           const wires = wiringRouting[conduit.id] || [];
+          const isConduitSelected = selectedConduitId === conduit.id;
+          const conduitColor = isConduitSelected ? "#0078d7" : "#6b7280";
+          const conduitWidth = isConduitSelected ? 4.0 : 2.5;
           return (
             <Group key={conduit.id}>
-              <Line
-                points={curve.points}
-                stroke="#6b7280"
-                strokeWidth={2.5}
-                tension={0.4}
-                opacity={0.85}
-                onClick={(e) => {
-                  e.cancelBubble = true;
-                  if (currentTool === 'select') {
-                    if (window.confirm('Deseja remover este eletroduto?')) removeConduit(conduit.id);
-                  }
-                }}
-                onMouseEnter={(e) => { e.target.getStage()!.container().style.cursor = 'pointer'; }}
-                onMouseLeave={(e) => { e.target.getStage()!.container().style.cursor = cursorStyle; }}
-              />
+               <Line
+                 points={curve.points}
+                 stroke={conduitColor}
+                 strokeWidth={conduitWidth}
+                 tension={0.4}
+                 opacity={0.85}
+                 onClick={(e) => {
+                   e.cancelBubble = true;
+                   if (currentTool === 'select') {
+                     setSelectedConduitId(conduit.id);
+                   }
+                 }}
+                 onMouseEnter={(e) => { e.target.getStage()!.container().style.cursor = 'pointer'; }}
+                 onMouseLeave={(e) => { e.target.getStage()!.container().style.cursor = cursorStyle; }}
+               />
               {wires.length > 0 && (
                 <Group x={curve.midPoint.x} y={curve.midPoint.y} rotation={curve.angle}>
                   <Circle radius={10 * Math.max(1, wires.length)} fill="rgba(240,240,240,0.9)" opacity={0.9} listening={false} />
@@ -1710,7 +1713,18 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
             commandLetter={dev.commandLetter}
             onClick={(e) => {
               e.cancelBubble = true;
-              if (currentTool === 'select') setSelectedDeviceId(dev.id);
+              if (currentTool === 'select') {
+                setSelectedDeviceId(dev.id);
+              } else if (currentTool === 'conduit') {
+                if (!conduitStartDeviceId) {
+                  setConduitStartDeviceId(dev.id);
+                } else {
+                  if (conduitStartDeviceId !== dev.id) {
+                    addConduit(conduitStartDeviceId, dev.id);
+                  }
+                  setConduitStartDeviceId(null);
+                }
+              }
             }}
             onDragEnd={(e) => {
               const node = e.target;

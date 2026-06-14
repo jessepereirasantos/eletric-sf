@@ -1,6 +1,6 @@
 import React from 'react';
 import { useCadStore } from '../store/useCadStore';
-import type { Device, Wall, CadText } from '../store/useCadStore';
+import type { Device, Wall, CadText, Conduit } from '../store/useCadStore';
 
 // ─── Painel de Propriedades da Parede ────────────────────────
 
@@ -658,14 +658,193 @@ const PaperProperties: React.FC = () => {
   );
 };
 
+// ─── Painel de Propriedades do Conduíte (Eletroduto) ──────────
+const ConduitProperties: React.FC<{ conduit: Conduit }> = ({ conduit }) => {
+  const { updateConduitProperties, removeConduit, clearSelection, circuits } = useCadStore();
+  const [selectedCircuitId, setSelectedCircuitId] = React.useState('');
+  const [phase, setPhase] = React.useState(1);
+  const [neutral, setNeutral] = React.useState(1);
+  const [ground, setGround] = React.useState(1);
+  const [ret, setRet] = React.useState(0);
+
+  const update = (props: Partial<Conduit>) => updateConduitProperties(conduit.id, props);
+
+  const handleAddWire = () => {
+    if (!selectedCircuitId) return;
+    const currentWires = conduit.manualWires || [];
+    
+    // Evita duplicados para o mesmo circuito
+    const filtered = currentWires.filter(w => w.circuitId !== selectedCircuitId);
+    const updated = [
+      ...filtered,
+      { circuitId: selectedCircuitId, phase, neutral, ground, ret }
+    ];
+    update({ manualWires: updated });
+    setSelectedCircuitId('');
+    setPhase(1);
+    setNeutral(1);
+    setGround(1);
+    setRet(0);
+  };
+
+  const handleRemoveWire = (circId: string) => {
+    const currentWires = conduit.manualWires || [];
+    const updated = currentWires.filter(w => w.circuitId !== circId);
+    update({ manualWires: updated });
+  };
+
+  return (
+    <div className="props-panel-content">
+      <div className="props-header">
+        <span className="props-icon" style={{ fontSize: '18px', display: 'flex', alignItems: 'center', color: '#0f172a' }}>〰</span>
+        <div>
+          <div className="props-title">Eletroduto</div>
+          <div className="props-subtitle">Conexão física (conduíte)</div>
+        </div>
+      </div>
+
+      {/* Diâmetro */}
+      <div className="props-field">
+        <label>Diâmetro Nominal (Pol.)</label>
+        <select
+          className="props-select"
+          value={conduit.diameter}
+          onChange={e => update({ diameter: e.target.value as Conduit['diameter'] })}
+        >
+          <option value="1/2">1/2"</option>
+          <option value="3/4">3/4"</option>
+          <option value="1">1"</option>
+          <option value="1 1/4">1 1/4"</option>
+        </select>
+      </div>
+
+      {/* Tipo */}
+      <div className="props-field">
+        <label>Material / Tipo</label>
+        <select
+          className="props-select"
+          value={conduit.type}
+          onChange={e => update({ type: e.target.value as Conduit['type'] })}
+        >
+          <option value="flexivel">Corrugado Flexível</option>
+          <option value="rigido">PVC Rígido</option>
+        </select>
+      </div>
+
+      {/* Alternância Automática vs Manual */}
+      <div className="props-field" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '12px' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+          <input
+            type="checkbox"
+            checked={!!conduit.isManualWiring}
+            onChange={e => update({ isManualWiring: e.target.checked })}
+          />
+          Habilitar Fiação Manual
+        </label>
+        <div className="props-hint">
+          Se ativo, ignora o cálculo automático e utiliza as fiações listadas abaixo.
+        </div>
+      </div>
+
+      {conduit.isManualWiring && (
+        <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '10px' }}>
+          <h4 style={{ margin: '0 0 8px 0', fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>Lançamento de Fiação Manual</h4>
+          
+          {/* Adicionar Fiação */}
+          <div className="props-field" style={{ marginBottom: '8px' }}>
+            <label style={{ fontSize: '10px' }}>Circuito</label>
+            <select
+              className="props-select"
+              style={{ padding: '4px', fontSize: '12px', height: 'auto' }}
+              value={selectedCircuitId}
+              onChange={e => setSelectedCircuitId(e.target.value)}
+            >
+              <option value="">— Selecione o Circuito —</option>
+              {circuits.map(c => (
+                <option key={c.id} value={c.id}>Circ. {c.number} — {c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {selectedCircuitId && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '8px' }}>
+              <div>
+                <label style={{ fontSize: '9px', display: 'block', color: '#64748b' }}>Fase(s)</label>
+                <input type="number" min={0} max={3} className="props-input" style={{ padding: '3px', fontSize: '11px' }} value={phase} onChange={e => setPhase(Math.max(0, parseInt(e.target.value) || 0))} />
+              </div>
+              <div>
+                <label style={{ fontSize: '9px', display: 'block', color: '#64748b' }}>Neutro(s)</label>
+                <input type="number" min={0} max={2} className="props-input" style={{ padding: '3px', fontSize: '11px' }} value={neutral} onChange={e => setNeutral(Math.max(0, parseInt(e.target.value) || 0))} />
+              </div>
+              <div>
+                <label style={{ fontSize: '9px', display: 'block', color: '#64748b' }}>Terra(s)</label>
+                <input type="number" min={0} max={2} className="props-input" style={{ padding: '3px', fontSize: '11px' }} value={ground} onChange={e => setGround(Math.max(0, parseInt(e.target.value) || 0))} />
+              </div>
+              <div>
+                <label style={{ fontSize: '9px', display: 'block', color: '#64748b' }}>Retorno(s)</label>
+                <input type="number" min={0} max={4} className="props-input" style={{ padding: '3px', fontSize: '11px' }} value={ret} onChange={e => setRet(Math.max(0, parseInt(e.target.value) || 0))} />
+              </div>
+              <button 
+                type="button" 
+                className="props-btn-primary" 
+                style={{ gridColumn: 'span 2', padding: '5px', fontSize: '11px', marginTop: '4px', cursor: 'pointer', background: '#0f172a', color: 'white', border: 'none', borderRadius: '4px' }}
+                onClick={handleAddWire}
+              >
+                + Adicionar Fiação
+              </button>
+            </div>
+          )}
+
+          {/* Lista de Fiações Existentes */}
+          <div style={{ marginTop: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '6px' }}>
+            <span style={{ fontSize: '10px', fontWeight: 'bold', display: 'block', marginBottom: '4px', color: '#64748b' }}>Fiações Lançadas:</span>
+            {(!conduit.manualWires || conduit.manualWires.length === 0) ? (
+              <div style={{ fontSize: '10px', color: '#94a3b8', fontStyle: 'italic' }}>Nenhuma fiação manual.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                {conduit.manualWires.map(mw => {
+                  const circ = circuits.find(c => c.id === mw.circuitId);
+                  if (!circ) return null;
+                  return (
+                    <div key={mw.circuitId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff', padding: '3px 6px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '10px' }}>
+                      <div style={{ color: '#334155' }}>
+                        <strong>Circ. {circ.number}</strong>: {mw.phase}F, {mw.neutral}N, {mw.ground}T, {mw.ret}R
+                      </div>
+                      <button 
+                        type="button" 
+                        style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', padding: '0 2px' }}
+                        onClick={() => handleRemoveWire(mw.circuitId)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Ações */}
+      <div className="props-actions" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '16px' }}>
+        <button className="props-btn-danger" onClick={() => { removeConduit(conduit.id); clearSelection(); }}>
+          🗑 Excluir Eletroduto
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ─── Painel Principal (exportado) ─────────────────────────────
 
 export const PropertiesPanel: React.FC = () => {
-  const { selectedDeviceId, selectedWallId, selectedTextId, devices, walls, texts, paperSpaceActive } = useCadStore();
+  const { selectedDeviceId, selectedWallId, selectedTextId, selectedConduitId, devices, walls, texts, conduits, paperSpaceActive } = useCadStore();
 
   const selectedDevice = selectedDeviceId ? devices.find(d => d.id === selectedDeviceId) : null;
   const selectedWall = selectedWallId ? walls.find(w => w.id === selectedWallId) : null;
   const selectedText = selectedTextId ? (texts || []).find(t => t.id === selectedTextId) : null;
+  const selectedConduit = selectedConduitId ? conduits.find(c => c.id === selectedConduitId) : null;
 
   return (
     <aside className="properties-panel">
@@ -676,8 +855,9 @@ export const PropertiesPanel: React.FC = () => {
       {selectedWall && <WallProperties wall={selectedWall} />}
       {selectedDevice && <DeviceProperties device={selectedDevice} />}
       {selectedText && <TextProperties textItem={selectedText} />}
-      {!selectedWall && !selectedDevice && !selectedText && paperSpaceActive && <PaperProperties />}
-      {!selectedWall && !selectedDevice && !selectedText && !paperSpaceActive && <EmptyPanel />}
+      {selectedConduit && <ConduitProperties conduit={selectedConduit} />}
+      {!selectedWall && !selectedDevice && !selectedText && !selectedConduit && paperSpaceActive && <PaperProperties />}
+      {!selectedWall && !selectedDevice && !selectedText && !selectedConduit && !paperSpaceActive && <EmptyPanel />}
     </aside>
   );
 };
