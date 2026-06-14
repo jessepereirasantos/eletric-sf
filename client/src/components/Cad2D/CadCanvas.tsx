@@ -68,6 +68,14 @@ const getWallVans = (wall: Wall, devs: Device[]) => {
       if (dev.type === 'window' || dev.type === 'open_van' || dev.type === 'door_correr') {
         start = t - width / 2;
         end = t + width / 2;
+      } else if (dev.type === 'door' || dev.type === 'door_pivotante') {
+        if (dev.flip) {
+          start = t - width;
+          end = t;
+        } else {
+          start = t;
+          end = t + width;
+        }
       }
 
       start = Math.max(0, start);
@@ -131,26 +139,28 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
   } | null>(null);
   const [snappedWallPoint, setSnappedWallPoint] = useState<Point2D | null>(null);
   const [doorCycle, setDoorCycle] = useState<number>(0);
+  const [activeHandle, setActiveHandle] = useState<{ wallId: string; pointKey: 'p1' | 'p2' } | null>(null);
 
   const { updateDeviceProperties, setBgImageScale } = useCadStore();
 
   const getWallDragSnap = (pt: Point2D, excludeWallId?: string): Point2D => {
     let snapPt = { ...pt };
     let minCornerDist = Infinity;
+    const tolerance = 12 / (ppm * zoom);
 
     // 1. Snap magnético em quinas de outras paredes
     walls.forEach(w => {
       if (excludeWallId && w.id === excludeWallId) return;
       [w.p1, w.p2].forEach(corner => {
         const dist = Math.sqrt(Math.pow(pt.x - corner.x, 2) + Math.pow(pt.y - corner.y, 2));
-        if (dist < 0.15 && dist < minCornerDist) {
+        if (dist < tolerance && dist < minCornerDist) {
           minCornerDist = dist;
           snapPt = { ...corner };
         }
       });
     });
 
-    if (minCornerDist <= 0.15) {
+    if (minCornerDist <= tolerance) {
       return snapPt;
     }
 
@@ -160,17 +170,40 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     if (guideLines && guideLines.length > 0) {
       guideLines.forEach(g => {
         if (g.type === 'vertical' && !snappedX) {
-          if (Math.abs(pt.x - g.value) <= 0.15) {
+          if (Math.abs(pt.x - g.value) <= tolerance) {
             snapPt.x = g.value;
             snappedX = true;
           }
         } else if (g.type === 'horizontal' && !snappedY) {
-          if (Math.abs(pt.y - g.value) <= 0.15) {
+          if (Math.abs(pt.y - g.value) <= tolerance) {
             snapPt.y = g.value;
             snappedY = true;
           }
         }
       });
+    }
+
+    // 3. Cruzamento / Interseção de linhas de guia
+    if (guideLines && guideLines.length > 0) {
+      let closestX: number | null = null;
+      let closestY: number | null = null;
+      
+      guideLines.forEach(g => {
+        if (g.type === 'vertical') {
+          if (Math.abs(pt.x - g.value) <= tolerance) {
+            closestX = g.value;
+          }
+        } else if (g.type === 'horizontal') {
+          if (Math.abs(pt.y - g.value) <= tolerance) {
+            closestY = g.value;
+          }
+        }
+      });
+      
+      if (closestX !== null && closestY !== null) {
+        snapPt.x = closestX;
+        snapPt.y = closestY;
+      }
     }
 
     return snapPt;
@@ -352,6 +385,33 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     };
     setMousePos(realPos);
     
+    const tolerance = 12 / (ppm * zoom);
+
+    // Se estivermos arrastando uma alça de parede
+    if (activeHandle) {
+      const snapped = getWallDragSnap(realPos, activeHandle.wallId);
+      let finalPos = { ...snapped };
+      
+      // Trava ortogonal (Shift key) para esticar a parede reta
+      if (e.evt.shiftKey) {
+        const targetWall = walls.find(w => w.id === activeHandle.wallId);
+        if (targetWall) {
+          const fixedPoint = activeHandle.pointKey === 'p1' ? targetWall.p2 : targetWall.p1;
+          const dx = Math.abs(snapped.x - fixedPoint.x);
+          const dy = Math.abs(snapped.y - fixedPoint.y);
+          if (dx > dy) {
+            finalPos.y = fixedPoint.y;
+          } else {
+            finalPos.x = fixedPoint.x;
+          }
+        }
+      }
+      
+      updateWall(activeHandle.wallId, { [activeHandle.pointKey]: finalPos });
+      stage.batchDraw();
+      return;
+    }
+
     const { meterSpacing } = getGridConfig();
     let snappedX = realPos.x;
     let snappedY = realPos.y;
@@ -372,7 +432,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
           }
         });
       });
-      if (minCornerDist <= 0.25 && snapWallPoint) { // Tolerância de 25cm para quinas
+      if (minCornerDist <= tolerance * 1.5 && snapWallPoint) { // Tolerância dinâmica para quinas
         const pt = snapWallPoint as Point2D;
         snappedX = pt.x;
         snappedY = pt.y;
@@ -388,17 +448,31 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
       if (guideLines && guideLines.length > 0) {
         guideLines.forEach(g => {
           if (g.type === 'vertical' && !snappedToGuideX) {
-            if (Math.abs(realPos.x - g.value) <= 0.15) {
+            if (Math.abs(realPos.x - g.value) <= tolerance) {
               snappedX = g.value;
               snappedToGuideX = true;
             }
           } else if (g.type === 'horizontal' && !snappedToGuideY) {
-            if (Math.abs(realPos.y - g.value) <= 0.15) {
+            if (Math.abs(realPos.y - g.value) <= tolerance) {
               snappedY = g.value;
               snappedToGuideY = true;
             }
           }
         });
+
+        // Snap de interseção de guias se estiver desenhando cota/parede/outro
+        let closestX: number | null = null;
+        let closestY: number | null = null;
+        guideLines.forEach(g => {
+          if (g.type === 'vertical' && Math.abs(realPos.x - g.value) <= tolerance) closestX = g.value;
+          else if (g.type === 'horizontal' && Math.abs(realPos.y - g.value) <= tolerance) closestY = g.value;
+        });
+        if (closestX !== null && closestY !== null) {
+          snappedX = closestX;
+          snappedY = closestY;
+          snappedToGuideX = true;
+          snappedToGuideY = true;
+        }
       }
     }
 
@@ -409,7 +483,24 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
       snappedY = Math.round(realPos.y / meterSpacing) * meterSpacing;
     }
 
-    const snappedPos = currentTool === 'wall' ? getWallDragSnap(realPos) : { x: snappedX, y: snappedY };
+    let snappedPos = currentTool === 'wall' ? getWallDragSnap(realPos) : { x: snappedX, y: snappedY };
+    
+    // Trava ortogonal (Shift key) para o desenho de paredes
+    if (currentTool === 'wall' && activeWallPoints.length === 1) {
+      const p1 = activeWallPoints[0];
+      const rawSnapped = getWallDragSnap(realPos);
+      snappedPos = { ...rawSnapped };
+      if (e.evt.shiftKey) {
+        const dx = Math.abs(rawSnapped.x - p1.x);
+        const dy = Math.abs(rawSnapped.y - p1.y);
+        if (dx > dy) {
+          snappedPos.y = p1.y;
+        } else {
+          snappedPos.x = p1.x;
+        }
+      }
+    }
+    
     setSnappedMousePos(snappedPos);
 
     if (currentTool === 'device' && selectedDeviceType) {
@@ -419,7 +510,13 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     }
   };
 
-  const handleMouseUp = () => { isPanning.current = false; };
+  const handleMouseUp = () => { 
+    isPanning.current = false; 
+    if (activeHandle) {
+      setActiveHandle(null);
+      useCadStore.getState().recomputeDerivedState();
+    }
+  };
 
   const calculateDeviceSnap = (mouseReal: Point2D) => {
     const freeTypes = ['lampada', 'qdc', 'poste', 'medidor'];
@@ -430,6 +527,8 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     let minDistance = Infinity;
     let snapPos: Point2D = mouseReal;
     let snapRotation = 0;
+    const tolerance = (12 / (ppm * zoom)) * 2.5; // tolerância maior para grudar dispositivos facilmente
+    
     walls.forEach(wall => {
       const res = getClosestPointOnSegment(mouseReal, wall.p1, wall.p2);
       if (res.distance < minDistance) {
@@ -441,12 +540,12 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
           snapRotation = (res.angle + rotationOffset) % 360;
         } else {
           const sideOffset = res.side > 0 ? 90 : -90;
-          snapRotation = res.angle + sideOffset; // Rotação perpendicular para tomadas/interruptores
+          snapRotation = res.angle + sideOffset;
         }
       }
     });
-    // Para esquadrias (portas/janelas), o snap só é considerado válido se estiver perto de uma parede
-    const isSnapped = minDistance <= 0.45;
+    // Para esquadrias (portas/janelas) e tomadas/interruptores, o snap só é considerado válido se estiver perto de uma parede
+    const isSnapped = minDistance <= tolerance;
     setDeviceSnapInfo({ point: isSnapped ? snapPos : mouseReal, rotation: isSnapped ? snapRotation : 0, isSnapped });
   };
 
@@ -827,6 +926,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
             scaleY={bgImageScale}
             opacity={0.45}
             listening={!bgImageLock}
+            draggable={!bgImageLock}
             onDragEnd={(e) => setBgImagePos({ x: e.target.x(), y: e.target.y() })}
           />
         )}
@@ -1418,20 +1518,10 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                 fill="#ffffff"
                 stroke="#0078d7"
                 strokeWidth={2 / zoom}
-                draggable
-                onDragMove={(e) => {
-                  const node = e.target;
-                  const newPt = {
-                    x: wall.p1.x + node.x() / ppm,
-                    y: wall.p1.y + node.y() / ppm
-                  };
-                  const snapped = getWallDragSnap(newPt, wall.id);
-                  updateWall(wall.id, { p1: snapped });
-                  node.position({ x: 0, y: 0 });
-                }}
-                onDragEnd={(e) => {
-                  e.target.position({ x: 0, y: 0 });
-                  e.target.getLayer()?.batchDraw();
+                draggable={false}
+                onMouseDown={(e) => {
+                  e.cancelBubble = true;
+                  setActiveHandle({ wallId: wall.id, pointKey: 'p1' });
                 }}
                 onMouseEnter={(e) => { e.target.getStage()!.container().style.cursor = 'pointer'; }}
                 onMouseLeave={(e) => { e.target.getStage()!.container().style.cursor = cursorStyle; }}
@@ -1443,20 +1533,10 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                 fill="#ffffff"
                 stroke="#0078d7"
                 strokeWidth={2 / zoom}
-                draggable
-                onDragMove={(e) => {
-                  const node = e.target;
-                  const newPt = {
-                    x: wall.p2.x + node.x() / ppm,
-                    y: wall.p2.y + node.y() / ppm
-                  };
-                  const snapped = getWallDragSnap(newPt, wall.id);
-                  updateWall(wall.id, { p2: snapped });
-                  node.position({ x: 0, y: 0 });
-                }}
-                onDragEnd={(e) => {
-                  e.target.position({ x: 0, y: 0 });
-                  e.target.getLayer()?.batchDraw();
+                draggable={false}
+                onMouseDown={(e) => {
+                  e.cancelBubble = true;
+                  setActiveHandle({ wallId: wall.id, pointKey: 'p2' });
                 }}
                 onMouseEnter={(e) => { e.target.getStage()!.container().style.cursor = 'pointer'; }}
                 onMouseLeave={(e) => { e.target.getStage()!.container().style.cursor = cursorStyle; }}
@@ -1570,6 +1650,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                 let minDistance = Infinity;
                 let snapPos: Point2D = { x: newX, y: newY };
                 let snapRotation = dev.rotation;
+                const tolerance = (12 / (ppm * zoom)) * 2.5;
 
                 walls.forEach(wall => {
                   const res = getClosestPointOnSegment({ x: newX, y: newY }, wall.p1, wall.p2);
@@ -1577,18 +1658,34 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                     minDistance = res.distance;
                     snapPos = res.point;
                     if (isEsquadria(dev.type)) {
-                      snapRotation = res.angle; // Rotação paralela
+                      // Preserva a rotação de abertura da porta (para dentro/fora)
+                      const diffNormal = Math.abs((dev.rotation - res.angle) % 360);
+                      const is180 = diffNormal > 90 && diffNormal < 270;
+                      snapRotation = (res.angle + (is180 ? 180 : 0)) % 360;
                     } else {
                       const sideOffset = res.side > 0 ? 90 : -90;
-                      snapRotation = res.angle + sideOffset; // Rotação perpendicular
+                      snapRotation = res.angle + sideOffset;
                     }
                   }
                 });
 
-                if (minDistance <= 0.45) {
-                  finalX = snapPos.x;
-                  finalY = snapPos.y;
-                  finalRotation = snapRotation;
+                if (isEsquadria(dev.type)) {
+                  if (minDistance <= tolerance) {
+                    finalX = snapPos.x;
+                    finalY = snapPos.y;
+                    finalRotation = snapRotation;
+                  } else {
+                    alert('Atenção: Portas e janelas não podem ser movidas para fora de uma parede!');
+                    node.position({ x: dev.x * ppm, y: dev.y * ppm });
+                    node.getLayer()?.batchDraw();
+                    return;
+                  }
+                } else {
+                  if (minDistance <= tolerance) {
+                    finalX = snapPos.x;
+                    finalY = snapPos.y;
+                    finalRotation = snapRotation;
+                  }
                 }
               }
 
