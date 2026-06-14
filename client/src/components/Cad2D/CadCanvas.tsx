@@ -100,7 +100,7 @@ const getWallVans = (wall: Wall, devs: Device[]) => {
 export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
   const {
     ppm, bgImageSrc, bgImageLock, bgImageScale, bgImagePos,
-    isCalibrating, calibrationPoints, zoom, pan,
+    isCalibrating, calibrationPoints, zoom, pan, showGrid,
     walls, devices, circuits, conduits,
     currentTool, selectedDeviceType, activeWallPoints, selectedDeviceId, selectedWallId,
     setZoom, setPan, setBgImagePos, addCalibrationPoint, setPpm, setIsCalibrating,
@@ -129,6 +129,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
   const [deviceSnapInfo, setDeviceSnapInfo] = useState<{
     point: Point2D; rotation: number; isSnapped: boolean;
   } | null>(null);
+  const [snappedWallPoint, setSnappedWallPoint] = useState<Point2D | null>(null);
 
   const { updateDeviceProperties } = useCadStore();
 
@@ -289,20 +290,48 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     let snappedToGuideX = false;
     let snappedToGuideY = false;
 
-    if (guideLines && guideLines.length > 0) {
-      guideLines.forEach(g => {
-        if (g.type === 'vertical') {
-          if (Math.abs(realPos.x - g.value) <= 0.15) {
-            snappedX = g.value;
-            snappedToGuideX = true;
+    // Novo Snap de quinas de parede para a ferramenta de cota
+    let snapWallPoint: Point2D | null = null;
+    let minCornerDist = Infinity;
+
+    if (currentTool === 'dimension') {
+      walls.forEach(w => {
+        [w.p1, w.p2].forEach(pt => {
+          const dist = Math.sqrt(Math.pow(realPos.x - pt.x, 2) + Math.pow(realPos.y - pt.y, 2));
+          if (dist < minCornerDist) {
+            minCornerDist = dist;
+            snapWallPoint = pt;
           }
-        } else if (g.type === 'horizontal') {
-          if (Math.abs(realPos.y - g.value) <= 0.15) {
-            snappedY = g.value;
-            snappedToGuideY = true;
-          }
-        }
+        });
       });
+      if (minCornerDist <= 0.25 && snapWallPoint) { // Tolerância de 25cm para quinas
+        const pt = snapWallPoint as Point2D;
+        snappedX = pt.x;
+        snappedY = pt.y;
+        snappedToGuideX = true;
+        snappedToGuideY = true;
+      } else {
+        snapWallPoint = null;
+      }
+    }
+    setSnappedWallPoint(snapWallPoint);
+
+    if (!snappedToGuideX || !snappedToGuideY) {
+      if (guideLines && guideLines.length > 0) {
+        guideLines.forEach(g => {
+          if (g.type === 'vertical' && !snappedToGuideX) {
+            if (Math.abs(realPos.x - g.value) <= 0.15) {
+              snappedX = g.value;
+              snappedToGuideX = true;
+            }
+          } else if (g.type === 'horizontal' && !snappedToGuideY) {
+            if (Math.abs(realPos.y - g.value) <= 0.15) {
+              snappedY = g.value;
+              snappedToGuideY = true;
+            }
+          }
+        });
+      }
     }
 
     if (!snappedToGuideX) {
@@ -346,6 +375,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
         }
       }
     });
+    // Para esquadrias (portas/janelas), o snap só é considerado válido se estiver perto de uma parede
     const isSnapped = minDistance <= 0.45;
     setDeviceSnapInfo({ point: isSnapped ? snapPos : mouseReal, rotation: isSnapped ? snapRotation : 0, isSnapped });
   };
@@ -428,20 +458,40 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
 
     if (currentTool === 'dimension') {
       const { meterSpacing } = getGridConfig();
-      const snapped = snapToGrid(clickMetres, meterSpacing);
+      const targetPoint = snappedWallPoint || snapToGrid(clickMetres, meterSpacing);
       if (!activeDimensionPoints || activeDimensionPoints.length === 0) {
-        addActiveDimensionPoint(snapped);
-      } else {
+        addActiveDimensionPoint(targetPoint);
+      } else if (activeDimensionPoints.length === 1) {
         const p1 = activeDimensionPoints[0];
-        if (p1.x !== snapped.x || p1.y !== snapped.y) {
-          addDimension(p1, snapped);
-          clearActiveDimensionPoints();
+        if (p1.x !== targetPoint.x || p1.y !== targetPoint.y) {
+          addActiveDimensionPoint(targetPoint);
         }
+      } else if (activeDimensionPoints.length === 2) {
+        const p1 = activeDimensionPoints[0];
+        const p2 = activeDimensionPoints[1];
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const L = Math.sqrt(dx * dx + dy * dy);
+        if (L > 0) {
+          const nx = -dy / L;
+          const ny = dx / L;
+          const offset = (clickMetres.x - p1.x) * nx + (clickMetres.y - p1.y) * ny;
+          addDimension(p1, p2, offset);
+        } else {
+          addDimension(p1, p2, 0);
+        }
+        clearActiveDimensionPoints();
       }
       return;
     }
 
     if (currentTool === 'device' && selectedDeviceType && deviceSnapInfo) {
+      // Bloquear inserção de esquadrias (portas/janelas) fora de paredes
+      if (isEsquadria(selectedDeviceType) && !deviceSnapInfo.isSnapped) {
+        alert('Atenção: Portas e janelas só podem ser inseridas sobre uma parede existente!');
+        return;
+      }
+
       const powerMap: Record<string, number> = {
         tomada_baixa: 100, tomada_media: 100, tomada_alta: 100, tomada_220: 1500,
         lampada: 60, interruptor: 0, interruptor_duplo: 0,
@@ -690,7 +740,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
           listening={false}
         />
 
-        {!paperSpaceActive && gridLines}
+        {!paperSpaceActive && showGrid && gridLines}
 
         {imageObj && (
           <Image
@@ -915,8 +965,16 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
           const angle = Math.atan2(dy, dx);
           const angleDeg = angle * (180 / Math.PI);
 
-          const midX = (d.p1.x + d.p2.x) / 2 * ppm;
-          const midY = (d.p1.y + d.p2.y) / 2 * ppm;
+          const nx = -dy / L;
+          const ny = dx / L;
+          const offset = d.offset || 0;
+
+          // Pontos deslocados perpendicularmente
+          const cp1 = { x: d.p1.x + nx * offset, y: d.p1.y + ny * offset };
+          const cp2 = { x: d.p2.x + nx * offset, y: d.p2.y + ny * offset };
+
+          const midX = (cp1.x + cp2.x) / 2 * ppm;
+          const midY = (cp1.y + cp2.y) / 2 * ppm;
 
           let textRot = angleDeg;
           if (textRot > 90 || textRot < -90) {
@@ -935,9 +993,27 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                 }
               }}
             >
+              {/* Linhas de extensão (Extension lines) ligando a parede à linha de cota */}
+              {offset !== 0 && (
+                <>
+                  <Line
+                    points={[d.p1.x * ppm, d.p1.y * ppm, cp1.x * ppm, cp1.y * ppm]}
+                    stroke="#94a3b8"
+                    strokeWidth={0.7 / zoom}
+                    dash={[3, 3]}
+                  />
+                  <Line
+                    points={[d.p2.x * ppm, d.p2.y * ppm, cp2.x * ppm, cp2.y * ppm]}
+                    stroke="#94a3b8"
+                    strokeWidth={0.7 / zoom}
+                    dash={[3, 3]}
+                  />
+                </>
+              )}
+
               {/* Linha principal de cota */}
               <Line
-                points={[d.p1.x * ppm, d.p1.y * ppm, d.p2.x * ppm, d.p2.y * ppm]}
+                points={[cp1.x * ppm, cp1.y * ppm, cp2.x * ppm, cp2.y * ppm]}
                 stroke={strokeColor}
                 strokeWidth={sw}
               />
@@ -945,20 +1021,20 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
               {/* Ticks oblíquos de cota */}
               <Line
                 points={[
-                  d.p1.x * ppm - Math.cos(angle + Math.PI / 4) * tickLength,
-                  d.p1.y * ppm - Math.sin(angle + Math.PI / 4) * tickLength,
-                  d.p1.x * ppm + Math.cos(angle + Math.PI / 4) * tickLength,
-                  d.p1.y * ppm + Math.sin(angle + Math.PI / 4) * tickLength,
+                  cp1.x * ppm - Math.cos(angle + Math.PI / 4) * tickLength,
+                  cp1.y * ppm - Math.sin(angle + Math.PI / 4) * tickLength,
+                  cp1.x * ppm + Math.cos(angle + Math.PI / 4) * tickLength,
+                  cp1.y * ppm + Math.sin(angle + Math.PI / 4) * tickLength,
                 ]}
                 stroke={strokeColor}
                 strokeWidth={sw * 1.5}
               />
               <Line
                 points={[
-                  d.p2.x * ppm - Math.cos(angle + Math.PI / 4) * tickLength,
-                  d.p2.y * ppm - Math.sin(angle + Math.PI / 4) * tickLength,
-                  d.p2.x * ppm + Math.cos(angle + Math.PI / 4) * tickLength,
-                  d.p2.y * ppm + Math.sin(angle + Math.PI / 4) * tickLength,
+                  cp2.x * ppm - Math.cos(angle + Math.PI / 4) * tickLength,
+                  cp2.y * ppm - Math.sin(angle + Math.PI / 4) * tickLength,
+                  cp2.x * ppm + Math.cos(angle + Math.PI / 4) * tickLength,
+                  cp2.y * ppm + Math.sin(angle + Math.PI / 4) * tickLength,
                 ]}
                 stroke={strokeColor}
                 strokeWidth={sw * 1.5}
@@ -992,18 +1068,70 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
           );
         })}
 
-        {/* Preview da Cota Ativa em Desenho */}
-        {currentTool === 'dimension' && activeDimensionPoints && activeDimensionPoints.length === 1 && (
+        {/* Indicador Visual do Snap de Quina de Parede */}
+        {currentTool === 'dimension' && snappedWallPoint && (
           <Group>
-            <Line
-              points={[activeDimensionPoints[0].x * ppm, activeDimensionPoints[0].y * ppm, snappedMousePos.x * ppm, snappedMousePos.y * ppm]}
-              stroke="#2563eb"
+            <Circle
+              x={snappedWallPoint.x * ppm}
+              y={snappedWallPoint.y * ppm}
+              radius={6}
+              fill="#0078d7"
+              stroke="#ffffff"
               strokeWidth={1.5}
-              dash={[4, 4]}
             />
-            <Circle x={activeDimensionPoints[0].x * ppm} y={activeDimensionPoints[0].y * ppm} radius={4} fill="#2563eb" />
-            <Circle x={snappedMousePos.x * ppm} y={snappedMousePos.y * ppm} radius={4} fill="#2563eb" />
+            <Circle
+              x={snappedWallPoint.x * ppm}
+              y={snappedWallPoint.y * ppm}
+              radius={10}
+              stroke="#0078d7"
+              strokeWidth={1}
+              dash={[2, 2]}
+            />
           </Group>
+        )}
+
+        {/* Preview da Cota Ativa em Desenho (Fluxo de 3 cliques) */}
+        {currentTool === 'dimension' && activeDimensionPoints && (
+          activeDimensionPoints.length === 1 ? (
+            <Group>
+              <Line
+                points={[activeDimensionPoints[0].x * ppm, activeDimensionPoints[0].y * ppm, snappedMousePos.x * ppm, snappedMousePos.y * ppm]}
+                stroke="#2563eb"
+                strokeWidth={1.5}
+                dash={[4, 4]}
+              />
+              <Circle x={activeDimensionPoints[0].x * ppm} y={activeDimensionPoints[0].y * ppm} radius={4} fill="#2563eb" />
+              <Circle x={snappedMousePos.x * ppm} y={snappedMousePos.y * ppm} radius={4} fill="#2563eb" />
+            </Group>
+          ) : activeDimensionPoints.length === 2 ? (() => {
+            const p1 = activeDimensionPoints[0];
+            const p2 = activeDimensionPoints[1];
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const L = Math.sqrt(dx * dx + dy * dy);
+            if (L === 0) return null;
+            const nx = -dy / L;
+            const ny = dx / L;
+            const offset = (mousePos.x - p1.x) * nx + (mousePos.y - p1.y) * ny;
+            const cp1 = { x: p1.x + nx * offset, y: p1.y + ny * offset };
+            const cp2 = { x: p2.x + nx * offset, y: p2.y + ny * offset };
+            
+            return (
+              <Group>
+                <Line points={[p1.x * ppm, p1.y * ppm, cp1.x * ppm, cp1.y * ppm]} stroke="#2563eb" strokeWidth={1} dash={[3, 3]} />
+                <Line points={[p2.x * ppm, p2.y * ppm, cp2.x * ppm, cp2.y * ppm]} stroke="#2563eb" strokeWidth={1} dash={[3, 3]} />
+                <Line
+                  points={[cp1.x * ppm, cp1.y * ppm, cp2.x * ppm, cp2.y * ppm]}
+                  stroke="#2563eb"
+                  strokeWidth={1.5}
+                />
+                <Group x={((cp1.x + cp2.x) / 2) * ppm} y={((cp1.y + cp2.y) / 2) * ppm} rotation={Math.atan2(dy, dx) * (180 / Math.PI)}>
+                  <Rect x={-24} y={-8} width={48} height={16} fill="#ffffff" stroke="#2563eb" strokeWidth={1} cornerRadius={2} />
+                  <Text text={`${L.toFixed(2)} m`} x={-24} y={-6} width={48} fontSize={10} fill="#2563eb" align="center" fontStyle="bold" />
+                </Group>
+              </Group>
+            );
+          })() : null
         )}
 
         {/* Renderização das Anotações de Texto */}
@@ -1372,25 +1500,35 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
 
         {currentTool === 'device' && selectedDeviceType && deviceSnapInfo && (
           <Group opacity={0.65}>
-            <DeviceSymbol
-              id="preview"
-              type={selectedDeviceType}
-              x={deviceSnapInfo.point.x * ppm}
-              y={deviceSnapInfo.point.y * ppm}
-              rotation={deviceSnapInfo.rotation}
-              ppm={ppm}
-              zoom={zoom}
-              isSelected={false}
-            />
-            {deviceSnapInfo.isSnapped && (
-              <Circle
-                x={deviceSnapInfo.point.x * ppm}
-                y={deviceSnapInfo.point.y * ppm}
-                radius={8}
-                stroke="#16a34a"
-                strokeWidth={1.5}
-                dash={[2, 2]}
-              />
+            {isEsquadria(selectedDeviceType) && !deviceSnapInfo.isSnapped ? (
+              // Desenha o círculo vermelho de proibido se for esquadria fora da parede
+              <Group x={deviceSnapInfo.point.x * ppm} y={deviceSnapInfo.point.y * ppm}>
+                <Circle radius={16} stroke="#ef4444" strokeWidth={3} fill="rgba(239, 68, 68, 0.1)" />
+                <Line points={[-11, -11, 11, 11]} stroke="#ef4444" strokeWidth={3} />
+              </Group>
+            ) : (
+              <>
+                <DeviceSymbol
+                  id="preview"
+                  type={selectedDeviceType}
+                  x={deviceSnapInfo.point.x * ppm}
+                  y={deviceSnapInfo.point.y * ppm}
+                  rotation={deviceSnapInfo.rotation}
+                  ppm={ppm}
+                  zoom={zoom}
+                  isSelected={false}
+                />
+                {deviceSnapInfo.isSnapped && (
+                  <Circle
+                    x={deviceSnapInfo.point.x * ppm}
+                    y={deviceSnapInfo.point.y * ppm}
+                    radius={8}
+                    stroke="#16a34a"
+                    strokeWidth={1.5}
+                    dash={[2, 2]}
+                  />
+                )}
+              </>
             )}
           </Group>
         )}

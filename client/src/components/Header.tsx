@@ -104,6 +104,16 @@ const IconLegend = () => (
   </svg>
 );
 
+const IconGrid = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <line x1="9" y1="3" x2="9" y2="21" />
+    <line x1="15" y1="3" x2="15" y2="21" />
+    <line x1="3" y1="9" x2="21" y2="9" />
+    <line x1="3" y1="15" x2="21" y2="15" />
+  </svg>
+);
+
 const IconTrash = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="3,6 5,6 21,6" />
@@ -144,7 +154,7 @@ export const Header: React.FC<HeaderProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Zustand
-  const { user, logout, saveProjectToDb, currentDbProjectId } = useCadStore();
+  const { user, logout, saveProjectToDb, currentDbProjectId, showGrid, toggleGrid } = useCadStore();
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -257,7 +267,17 @@ export const Header: React.FC<HeaderProps> = ({
         <button className="hdr-icon-btn" onClick={onToggleLegend} title="Legenda">
           <IconLegend />
         </button>
-        <span className="hdr-legend-text">LEGENDA</span>
+        <span className="hdr-legend-text" style={{ marginRight: '12px' }}>LEGENDA</span>
+
+        <button 
+          className="hdr-icon-btn" 
+          onClick={toggleGrid} 
+          style={{ color: showGrid ? '#d4af37' : undefined }} 
+          title="Exibir/Ocultar Grid"
+        >
+          <IconGrid />
+        </button>
+        <span className="hdr-legend-text" style={{ color: showGrid ? '#d4af37' : undefined }}>GRID</span>
 
         <div className="hdr-sep" />
 

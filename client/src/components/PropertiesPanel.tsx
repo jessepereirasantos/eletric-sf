@@ -295,6 +295,23 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
         </div>
       )}
 
+      {/* Sentido de Abertura (apenas para portas de giro/pivotante) */}
+      {(device.type === 'door' || device.type === 'door_pivotante') && (
+        <div className="props-field">
+          <label>Sentido de Abertura</label>
+          <div className="props-toggle-row">
+            <button
+              className={`props-toggle ${device.flip ? 'active' : ''}`}
+              onClick={() => update({ flip: true })}
+            >Esquerda</button>
+            <button
+              className={`props-toggle ${!device.flip ? 'active' : ''}`}
+              onClick={() => update({ flip: false })}
+            >Direita</button>
+          </div>
+        </div>
+      )}
+
       {/* Circuito vinculado */}
       {(isTomada || isLampada || isInterruptor || isTelecom || isSeguranca) && (
         <div className="props-field">

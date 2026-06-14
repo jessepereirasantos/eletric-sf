@@ -17,6 +17,7 @@ interface DeviceSymbolProps {
   onDragEnd?: (e: any) => void;
   modules?: string[];
   width?: number; // Largura paramétrica
+  flip?: boolean;  // Sentido de abertura
 }
 
 // ─── Cores técnicas NBR (canvas branco) ────────────────────────
@@ -41,6 +42,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
   onDragEnd,
   modules,
   width,
+  flip,
 }) => {
   // Tamanho base: 0.20m reais no canvas
   const S = 0.20 * ppm;
@@ -86,6 +88,14 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
       />
     ) : null;
 
+  // ─── Suporte para Grudar na Parede (Modelo WOCA) ──────────────────
+  const WallMountGroup = ({ children }: { children: React.ReactNode }) => (
+    <Group y={wallOffset}>
+      <Line points={[-H * 1.3, 0, H * 1.3, 0]} stroke={stroke} strokeWidth={sw * 1.5} />
+      {children}
+    </Group>
+  );
+
   // ─── Lógica Modular / Conjugada Lado a Lado ───────────────────
   const list = modules || [type];
   if (list.length > 1) {
@@ -108,6 +118,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
               currentTool={currentTool}
               wallThickness={wallThickness}
               draggable={false} // Drag controlado pelo Group pai
+              flip={flip}
             />
           );
         })}
@@ -123,7 +134,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'tomada_baixa':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             <Line
               points={[-H, 0, 0, -H * 1.5, H, 0]}
               closed
@@ -132,7 +143,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
               strokeWidth={sw}
             />
             <SelectionRing cy={-H * 0.75} r={S * 0.75} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -141,7 +152,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'tomada_media':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             {/* Metade esquerda pintada de preto */}
             <Line
               points={[-H, 0, 0, -H * 1.5, 0, 0]}
@@ -159,7 +170,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
               strokeWidth={sw}
             />
             <SelectionRing cy={-H * 0.75} r={S * 0.75} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -168,7 +179,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'tomada_alta':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             <Line
               points={[-H, 0, 0, -H * 1.5, H, 0]}
               closed
@@ -177,7 +188,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
               strokeWidth={sw}
             />
             <SelectionRing cy={-H * 0.75} r={S * 0.75} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -185,7 +196,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'tue_chuveiro':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             <Line
               points={[-H, 0, 0, -H * 1.5, H, 0]}
               closed
@@ -195,7 +206,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
             />
             <Text text="CH" x={H * 1.1} y={-H * 1.2} fontSize={S * 0.45} fill={stroke} fontStyle="bold" />
             <SelectionRing cy={-H * 0.75} r={S * 0.85} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -203,7 +214,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'tue_ar':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             <Line
               points={[-H, 0, 0, -H * 1.5, H, 0]}
               closed
@@ -213,7 +224,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
             />
             <Text text="AR" x={H * 1.1} y={-H * 1.2} fontSize={S * 0.45} fill={stroke} fontStyle="bold" />
             <SelectionRing cy={-H * 0.75} r={S * 0.85} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -221,7 +232,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'tomada_220':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             <Line
               points={[-H, 0, 0, -H * 1.5, H, 0]}
               closed
@@ -232,7 +243,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
             <Line points={[0, 0, 0, -H * 1.5]} stroke={stroke} strokeWidth={sw} />
             <Text text="220" x={H * 1.1} y={-H * 1.2} fontSize={S * 0.4} fill={stroke} fontStyle="bold" />
             <SelectionRing cy={-H * 0.75} r={S * 0.85} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -241,11 +252,11 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'interruptor':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             <Line points={[0, 0, 0, -H * 1.5]} stroke={stroke} strokeWidth={sw} />
             <Circle x={0} y={-H * 1.5} radius={H * 0.5} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
             <SelectionRing cy={-H * 0.75} r={S * 0.75} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -253,11 +264,11 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'switch_parallel':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             <Line points={[0, 0, 0, -H * 1.5]} stroke={stroke} strokeWidth={sw} />
             <Circle x={0} y={-H * 1.5} radius={H * 0.5} fill={stroke} stroke={stroke} strokeWidth={sw} />
             <SelectionRing cy={-H * 0.75} r={S * 0.75} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -265,7 +276,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'switch_intermediate':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             <Line points={[0, 0, 0, -H * 1.5]} stroke={stroke} strokeWidth={sw} />
             <Circle x={0} y={-H * 1.5} radius={H * 0.5} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
             <Arc
@@ -275,7 +286,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
               fill={stroke} stroke={stroke} strokeWidth={sw}
             />
             <SelectionRing cy={-H * 0.75} r={S * 0.75} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -283,13 +294,13 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'interruptor_duplo':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             <Line points={[-H * 0.3, 0, -H * 0.3, -H * 1.5]} stroke={stroke} strokeWidth={sw} />
             <Line points={[ H * 0.3, 0,  H * 0.3, -H * 1.5]} stroke={stroke} strokeWidth={sw} />
             <Circle x={-H * 0.3} y={-H * 1.5} radius={H * 0.4} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
             <Circle x={ H * 0.3} y={-H * 1.5} radius={H * 0.4} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
             <SelectionRing cy={-H * 0.75} r={S * 0.85} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -297,7 +308,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'interruptor_triplo':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             {[-H * 0.5, 0, H * 0.5].map((ox, i) => (
               <React.Fragment key={i}>
                 <Line points={[ox, 0, ox, -H * 1.5]} stroke={stroke} strokeWidth={sw} />
@@ -305,7 +316,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
               </React.Fragment>
             ))}
             <SelectionRing cy={-H * 0.75} r={S * 1.0} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -313,12 +324,12 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'interruptor_teleruptora':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             <Line points={[0, 0, 0, -H * 1.5]} stroke={stroke} strokeWidth={sw} />
             <Circle x={0} y={-H * 1.5} radius={H * 0.5} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
             <Circle x={0} y={-H * 1.5} radius={H * 0.2} fill={stroke} stroke={stroke} strokeWidth={sw} />
             <SelectionRing cy={-H * 0.75} r={S * 0.75} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -339,12 +350,12 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'lampada_parede':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             <Line points={[-H, 0, H, 0]} stroke={stroke} strokeWidth={sw} />
             <Arc x={0} y={0} innerRadius={0} outerRadius={H} angle={180} rotation={-180} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
             <Line points={[-H * 0.5, -H * 0.5, H * 0.5, H * 0] } stroke={stroke} strokeWidth={sw} />
             <SelectionRing cy={-H * 0.3} r={S * 0.75} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -404,19 +415,21 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
       const doorW = (width ?? 0.8) * ppm;
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          {/* Hit area invisível para cliques */}
-          <Rect x={-doorW * 0.1} y={-doorW} width={doorW * 1.2} height={doorW * 1.1} fill="rgba(0,0,0,0)" />
-          <Line points={[0, 0, 0, -doorW]} stroke={stroke} strokeWidth={sw} />
-          <Arc
-            x={0} y={0}
-            innerRadius={doorW} outerRadius={doorW}
-            angle={90} rotation={-90}
-            stroke={stroke} strokeWidth={sw * 0.7}
-            dash={[3, 3]}
-            fill="transparent"
-          />
-          {/* Linha guia de abertura */}
-          <Line points={[0, 0, doorW, 0]} stroke={stroke} strokeWidth={sw * 0.8} />
+          <Group scaleX={flip ? -1 : 1}>
+            {/* Hit area invisível para cliques */}
+            <Rect x={-doorW * 0.1} y={-doorW} width={doorW * 1.2} height={doorW * 1.1} fill="rgba(0,0,0,0)" />
+            <Line points={[0, 0, 0, -doorW]} stroke={stroke} strokeWidth={sw} />
+            <Arc
+              x={0} y={0}
+              innerRadius={doorW} outerRadius={doorW}
+              angle={90} rotation={-90}
+              stroke={stroke} strokeWidth={sw * 0.7}
+              dash={[3, 3]}
+              fill="transparent"
+            />
+            {/* Linha guia de abertura */}
+            <Line points={[0, 0, doorW, 0]} stroke={stroke} strokeWidth={sw * 0.8} />
+          </Group>
           <SelectionRing cy={-doorW * 0.5} r={doorW * 0.7} />
         </Group>
       );
@@ -444,29 +457,31 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
       const pivotOffset = doorW * 0.15; // Pivot a 15% do vão
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          {/* Hit area invisível para cliques */}
-          <Rect x={-doorW * 0.1} y={-doorW} width={doorW * 1.2} height={doorW * 1.1} fill="rgba(0,0,0,0)" />
-          <Line points={[0, 0, doorW, 0]} stroke={stroke} strokeWidth={sw * 0.5} opacity={0.5} />
-          {/* Folha da porta rotacionada (aberta) em torno do pivot */}
-          <Line points={[pivotOffset, 0, pivotOffset, -doorW]} stroke={stroke} strokeWidth={sw} />
-          {/* Arco de abertura principal */}
-          <Arc
-            x={pivotOffset} y={0}
-            innerRadius={doorW - pivotOffset} outerRadius={doorW - pivotOffset}
-            angle={90} rotation={-90}
-            stroke={stroke} strokeWidth={sw * 0.7}
-            dash={[3, 3]}
-            fill="transparent"
-          />
-          {/* Pequeno arco de abertura traseiro */}
-          <Arc
-            x={pivotOffset} y={0}
-            innerRadius={pivotOffset} outerRadius={pivotOffset}
-            angle={90} rotation={90}
-            stroke={stroke} strokeWidth={sw * 0.7}
-            dash={[3, 3]}
-            fill="transparent"
-          />
+          <Group scaleX={flip ? -1 : 1}>
+            {/* Hit area invisível para cliques */}
+            <Rect x={-doorW * 0.1} y={-doorW} width={doorW * 1.2} height={doorW * 1.1} fill="rgba(0,0,0,0)" />
+            <Line points={[0, 0, doorW, 0]} stroke={stroke} strokeWidth={sw * 0.5} opacity={0.5} />
+            {/* Folha da porta rotacionada (aberta) em torno do pivot */}
+            <Line points={[pivotOffset, 0, pivotOffset, -doorW]} stroke={stroke} strokeWidth={sw} />
+            {/* Arco de abertura principal */}
+            <Arc
+              x={pivotOffset} y={0}
+              innerRadius={doorW - pivotOffset} outerRadius={doorW - pivotOffset}
+              angle={90} rotation={-90}
+              stroke={stroke} strokeWidth={sw * 0.7}
+              dash={[3, 3]}
+              fill="transparent"
+            />
+            {/* Pequeno arco de abertura traseiro */}
+            <Arc
+              x={pivotOffset} y={0}
+              innerRadius={pivotOffset} outerRadius={pivotOffset}
+              angle={90} rotation={90}
+              stroke={stroke} strokeWidth={sw * 0.7}
+              dash={[3, 3]}
+              fill="transparent"
+            />
+          </Group>
           <SelectionRing cy={-doorW * 0.5} r={doorW * 0.7} />
         </Group>
       );
@@ -526,13 +541,13 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'tele_rj45':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             <Circle x={0} y={0} radius={H * 1.4} fill="rgba(0,0,0,0)" />
             <Line points={[0, -H, -H, H, H, H]} closed fill="transparent" stroke={stroke} strokeWidth={sw} />
             <Line points={[0, -H, -H, H, 0, H]} closed fill={stroke} stroke={stroke} strokeWidth={sw} />
             <Line points={[-H, H, H, H]} stroke={stroke} strokeWidth={sw} />
             <SelectionRing cy={H * 0.2} r={H * 1.4} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -540,12 +555,12 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'tele_rj11':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             <Circle x={0} y={0} radius={H * 1.4} fill="rgba(0,0,0,0)" />
             <Line points={[0, -H, -H, H, H, H]} closed fill="transparent" stroke={stroke} strokeWidth={sw} />
             <Text text="T" x={-H * 0.25} y={-H * 0.15} fontSize={S * 0.55} fill={stroke} fontStyle="bold" />
             <SelectionRing cy={H * 0.2} r={H * 1.4} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -553,12 +568,12 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'tele_coaxial':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             <Circle x={0} y={0} radius={H * 1.4} fill="rgba(0,0,0,0)" />
             <Line points={[0, -H, -H, H, H, H]} closed fill="transparent" stroke={stroke} strokeWidth={sw} />
             <Text text="TV" x={-H * 0.45} y={-H * 0.15} fontSize={S * 0.45} fill={stroke} fontStyle="bold" />
             <SelectionRing cy={H * 0.2} r={H * 1.4} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -566,13 +581,13 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'cftv_camera':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             <Rect x={-H * 0.8} y={-H * 0.4} width={S * 0.8} height={H * 0.6} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
             <Line points={[H * 0.8, -H * 0.3, H * 1.1, -H * 0.5, H * 1.1, -H * 0.1]} closed fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
             <Line points={[-H * 0.4, H * 0.2, -H * 0.8, H * 0.7]} stroke={stroke} strokeWidth={sw * 1.5} />
             <Line points={[-H * 1.1, H * 0.7, -H * 0.5, H * 0.7]} stroke={stroke} strokeWidth={sw * 1.5} />
             <SelectionRing r={S * 1.0} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 
@@ -590,11 +605,11 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
     case 'central_alarme':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
-          <Group y={wallOffset}>
+          <WallMountGroup>
             <Rect x={-H * 1.2} y={-H * 0.8} width={S * 1.2} height={S * 0.8} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
             <Text text="AL" x={-H * 0.75} y={-H * 0.45} fontSize={S * 0.4} fill={stroke} fontStyle="bold" />
             <SelectionRing r={S * 1.1} />
-          </Group>
+          </WallMountGroup>
         </Group>
       );
 

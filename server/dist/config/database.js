@@ -93,6 +93,11 @@ const initializeDatabase = async () => {
         console.log('[Banco de Dados] MODO ATIVO: MySQL de Produção.');
     }
     catch (error) {
+        if (process.env.NODE_ENV === 'production') {
+            exports.useLocalFallback = false;
+            console.error('[Banco de Dados] ERRO CRÍTICO: Não foi possível conectar ao MySQL em produção:', error.message);
+            return;
+        }
         exports.useLocalFallback = true;
         console.warn('[Banco de Dados] Não foi possível conectar ao MySQL local/remoto:', error.message);
         console.warn('[Banco de Dados] MODO ATIVO: Fallback Local (Armazenando em server/db_fallback.json).');
@@ -101,13 +106,17 @@ const initializeDatabase = async () => {
 };
 exports.initializeDatabase = initializeDatabase;
 const getConnectionSafe = async () => {
-    if (exports.useLocalFallback) {
+    if (exports.useLocalFallback && process.env.NODE_ENV !== 'production') {
         throw new Error('MODO_FALLBACK');
     }
     try {
         return await pool.getConnection();
     }
     catch (error) {
+        if (process.env.NODE_ENV === 'production') {
+            console.error('[Banco de Dados] Erro ao obter conexão em produção:', error.message);
+            throw error;
+        }
         console.warn('[Banco de Dados] Erro ao obter conexão, ativando Fallback Local:', error.message);
         exports.useLocalFallback = true;
         await (0, exports.initializeFallbackFile)();

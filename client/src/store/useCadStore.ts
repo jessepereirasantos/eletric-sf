@@ -38,6 +38,7 @@ export interface Device {
   voltage: 127 | 220;
   modules?: string[];
   width?: number; // Largura paramétrica em metros
+  flip?: boolean;  // Sentido de abertura (True = Esquerda, False/undefined = Direita)
 }
 
 export interface Circuit {
@@ -102,6 +103,7 @@ export interface CadDimension {
   id: string;
   p1: Point2D;
   p2: Point2D;
+  offset?: number; // Afastamento horizontal da cota em metros
 }
 
 // Snapshot para undo/redo
@@ -222,7 +224,7 @@ interface CadState {
   updateTextPosition: (id: string, x: number, y: number) => void;
 
   // Cotas (Medidas)
-  addDimension: (p1: Point2D, p2: Point2D) => void;
+  addDimension: (p1: Point2D, p2: Point2D, offset?: number) => void;
   removeDimension: (id: string) => void;
   updateDimensionPoints: (id: string, p1: Point2D, p2: Point2D) => void;
   addActiveDimensionPoint: (pt: Point2D) => void;
@@ -967,13 +969,14 @@ export const useCadStore = create<CadState>()(
   },
 
   // ─── Cotas Técnicas (Medidas) ─────────────────────────────────
-  addDimension: (p1, p2) => {
+  addDimension: (p1, p2, offset) => {
     get().pushHistory();
     set((s) => ({
       dimensions: [...(s.dimensions || []), {
         id: `dim_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         p1,
         p2,
+        offset,
       }]
     }));
     get().recomputeDerivedState();
