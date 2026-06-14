@@ -43,9 +43,15 @@ const getWallVans = (wall: Wall, devs: Device[]) => {
   if (L === 0) return [];
   const dx = (wall.p2.x - wall.p1.x) / L;
   const dy = (wall.p2.y - wall.p1.y) / L;
+  const wallAngle = Math.atan2(wall.p2.y - wall.p1.y, wall.p2.x - wall.p1.x) * (180 / Math.PI);
 
   devs.forEach(dev => {
     if (!isEsquadria(dev.type)) return;
+
+    // Filtro de alinhamento angular: esquadrias só recortam a parede se forem paralelas a ela (diferença < 25°)
+    let angleDiff = Math.abs((dev.rotation - wallAngle) % 180);
+    if (angleDiff > 90) angleDiff = 180 - angleDiff;
+    if (angleDiff > 25) return; // Se for perpendicular, ignora o recorte nesta parede
 
     const toDevX = dev.x - wall.p1.x;
     const toDevY = dev.y - wall.p1.y;
@@ -145,65 +151,87 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
 
   const getWallDragSnap = (pt: Point2D, excludeWallId?: string): Point2D => {
     let snapPt = { ...pt };
-    let minCornerDist = Infinity;
     const tolerance = 12 / (ppm * zoom);
 
-    // 1. Snap magnético em quinas de outras paredes
+    // 1. Prioridade Máxima: Cruzamento / Interseção de linhas de guia
+    let closestGuideX: number | null = null;
+    let closestGuideY: number | null = null;
+    let minGuideXDist = Infinity;
+    let minGuideYDist = Infinity;
+
+    if (guideLines && guideLines.length > 0) {
+      guideLines.forEach(g => {
+        const dist = Math.abs(pt.x - g.value);
+        if (g.type === 'vertical') {
+          if (dist <= tolerance && dist < minGuideXDist) {
+            minGuideXDist = dist;
+            closestGuideX = g.value;
+          }
+        } else if (g.type === 'horizontal') {
+          const distY = Math.abs(pt.y - g.value);
+          if (distY <= tolerance && distY < minGuideYDist) {
+            minGuideYDist = distY;
+            closestGuideY = g.value;
+          }
+        }
+      });
+    }
+
+    // Se temos tanto guia vertical quanto horizontal na tolerância, gruda na interseção
+    if (closestGuideX !== null && closestGuideY !== null) {
+      snapPt.x = closestGuideX;
+      snapPt.y = closestGuideY;
+      return snapPt;
+    }
+
+    // 2. Segunda Prioridade: Guias individuais (vertical ou horizontal)
+    let snappedToGuide = false;
+    if (closestGuideX !== null) {
+      snapPt.x = closestGuideX;
+      snappedToGuide = true;
+    }
+    if (closestGuideY !== null) {
+      snapPt.y = closestGuideY;
+      snappedToGuide = true;
+    }
+
+    // 3. Terceira Prioridade: Snap magnético em quinas de outras paredes
+    let minCornerDist = Infinity;
+    let closestCorner: Point2D | null = null;
+
     walls.forEach(w => {
       if (excludeWallId && w.id === excludeWallId) return;
       [w.p1, w.p2].forEach(corner => {
         const dist = Math.sqrt(Math.pow(pt.x - corner.x, 2) + Math.pow(pt.y - corner.y, 2));
         if (dist < tolerance && dist < minCornerDist) {
           minCornerDist = dist;
-          snapPt = { ...corner };
+          closestCorner = corner;
         }
       });
     });
 
-    if (minCornerDist <= tolerance) {
-      return snapPt;
-    }
-
-    // 2. Snap magnético em linhas de referência (guias)
-    let snappedX = false;
-    let snappedY = false;
-    if (guideLines && guideLines.length > 0) {
-      guideLines.forEach(g => {
-        if (g.type === 'vertical' && !snappedX) {
-          if (Math.abs(pt.x - g.value) <= tolerance) {
-            snapPt.x = g.value;
-            snappedX = true;
-          }
-        } else if (g.type === 'horizontal' && !snappedY) {
-          if (Math.abs(pt.y - g.value) <= tolerance) {
-            snapPt.y = g.value;
-            snappedY = true;
-          }
-        }
-      });
-    }
-
-    // 3. Cruzamento / Interseção de linhas de guia
-    if (guideLines && guideLines.length > 0) {
-      let closestX: number | null = null;
-      let closestY: number | null = null;
-      
-      guideLines.forEach(g => {
-        if (g.type === 'vertical') {
-          if (Math.abs(pt.x - g.value) <= tolerance) {
-            closestX = g.value;
-          }
-        } else if (g.type === 'horizontal') {
-          if (Math.abs(pt.y - g.value) <= tolerance) {
-            closestY = g.value;
-          }
-        }
-      });
-      
-      if (closestX !== null && closestY !== null) {
-        snapPt.x = closestX;
-        snapPt.y = closestY;
+    if (closestCorner) {
+      // Se não estiver em guia, ou se a quina estiver muito próxima (metade da tolerância), gruda na quina
+      if (!snappedToGuide || minCornerDist < tolerance * 0.6) {
+        return closestCorner;
       }
+    }
+
+    // 4. Quarta Prioridade: Snap magnético ao longo do segmento (corpo) de outras paredes
+    let minSegmentDist = Infinity;
+    let closestSegmentPoint: Point2D | null = null;
+
+    walls.forEach(w => {
+      if (excludeWallId && w.id === excludeWallId) return;
+      const res = getClosestPointOnSegment(pt, w.p1, w.p2);
+      if (res.distance < tolerance && res.distance < minSegmentDist) {
+        minSegmentDist = res.distance;
+        closestSegmentPoint = res.point;
+      }
+    });
+
+    if (closestSegmentPoint) {
+      return closestSegmentPoint;
     }
 
     return snapPt;
