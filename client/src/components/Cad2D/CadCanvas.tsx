@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Stage, Layer, Line, Rect, Image, Circle, Group, Text, Transformer } from 'react-konva';
 import { useCadStore } from '../../store/useCadStore';
 import type { Point2D, Device, Wall } from '../../store/useCadStore';
-import { snapToGrid, getClosestPointOnSegment, getWallVertices, computeMiterJoints } from '../../utils/geometry';
+import { getClosestPointOnSegment, getWallVertices, computeMiterJoints } from '../../utils/geometry';
 import { DeviceSymbol } from './DeviceSymbol';
 import { calculateWiringRouting } from '../../utils/pathfinding';
 
@@ -594,7 +594,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     }
 
     if (currentTool === 'wall') {
-      const snapped = getWallDragSnap(clickMetres);
+      const snapped = snappedMousePos; // Usa a coordenada calculada com snap e visualizada no handleMouseMove
       if (activeWallPoints.length === 0) {
         addActiveWallPoint(snapped);
       } else {
@@ -627,8 +627,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     }
 
     if (currentTool === 'dimension') {
-      const { meterSpacing } = getGridConfig();
-      const targetPoint = snappedWallPoint || snapToGrid(clickMetres, meterSpacing);
+      const targetPoint = snappedWallPoint || snappedMousePos;
       if (!activeDimensionPoints || activeDimensionPoints.length === 0) {
         addActiveDimensionPoint(targetPoint);
       } else if (activeDimensionPoints.length === 1) {
