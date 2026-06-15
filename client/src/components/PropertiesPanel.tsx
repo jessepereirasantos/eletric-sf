@@ -129,6 +129,7 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
       window: '🖼️', stairs: '📶',
       tele_rj45: '▲', tele_rj11: '▲', tele_coaxial: '▲',
       cftv_camera: '📹', sensor_presenca: '🚨', central_alarme: '📟',
+      box_octogonal: '⬡', box_4x2: '▭', box_4x4: '□',
     };
     return icons[type] || '●';
   };
@@ -161,6 +162,9 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
       cftv_camera: 'Câmera CFTV',
       sensor_presenca: 'Sensor de Presença',
       central_alarme: 'Central de Alarme',
+      box_octogonal: 'Caixa Octogonal (Teto)',
+      box_4x2: 'Caixa 4x2 (Parede)',
+      box_4x4: 'Caixa 4x4 (Parede)',
     };
     return titles[type] || device.name;
   };
@@ -172,7 +176,8 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
   const isEsquadria = device.type.startsWith('door') || device.type === 'window' || device.type === 'open_van';
   const isTelecom = device.type.startsWith('tele_');
   const isSeguranca = device.type === 'cftv_camera' || device.type === 'sensor_presenca' || device.type === 'central_alarme';
-  const isModular = isTomada || isInterruptor || isTelecom;
+  const isBox = device.type.startsWith('box_');
+  const isModular = (isTomada || isInterruptor || isTelecom) && !isBox;
 
   return (
     <div className="props-panel-content">

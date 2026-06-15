@@ -770,6 +770,73 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
         </Group>
       );
 
+    // ─── CAIXA OCTOGONAL (Teto) ───────────────────────────────────
+    case 'box_octogonal':
+      return (
+        <Group x={x} y={y} {...commonProps}>
+          <Line
+            points={(() => {
+              const pts = [];
+              const r = H;
+              for (let i = 0; i < 8; i++) {
+                const angle = (i * Math.PI) / 4 + Math.PI / 8;
+                pts.push(r * Math.cos(angle), r * Math.sin(angle));
+              }
+              return pts;
+            })()}
+            closed
+            fill={FILL_WHITE}
+            stroke={stroke}
+            strokeWidth={sw}
+          />
+          <Line points={[-H * 0.7, -H * 0.7, H * 0.7, H * 0.7]} stroke={stroke} strokeWidth={sw * 0.7} dash={[3, 3]} />
+          <Line points={[-H * 0.7, H * 0.7, H * 0.7, -H * 0.7]} stroke={stroke} strokeWidth={sw * 0.7} dash={[3, 3]} />
+          <SelectionRing r={H * 1.25} />
+        </Group>
+      );
+
+    // ─── CAIXA 4x2 (Parede) ───────────────────────────────────────
+    case 'box_4x2':
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <WallMountGroup>
+            <Rect
+              x={-H * 0.8}
+              y={-H * 0.4}
+              width={S * 0.8}
+              height={H * 0.8}
+              fill={FILL_WHITE}
+              stroke={stroke}
+              strokeWidth={sw}
+            />
+            <Line points={[-H * 0.8, -H * 0.4, H * 0.8, H * 0.4]} stroke={stroke} strokeWidth={sw * 0.7} opacity={0.5} dash={[2, 2]} />
+            <Line points={[-H * 0.8, H * 0.4, H * 0.8, -H * 0.4]} stroke={stroke} strokeWidth={sw * 0.7} opacity={0.5} dash={[2, 2]} />
+            <SelectionRing cy={0} r={S * 0.7} />
+          </WallMountGroup>
+        </Group>
+      );
+
+    // ─── CAIXA 4x4 (Parede) ───────────────────────────────────────
+    case 'box_4x4':
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <WallMountGroup>
+            <Rect
+              x={-H * 0.8}
+              y={-H * 0.8}
+              width={S * 0.8}
+              height={S * 0.8}
+              fill={FILL_WHITE}
+              stroke={stroke}
+              strokeWidth={sw}
+            />
+            <Line points={[-H * 0.8, -H * 0.8, H * 0.8, H * 0.8]} stroke={stroke} strokeWidth={sw * 0.7} opacity={0.5} dash={[2, 2]} />
+            <Line points={[-H * 0.8, H * 0.8, H * 0.8, -H * 0.8]} stroke={stroke} strokeWidth={sw * 0.7} opacity={0.5} dash={[2, 2]} />
+            <SelectionRing cy={0} r={S * 0.9} />
+          </WallMountGroup>
+        </Group>
+      );
+
     default:
       return (
         <Group x={x} y={y} {...commonProps}>

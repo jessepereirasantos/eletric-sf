@@ -54,6 +54,15 @@ const DEVICE_GROUPS: DropdownGroup[] = [
       { type: 'qdc', label: 'QDC — Quadro Distribuição', icon: '◪', power: 0, voltage: 220 },
     ],
   },
+  {
+    label: 'Caixas/Infra',
+    icon: '📦',
+    devices: [
+      { type: 'box_octogonal', label: 'Caixa Octogonal (Teto)', icon: '⬡', power: 0, voltage: 127 },
+      { type: 'box_4x2', label: 'Caixa 4x2 (Parede)', icon: '▭', power: 0, voltage: 127 },
+      { type: 'box_4x4', label: 'Caixa 4x4 (Parede)', icon: '□', power: 0, voltage: 127 },
+    ],
+  },
 ];
 
 // ─── Props ────────────────────────────────────────────────────

@@ -12,4 +12,5 @@ export type DeviceType =
   | 'switch_simple' | 'switch_parallel' | 'switch_intermediate'
   | 'qdc' | 'meter' | 'poste'
   | 'tele_rj45' | 'tele_rj11' | 'tele_coaxial'
-  | 'cftv_camera' | 'sensor_presenca' | 'central_alarme';
+  | 'cftv_camera' | 'sensor_presenca' | 'central_alarme'
+  | 'box_octogonal' | 'box_4x2' | 'box_4x4';

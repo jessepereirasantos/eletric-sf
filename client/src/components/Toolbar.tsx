@@ -80,6 +80,13 @@ const IconInfra = () => (
   </svg>
 );
 
+const IconBoxes = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <polygon points="12,2 18,5 18,11 12,14 6,11 6,5" />
+    <rect x="4" y="14" width="16" height="8" rx="1" />
+  </svg>
+);
+
 const IconConduit = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
     <path d="M3 12c6-5 12 5 18 0" strokeWidth="2.5" />
@@ -333,6 +340,19 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         { type: 'qdc', label: 'Quadro de Distribuição (QDC)', isDevice: true, symbolDesc: '◪' },
         { type: 'meter', label: 'Medidor de Entrada', isDevice: true, symbolDesc: '⚡' },
         { type: 'poste', label: 'Poste de Entrada', isDevice: true, symbolDesc: '⚡' },
+      ],
+    },
+    {
+      key: 'caixas_infra',
+      label: 'Caixas/Infra',
+      icon: <IconBoxes />,
+      hasDropdown: true,
+      defaultTool: 'device',
+      defaultDevice: 'box_octogonal',
+      items: [
+        { type: 'box_octogonal', label: 'Caixa Octogonal (Teto)', isDevice: true, symbolDesc: '⬡' },
+        { type: 'box_4x2', label: 'Caixa 4x2 (Parede)', isDevice: true, symbolDesc: '▭' },
+        { type: 'box_4x4', label: 'Caixa 4x4 (Parede)', isDevice: true, symbolDesc: '□' },
       ],
     },
     {

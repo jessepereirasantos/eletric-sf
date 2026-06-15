@@ -11,7 +11,7 @@ interface CadCanvasProps {
   height: number;
 }
 
-const getConduitPoints = (p1: Point2D, p2: Point2D) => {
+const getConduitPoints = (p1: Point2D, p2: Point2D, inWall: boolean) => {
   const midX = (p1.x + p2.x) / 2;
   const midY = (p1.y + p2.y) / 2;
   const dx = p2.x - p1.x;
@@ -19,6 +19,14 @@ const getConduitPoints = (p1: Point2D, p2: Point2D) => {
   const dist = Math.sqrt(dx * dx + dy * dy);
 
   if (dist === 0) return { points: [p1.x, p1.y, p2.x, p2.y], midPoint: p1, angle: 0 };
+
+  if (inWall) {
+    return {
+      points: [p1.x, p1.y, p2.x, p2.y],
+      midPoint: { x: midX, y: midY },
+      angle: Math.atan2(dy, dx) * (180 / Math.PI),
+    };
+  }
 
   const offset = Math.min(dist * 0.12, 40);
   const nx = -dy / dist;
@@ -35,6 +43,23 @@ const getConduitPoints = (p1: Point2D, p2: Point2D) => {
 
 const isEsquadria = (type: string) => {
   return type.startsWith('door') || type === 'window' || type === 'open_van';
+};
+
+const isConduitInWall = (devA: Device, devB: Device, walls: Wall[]): boolean => {
+  const isCeilingA = devA.type === 'ceiling_light' || devA.type === 'lampada' || devA.type === 'box_octogonal' || devA.type === 'fluorescent';
+  const isCeilingB = devB.type === 'ceiling_light' || devB.type === 'lampada' || devB.type === 'box_octogonal' || devB.type === 'fluorescent';
+  if (isCeilingA || isCeilingB) return false;
+
+  for (const wall of walls) {
+    const resA = getClosestPointOnSegment({ x: devA.x, y: devA.y }, wall.p1, wall.p2);
+    const resB = getClosestPointOnSegment({ x: devB.x, y: devB.y }, wall.p1, wall.p2);
+
+    const maxDist = wall.thickness / 2 + 0.05; // 5cm de tolerância além da face da parede
+    if (resA.distance <= maxDist && resB.distance <= maxDist) {
+      return true;
+    }
+  }
+  return false;
 };
 
 const getWallVans = (wall: Wall, devs: Device[]) => {
@@ -577,7 +602,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
   };
 
   const calculateDeviceSnap = (mouseReal: Point2D) => {
-    const freeTypes = ['lampada', 'qdc', 'poste', 'medidor'];
+    const freeTypes = ['lampada', 'ceiling_light', 'fluorescent', 'qdc', 'poste', 'medidor', 'box_octogonal'];
     if (freeTypes.includes(selectedDeviceType!)) {
       setDeviceSnapInfo({ point: mouseReal, rotation: 0, isSnapped: false });
       return;
@@ -787,6 +812,9 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
       qdc: 'Quadro de Distribuição (QDC)',
       poste: 'Poste Padrão de Entrada',
       medidor: 'Caixa de Medição Concessionária',
+      box_octogonal: 'Caixa Octogonal (Teto)',
+      box_4x2: 'Caixa 4x2 (Parede)',
+      box_4x4: 'Caixa 4x4 (Parede)',
     };
     return names[type] ?? 'Dispositivo Elétrico';
   };
@@ -1609,7 +1637,8 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
           if (!fromDev || !toDev) return null;
           const p1 = { x: fromDev.x * ppm, y: fromDev.y * ppm };
           const p2 = { x: toDev.x * ppm, y: toDev.y * ppm };
-          const curve = getConduitPoints(p1, p2);
+          const inWall = isConduitInWall(fromDev, toDev, walls);
+          const curve = getConduitPoints(p1, p2, inWall);
           const wires = wiringRouting[conduit.id] || [];
           const isConduitSelected = selectedConduitId === conduit.id;
           const conduitColor = isConduitSelected ? "#0078d7" : "#6b7280";
@@ -1622,7 +1651,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                    points={curve.points}
                    stroke="rgba(0, 120, 215, 0.25)"
                    strokeWidth={14}
-                   tension={0.4}
+                   tension={inWall ? undefined : 0.4}
                    listening={false}
                  />
                )}
@@ -1630,7 +1659,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                  points={curve.points}
                  stroke={conduitColor}
                  strokeWidth={conduitWidth}
-                 tension={0.4}
+                 tension={inWall ? undefined : 0.4}
                  opacity={0.85}
                  hitStrokeWidth={18}
                  dash={isConduitSelected ? [8, 4] : undefined}
@@ -1752,7 +1781,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
               const newX = node.x() / ppm;
               const newY = node.y() / ppm;
 
-              const freeTypes = ['lampada', 'qdc', 'poste', 'medidor'];
+              const freeTypes = ['lampada', 'ceiling_light', 'fluorescent', 'qdc', 'poste', 'medidor', 'box_octogonal'];
               let finalX = newX;
               let finalY = newY;
               let finalRotation = dev.rotation;
