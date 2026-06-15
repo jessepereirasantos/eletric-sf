@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { CadCanvas } from '../components/Cad2D/CadCanvas';
 import { PropertiesPanel } from '../components/PropertiesPanel';
 import { Header } from '../components/Header';
@@ -12,6 +12,30 @@ interface Cad2DViewProps {
   activeTab: 'cad2d' | 'render3d' | 'unifilar';
   onTabChange: (tab: 'cad2d' | 'render3d' | 'unifilar') => void;
 }
+
+// ─── Helpers para File System Access API ───────────────────────
+const getProjectJsonData = () => {
+  const state = useCadStore.getState();
+  return JSON.stringify({
+    projectName: state.projectName,
+    walls: state.walls,
+    devices: state.devices,
+    circuits: state.circuits,
+    conduits: state.conduits,
+    guideLines: state.guideLines || [],
+    texts: state.texts || [],
+    dimensions: state.dimensions || [],
+    ppm: state.ppm,
+  }, null, 2);
+};
+
+const FILE_PICKER_OPTIONS = {
+  suggestedName: 'projeto_eletric_sf.json',
+  types: [{
+    description: 'Projeto Elétrico (JSON)',
+    accept: { 'application/json': ['.json'] as `.${string}`[] },
+  }],
+};
 
 export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) => {
   const {
@@ -31,6 +55,10 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const jsonFileInputRef = useRef<HTMLInputElement>(null);
+
+  // File System Access API — guarda o file handle para sobrescrita silenciosa
+  const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
+  const [_saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   const [isDimensioningOpen, setIsDimensioningOpen] = useState(false);
   const [modalActiveTab, setModalActiveTab] = useState<'dimensioning' | 'budget'>('dimensioning');
@@ -97,6 +125,8 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
         });
 
         useCadStore.getState().recomputeDerivedState();
+        // Limpa o fileHandle anterior ao importar um novo projeto
+        fileHandleRef.current = null;
         alert('Projeto importado com sucesso!');
       } catch (err) {
         console.error(err);
@@ -159,27 +189,69 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
     }
   };
 
-  const handleSave = () => {
-    const state = useCadStore.getState();
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
-      projectName: state.projectName,
-      walls: state.walls,
-      devices: state.devices,
-      circuits: state.circuits,
-      conduits: state.conduits,
-      guideLines: state.guideLines || [],
-      texts: state.texts || [],
-      dimensions: state.dimensions || [],
-      ppm: state.ppm,
-    }, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    const safeName = state.projectName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    downloadAnchor.setAttribute("download", `${safeName || 'projeto'}_cad.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-  };
+  // ─── File System Access API — Salvar Nativo ──────────────────
+  const handleSave = useCallback(async () => {
+    const jsonData = getProjectJsonData();
+
+    // Tenta usar a File System Access API (Chrome, Edge, Opera)
+    if ('showSaveFilePicker' in window) {
+      try {
+        // Se já temos um fileHandle, sobrescreve silenciosamente
+        if (fileHandleRef.current) {
+          setSaveStatus('saving');
+          const writable = await fileHandleRef.current.createWritable();
+          await writable.write(jsonData);
+          await writable.close();
+          setSaveStatus('saved');
+          setTimeout(() => setSaveStatus('idle'), 2000);
+          return;
+        }
+
+        // Primeiro salvamento — abre o file picker
+        const safeName = useCadStore.getState().projectName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const handle = await (window as any).showSaveFilePicker({
+          ...FILE_PICKER_OPTIONS,
+          suggestedName: `${safeName || 'projeto'}_cad.json`,
+        });
+        fileHandleRef.current = handle;
+        setSaveStatus('saving');
+        const writable = await handle.createWritable();
+        await writable.write(jsonData);
+        await writable.close();
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 2000);
+        return;
+      } catch (err: any) {
+        // Usuário cancelou o file picker (AbortError) — não faz nada
+        if (err?.name === 'AbortError') return;
+        console.error('File System Access API error, falling back to download:', err);
+      }
+    }
+
+    // Fallback: download tradicional para navegadores sem suporte (Firefox, Safari)
+    const blob = new Blob([jsonData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const safeName = useCadStore.getState().projectName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    a.href = url;
+    a.download = `${safeName || 'projeto'}_cad.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  // ─── Atalho Ctrl+S para salvar ──────────────────────────────
+  useEffect(() => {
+    const handleCtrlS = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    window.addEventListener('keydown', handleCtrlS);
+    return () => window.removeEventListener('keydown', handleCtrlS);
+  }, [handleSave]);
 
   const handleToggleLegend = () => {
     alert(`Legenda — ${legend.length} tipos de símbolos no canvas.`);
@@ -219,18 +291,33 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
     });
   });
 
-  const budgetItems: Array<{ name: string; qty: string; unit: string; price: number; total: number }> = [];
+  // ─── Tipos de arquitetura que NÃO devem entrar no orçamento elétrico ──
+  const ARCHITECTURE_TYPES = new Set([
+    'door', 'door_correr', 'door_pivotante', 'open_van', 'window', 'stairs',
+  ]);
 
+  // Estado local para itens manuais adicionados pelo usuário e overrides de preço
+  const [manualBudgetItems, setManualBudgetItems] = useState<Array<{ name: string; qty: string; unit: string; price: number }>>([]);
+  const [priceOverrides, setPriceOverrides] = useState<Record<number, number>>({});
+  const [nameOverrides, setNameOverrides] = useState<Record<number, string>>({});
+
+  const autoBudgetItems: Array<{ name: string; qty: string; unit: string; price: number; total: number }> = [];
+
+  // Paredes: mantém no orçamento (são de obra civil, não elétrica, mas útil para estimativa geral)
+  // Se desejado, pode-se remover comentando o bloco abaixo
   let totalWallLength = 0;
   walls.forEach(w => {
     totalWallLength += Math.sqrt(Math.pow(w.p2.x - w.p1.x, 2) + Math.pow(w.p2.y - w.p1.y, 2));
   });
   if (totalWallLength > 0) {
-    budgetItems.push({ name: 'Alvenaria (Paredes)', qty: totalWallLength.toFixed(1), unit: 'm', price: 150.00, total: totalWallLength * 150.00 });
+    autoBudgetItems.push({ name: 'Alvenaria (Paredes)', qty: totalWallLength.toFixed(1), unit: 'm', price: 150.00, total: totalWallLength * 150.00 });
   }
 
+  // Filtra dispositivos de arquitetura para NÃO entrar no orçamento elétrico
+  const electricalDevices = devices.filter(d => !ARCHITECTURE_TYPES.has(d.type));
+
   const deviceCounts: Record<string, { qty: number; price: number }> = {};
-  devices.forEach(d => {
+  electricalDevices.forEach(d => {
     const priceMap: Record<string, number> = {
       qdc: 85.00,
       poste: 850.00,
@@ -243,11 +330,6 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
       cftv_camera: 280.00,
       sensor_presenca: 45.00,
       central_alarme: 350.00,
-      door: 320.00,
-      door_correr: 450.00,
-      door_pivotante: 650.00,
-      window: 290.00,
-      stairs: 800.00,
       switch_simple: 15.00,
       switch_parallel: 20.00,
       switch_intermediate: 25.00,
@@ -256,27 +338,48 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
       tug_alta: 18.00,
       tue_chuveiro: 35.00,
       tue_ar: 40.00,
+      ceiling_light: 18.00,
+      sconce: 22.00,
+      fluorescent: 25.00,
     };
     const price = priceMap[d.type] ?? 12.00;
     deviceCounts[d.name] = { qty: (deviceCounts[d.name]?.qty || 0) + 1, price };
   });
   Object.entries(deviceCounts).forEach(([name, data]) => {
-    budgetItems.push({ name, qty: data.qty.toString(), unit: 'un', price: data.price, total: data.qty * data.price });
+    autoBudgetItems.push({ name, qty: data.qty.toString(), unit: 'un', price: data.price, total: data.qty * data.price });
   });
 
   circuits.forEach(c => {
-    budgetItems.push({ name: `Disjuntor Termomagnético (Circ. ${c.number})`, qty: '1', unit: 'un', price: 18.00, total: 18.00 });
+    autoBudgetItems.push({ name: `Disjuntor Termomagnético (Circ. ${c.number})`, qty: '1', unit: 'un', price: 18.00, total: 18.00 });
   });
 
   if (totalConduitLength > 0) {
-    budgetItems.push({ name: 'Eletroduto Corrugado Flexível 3/4"', qty: totalConduitLength.toFixed(1), unit: 'm', price: 3.50, total: totalConduitLength * 3.50 });
+    autoBudgetItems.push({ name: 'Eletroduto Corrugado Flexível 3/4"', qty: totalConduitLength.toFixed(1), unit: 'm', price: 3.50, total: totalConduitLength * 3.50 });
   }
 
   Object.entries(cableLengths).forEach(([bitola, length]) => {
     const b = parseFloat(bitola);
     const price = b <= 1.5 ? 2.20 : b === 2.5 ? 3.80 : b === 4.0 ? 5.50 : b === 6.0 ? 8.20 : 15.50;
-    budgetItems.push({ name: `Cabo de Cobre Flexível ${bitola} mm²`, qty: length.toFixed(1), unit: 'm', price, total: length * price });
+    autoBudgetItems.push({ name: `Cabo de Cobre Flexível ${bitola} mm²`, qty: length.toFixed(1), unit: 'm', price, total: length * price });
   });
+
+  // Combina itens automáticos (com overrides) + itens manuais
+  const budgetItems = [
+    ...autoBudgetItems.map((item, idx) => ({
+      ...item,
+      name: nameOverrides[idx] !== undefined ? nameOverrides[idx] : item.name,
+      price: priceOverrides[idx] !== undefined ? priceOverrides[idx] : item.price,
+      total: parseFloat(item.qty) * (priceOverrides[idx] !== undefined ? priceOverrides[idx] : item.price),
+      isAuto: true,
+      originalIdx: idx,
+    })),
+    ...manualBudgetItems.map((item, idx) => ({
+      ...item,
+      total: parseFloat(item.qty) * item.price,
+      isAuto: false,
+      originalIdx: autoBudgetItems.length + idx,
+    })),
+  ];
 
   const grandTotal = budgetItems.reduce((sum, item) => sum + item.total, 0);
 
@@ -602,38 +705,155 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
                         <th>Unid.</th>
                         <th style={{ textAlign: 'right' }}>Unitário (R$)</th>
                         <th style={{ textAlign: 'right' }}>Total (R$)</th>
+                        <th style={{ width: '36px' }}></th>
                       </tr>
                     </thead>
                     <tbody>
                       {budgetItems.length === 0 ? (
                         <tr>
-                          <td colSpan={5} style={{ textAlign: 'center', padding: '24px', color: '#94a3b8' }}>
+                          <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: '#94a3b8' }}>
                             Sem materiais. Desenhe paredes, adicione pontos elétricos e conduítes.
                           </td>
                         </tr>
                       ) : (
                         budgetItems.map((item, idx) => (
-                          <tr key={idx}>
-                            <td><strong>{item.name}</strong></td>
-                            <td className="mono">{item.qty}</td>
+                          <tr key={idx} style={{ background: !item.isAuto ? '#fefce8' : undefined }}>
+                            {/* Nome editável */}
+                            <td>
+                              <input
+                                type="text"
+                                value={item.name}
+                                onChange={(e) => {
+                                  if (item.isAuto) {
+                                    setNameOverrides(prev => ({ ...prev, [item.originalIdx]: e.target.value }));
+                                  } else {
+                                    const manualIdx = item.originalIdx - autoBudgetItems.length;
+                                    setManualBudgetItems(prev => prev.map((m, i) => i === manualIdx ? { ...m, name: e.target.value } : m));
+                                  }
+                                }}
+                                style={{
+                                  border: 'none',
+                                  background: 'transparent',
+                                  fontWeight: 'bold',
+                                  fontSize: '0.8rem',
+                                  color: '#0f172a',
+                                  width: '100%',
+                                  padding: '4px 2px',
+                                  outline: 'none',
+                                  borderBottom: '1px dashed #cbd5e1',
+                                }}
+                                title="Clique para editar o nome"
+                              />
+                            </td>
+                            {/* Quantidade editável (somente para itens manuais) */}
+                            <td className="mono">
+                              {item.isAuto ? (
+                                item.qty
+                              ) : (
+                                <input
+                                  type="text"
+                                  value={item.qty}
+                                  onChange={(e) => {
+                                    const manualIdx = item.originalIdx - autoBudgetItems.length;
+                                    setManualBudgetItems(prev => prev.map((m, i) => i === manualIdx ? { ...m, qty: e.target.value } : m));
+                                  }}
+                                  style={{
+                                    border: 'none', background: 'transparent', fontFamily: 'monospace',
+                                    fontSize: '0.8rem', color: '#0f172a', width: '60px', padding: '4px 2px',
+                                    outline: 'none', borderBottom: '1px dashed #cbd5e1', textAlign: 'center',
+                                  }}
+                                />
+                              )}
+                            </td>
                             <td>{item.unit}</td>
-                            <td className="mono" style={{ textAlign: 'right' }}>R$ {item.price.toFixed(2)}</td>
+                            {/* Preço editável */}
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '2px' }}>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>R$</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={item.price.toFixed(2)}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    if (item.isAuto) {
+                                      setPriceOverrides(prev => ({ ...prev, [item.originalIdx]: val }));
+                                    } else {
+                                      const manualIdx = item.originalIdx - autoBudgetItems.length;
+                                      setManualBudgetItems(prev => prev.map((m, i) => i === manualIdx ? { ...m, price: val } : m));
+                                    }
+                                  }}
+                                  style={{
+                                    border: 'none', background: 'transparent', fontFamily: 'monospace',
+                                    fontSize: '0.8rem', color: '#0f172a', width: '70px', padding: '4px 2px',
+                                    outline: 'none', borderBottom: '1px dashed #cbd5e1', textAlign: 'right',
+                                  }}
+                                  title="Clique para editar o preço unitário"
+                                />
+                              </div>
+                            </td>
                             <td className="mono" style={{ textAlign: 'right', fontWeight: 'bold' }}>R$ {item.total.toFixed(2)}</td>
+                            {/* Botão Excluir */}
+                            <td style={{ textAlign: 'center', padding: '2px' }}>
+                              {item.isAuto ? (
+                                <span style={{ color: '#cbd5e1', fontSize: '0.75rem' }} title="Item gerado automaticamente">🔒</span>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    const manualIdx = item.originalIdx - autoBudgetItems.length;
+                                    setManualBudgetItems(prev => prev.filter((_, i) => i !== manualIdx));
+                                  }}
+                                  style={{
+                                    border: 'none', background: 'none', color: '#ef4444',
+                                    cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold',
+                                    padding: '2px 4px', lineHeight: 1,
+                                  }}
+                                  title="Excluir item manual"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </td>
                           </tr>
                         ))
                       )}
+                      {/* Linha de Total */}
                       {budgetItems.length > 0 && (
                         <tr style={{ fontWeight: 'bold', fontSize: '0.9rem', background: '#f0f9ff' }}>
-                          <td colSpan={4} style={{ textAlign: 'right', color: '#1e3a8a', borderTop: '2px solid #2563eb' }}>
+                          <td colSpan={5} style={{ textAlign: 'right', color: '#1e3a8a', borderTop: '2px solid #2563eb' }}>
                             VALOR TOTAL ESTIMADO DO PROJETO:
                           </td>
-                          <td className="mono" style={{ textAlign: 'right', color: '#2563eb', borderTop: '2px solid #2563eb', fontSize: '1rem' }}>
+                          <td className="mono" style={{ textAlign: 'right', color: '#2563eb', borderTop: '2px solid #2563eb', fontSize: '1rem', whiteSpace: 'nowrap' }}>
                             R$ {grandTotal.toFixed(2)}
                           </td>
                         </tr>
                       )}
                     </tbody>
                   </table>
+                  {/* Botão adicionar item manual */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '10px 0', gap: '8px' }}>
+                    <button
+                      className="modal-action-btn"
+                      style={{ fontSize: '0.8rem', padding: '6px 14px' }}
+                      onClick={() => {
+                        setManualBudgetItems(prev => [
+                          ...prev,
+                          { name: 'Novo Material', qty: '1', unit: 'un', price: 0.00 }
+                        ]);
+                      }}
+                    >
+                      ➕ Adicionar Item Manual
+                    </button>
+                    <button
+                      className="modal-action-btn"
+                      style={{ fontSize: '0.8rem', padding: '6px 14px', background: '#64748b', color: '#fff' }}
+                      onClick={() => { setPriceOverrides({}); setNameOverrides({}); }}
+                      title="Restaura nomes e preços automáticos"
+                    >
+                      🔄 Resetar Edições
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

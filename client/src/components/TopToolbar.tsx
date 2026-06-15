@@ -173,10 +173,37 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ onImportPlant, onOpenDim
             <span className="tb-icon">📥</span>
             <span className="tb-label">Importar</span>
           </button>
-          <button className="tb-btn" title="Salvar Projeto (JSON)" onClick={() => {
-            const { walls, devices, circuits, conduits } = useCadStore.getState();
-            const data = JSON.stringify({ walls, devices, circuits, conduits }, null, 2);
-            const blob = new Blob([data], { type: 'application/json' });
+          <button className="tb-btn" title="Salvar Projeto (Ctrl+S)" onClick={async () => {
+            const state = useCadStore.getState();
+            const jsonData = JSON.stringify({
+              projectName: state.projectName,
+              walls: state.walls,
+              devices: state.devices,
+              circuits: state.circuits,
+              conduits: state.conduits,
+              guideLines: state.guideLines || [],
+              texts: state.texts || [],
+              dimensions: state.dimensions || [],
+              ppm: state.ppm,
+            }, null, 2);
+
+            if ('showSaveFilePicker' in window) {
+              try {
+                const safeName = state.projectName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                const handle = await (window as any).showSaveFilePicker({
+                  suggestedName: `${safeName || 'projeto'}_cad.json`,
+                  types: [{ description: 'Projeto Elétrico (JSON)', accept: { 'application/json': ['.json'] } }],
+                });
+                const writable = await handle.createWritable();
+                await writable.write(jsonData);
+                await writable.close();
+                return;
+              } catch (err: any) {
+                if (err?.name === 'AbortError') return;
+              }
+            }
+            // Fallback
+            const blob = new Blob([jsonData], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url; a.download = 'projeto-eletric-sf.json'; a.click();
