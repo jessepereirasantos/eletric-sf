@@ -411,15 +411,15 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
       return (
         <Group x={x} y={y} {...commonProps}>
           <Circle x={0} y={0} radius={H} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
-          <Line points={[-H * 0.65, -H * 0.65,  H * 0.65,  H * 0.65]} stroke={stroke} strokeWidth={sw} />
-          <Line points={[-H * 0.65,  H * 0.65,  H * 0.65, -H * 0.65]} stroke={stroke} strokeWidth={sw} />
+          <Line points={[-H * 0.7071, -H * 0.7071,  H * 0.7071,  H * 0.7071]} stroke={stroke} strokeWidth={sw} />
+          <Line points={[-H * 0.7071,  H * 0.7071,  H * 0.7071, -H * 0.7071]} stroke={stroke} strokeWidth={sw} />
           
           <Text
             text={`${power ?? 60}W`}
-            x={-H * 1.5}
-            y={-H * 0.3}
-            width={H * 3}
-            fontSize={H * 0.5}
+            x={-H * 0.9}
+            y={-H * 0.22}
+            width={H * 1.8}
+            fontSize={H * 0.42}
             fontStyle="bold"
             align="center"
             fill={stroke}
@@ -428,9 +428,9 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
           {circuitNumber && (
             <Text
               text={String(circuitNumber)}
-              x={H * 1.1}
-              y={-H * 0.35}
-              fontSize={H * 0.65}
+              x={H * 1.15}
+              y={-H * 0.3}
+              fontSize={H * 0.6}
               fontStyle="bold"
               fill={stroke}
               listening={false}
@@ -439,9 +439,9 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
           {commandLetter && (
             <Text
               text={commandLetter}
-              x={-H * 1.7}
-              y={-H * 0.35}
-              fontSize={H * 0.65}
+              x={-H * 1.65}
+              y={-H * 0.3}
+              fontSize={H * 0.6}
               fontStyle="italic"
               fill={stroke}
               listening={false}

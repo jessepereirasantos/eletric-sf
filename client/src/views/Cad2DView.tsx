@@ -5,7 +5,6 @@ import { Header } from '../components/Header';
 import { Toolbar } from '../components/Toolbar';
 import { useCadStore } from '../store/useCadStore';
 import { dimensionateCircuit } from '../utils/nbr5410';
-import { calculateWiringRouting } from '../utils/pathfinding';
 import type { ToolType, DeviceType } from '../types';
 
 interface Cad2DViewProps {
@@ -40,8 +39,8 @@ const FILE_PICKER_OPTIONS = {
 export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) => {
   const {
     bgImageSrc, bgImageLock, isCalibrating,
-    walls, devices, circuits, conduits,
-    projectName, legend,
+    devices, circuits,
+    projectName, legend, materialsList,
     currentTool, selectedDeviceType,
     setBgImageSrc, setBgImageLock, setIsCalibrating,
     setProjectName,
@@ -263,113 +262,28 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
     }
   };
 
-  const wiringRouting = calculateWiringRouting(devices, conduits, circuits);
-
-  let totalConduitLength = 0;
-  const cableLengths: Record<number, number> = {};
-
-  conduits.forEach(c => {
-    const fromDev = devices.find(d => d.id === c.fromDeviceId);
-    const toDev = devices.find(d => d.id === c.toDeviceId);
-    if (!fromDev || !toDev) return;
-    const distance = Math.sqrt(Math.pow(fromDev.x - toDev.x, 2) + Math.pow(fromDev.y - toDev.y, 2)) + 2.0;
-    totalConduitLength += distance;
-    const wires = wiringRouting[c.id] || [];
-    wires.forEach(w => {
-      const circuit = circuits.find(circ => circ.number === w.circuitNumber);
-      if (!circuit) return;
-      const circDevices = devices.filter(d => d.circuitId === circuit.id);
-      const totalPower = circDevices.reduce((sum, d) => sum + d.power, 0);
-      const qdc = devices.find(d => d.type === 'qdc');
-      let maxDist = 10.0;
-      if (qdc && circDevices.length > 0) {
-        maxDist = Math.max(...circDevices.map(d => Math.sqrt(Math.pow(d.x - qdc.x, 2) + Math.pow(d.y - qdc.y, 2)) + 2.0));
-      }
-      const res = dimensionateCircuit(circuit.type, totalPower || 100, circuit.voltage, maxDist, circuit.groupedCircuits);
-      const qtyWires = w.phase + w.neutral + w.ground + w.ret;
-      cableLengths[res.selectedSection] = (cableLengths[res.selectedSection] || 0) + (distance * qtyWires);
-    });
-  });
-
-  // ─── Tipos de arquitetura que NÃO devem entrar no orçamento elétrico ──
-  const ARCHITECTURE_TYPES = new Set([
-    'door', 'door_correr', 'door_pivotante', 'open_van', 'window', 'stairs',
-  ]);
-
-  // Estado local para itens manuais adicionados pelo usuário e overrides de preço
+  // Estado local para itens manuais adicionados pelo usuário e overrides de preço/nome/quantidade
   const [manualBudgetItems, setManualBudgetItems] = useState<Array<{ name: string; qty: string; unit: string; price: number }>>([]);
   const [priceOverrides, setPriceOverrides] = useState<Record<number, number>>({});
   const [nameOverrides, setNameOverrides] = useState<Record<number, string>>({});
+  const [qtyOverrides, setQtyOverrides] = useState<Record<number, string>>({});
 
-  const autoBudgetItems: Array<{ name: string; qty: string; unit: string; price: number; total: number }> = [];
-
-  // Paredes: mantém no orçamento (são de obra civil, não elétrica, mas útil para estimativa geral)
-  // Se desejado, pode-se remover comentando o bloco abaixo
-  let totalWallLength = 0;
-  walls.forEach(w => {
-    totalWallLength += Math.sqrt(Math.pow(w.p2.x - w.p1.x, 2) + Math.pow(w.p2.y - w.p1.y, 2));
-  });
-  if (totalWallLength > 0) {
-    autoBudgetItems.push({ name: 'Alvenaria (Paredes)', qty: totalWallLength.toFixed(1), unit: 'm', price: 150.00, total: totalWallLength * 150.00 });
-  }
-
-  // Filtra dispositivos de arquitetura para NÃO entrar no orçamento elétrico
-  const electricalDevices = devices.filter(d => !ARCHITECTURE_TYPES.has(d.type));
-
-  const deviceCounts: Record<string, { qty: number; price: number }> = {};
-  electricalDevices.forEach(d => {
-    const priceMap: Record<string, number> = {
-      qdc: 85.00,
-      poste: 850.00,
-      medidor: 180.00,
-      interruptor: 15.00,
-      lampada: 18.00,
-      tele_rj45: 22.00,
-      tele_rj11: 18.00,
-      tele_coaxial: 16.00,
-      cftv_camera: 280.00,
-      sensor_presenca: 45.00,
-      central_alarme: 350.00,
-      switch_simple: 15.00,
-      switch_parallel: 20.00,
-      switch_intermediate: 25.00,
-      tug_baixa: 15.00,
-      tug_media: 16.00,
-      tug_alta: 18.00,
-      tue_chuveiro: 35.00,
-      tue_ar: 40.00,
-      ceiling_light: 18.00,
-      sconce: 22.00,
-      fluorescent: 25.00,
-    };
-    const price = priceMap[d.type] ?? 12.00;
-    deviceCounts[d.name] = { qty: (deviceCounts[d.name]?.qty || 0) + 1, price };
-  });
-  Object.entries(deviceCounts).forEach(([name, data]) => {
-    autoBudgetItems.push({ name, qty: data.qty.toString(), unit: 'un', price: data.price, total: data.qty * data.price });
-  });
-
-  circuits.forEach(c => {
-    autoBudgetItems.push({ name: `Disjuntor Termomagnético (Circ. ${c.number})`, qty: '1', unit: 'un', price: 18.00, total: 18.00 });
-  });
-
-  if (totalConduitLength > 0) {
-    autoBudgetItems.push({ name: 'Eletroduto Corrugado Flexível 3/4"', qty: totalConduitLength.toFixed(1), unit: 'm', price: 3.50, total: totalConduitLength * 3.50 });
-  }
-
-  Object.entries(cableLengths).forEach(([bitola, length]) => {
-    const b = parseFloat(bitola);
-    const price = b <= 1.5 ? 2.20 : b === 2.5 ? 3.80 : b === 4.0 ? 5.50 : b === 6.0 ? 8.20 : 15.50;
-    autoBudgetItems.push({ name: `Cabo de Cobre Flexível ${bitola} mm²`, qty: length.toFixed(1), unit: 'm', price, total: length * price });
-  });
+  const autoBudgetItems = (materialsList || []).map(item => ({
+    name: item.name,
+    qty: item.qty.toString(),
+    unit: item.unit,
+    price: item.price ?? 12.00,
+    total: item.qty * (item.price ?? 12.00)
+  }));
 
   // Combina itens automáticos (com overrides) + itens manuais
   const budgetItems = [
     ...autoBudgetItems.map((item, idx) => ({
       ...item,
       name: nameOverrides[idx] !== undefined ? nameOverrides[idx] : item.name,
+      qty: qtyOverrides[idx] !== undefined ? qtyOverrides[idx] : item.qty,
       price: priceOverrides[idx] !== undefined ? priceOverrides[idx] : item.price,
-      total: parseFloat(item.qty) * (priceOverrides[idx] !== undefined ? priceOverrides[idx] : item.price),
+      total: parseFloat(qtyOverrides[idx] !== undefined ? qtyOverrides[idx] : item.qty) * (priceOverrides[idx] !== undefined ? priceOverrides[idx] : item.price),
       isAuto: true,
       originalIdx: idx,
     })),
@@ -745,25 +659,25 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
                                 title="Clique para editar o nome"
                               />
                             </td>
-                            {/* Quantidade editável (somente para itens manuais) */}
+                            {/* Quantidade editável */}
                             <td className="mono">
-                              {item.isAuto ? (
-                                item.qty
-                              ) : (
-                                <input
-                                  type="text"
-                                  value={item.qty}
-                                  onChange={(e) => {
+                              <input
+                                type="text"
+                                value={item.qty}
+                                onChange={(e) => {
+                                  if (item.isAuto) {
+                                    setQtyOverrides(prev => ({ ...prev, [item.originalIdx]: e.target.value }));
+                                  } else {
                                     const manualIdx = item.originalIdx - autoBudgetItems.length;
                                     setManualBudgetItems(prev => prev.map((m, i) => i === manualIdx ? { ...m, qty: e.target.value } : m));
-                                  }}
-                                  style={{
-                                    border: 'none', background: 'transparent', fontFamily: 'monospace',
-                                    fontSize: '0.8rem', color: '#0f172a', width: '60px', padding: '4px 2px',
-                                    outline: 'none', borderBottom: '1px dashed #cbd5e1', textAlign: 'center',
-                                  }}
-                                />
-                              )}
+                                  }
+                                }}
+                                style={{
+                                  border: 'none', background: 'transparent', fontFamily: 'monospace',
+                                  fontSize: '0.8rem', color: '#0f172a', width: '60px', padding: '4px 2px',
+                                  outline: 'none', borderBottom: '1px dashed #cbd5e1', textAlign: 'center',
+                                }}
+                              />
                             </td>
                             <td>{item.unit}</td>
                             {/* Preço editável */}
@@ -848,7 +762,7 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
                     <button
                       className="modal-action-btn"
                       style={{ fontSize: '0.8rem', padding: '6px 14px', background: '#64748b', color: '#fff' }}
-                      onClick={() => { setPriceOverrides({}); setNameOverrides({}); }}
+                      onClick={() => { setPriceOverrides({}); setNameOverrides({}); setQtyOverrides({}); }}
                       title="Restaura nomes e preços automáticos"
                     >
                       🔄 Resetar Edições

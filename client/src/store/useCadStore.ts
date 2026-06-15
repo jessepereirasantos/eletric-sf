@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { dimensionateCircuit } from '../utils/nbr5410';
+import { calculateWiringRouting } from '../utils/pathfinding';
 import type { ToolType } from '../types';
 
 const API_URL = typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '5173'
@@ -73,6 +74,7 @@ export interface MaterialItem {
   name: string;
   qty: number;
   unit: string;
+  price?: number;
 }
 
 export interface CircuitTableRow {
@@ -375,23 +377,127 @@ export const useCadStore = create<CadState>()(
   setProjectName: (name) => set({ projectName: name }),
 
   recomputeDerivedState: () => {
-    const { walls, devices, circuits } = get();
+    const { walls, devices, circuits, conduits } = get();
     const materialsList: MaterialItem[] = [];
+
+    // 1. Paredes
     let totalWallLength = 0;
     walls.forEach(w => {
       totalWallLength += Math.sqrt(Math.pow(w.p2.x - w.p1.x, 2) + Math.pow(w.p2.y - w.p1.y, 2));
     });
     if (totalWallLength > 0) {
-      materialsList.push({ name: 'Alvenaria (Paredes)', qty: Math.round(totalWallLength * 100) / 100, unit: 'm' });
+      materialsList.push({
+        name: 'Alvenaria (Paredes)',
+        qty: Math.round(totalWallLength * 10) / 10,
+        unit: 'm',
+        price: 150.00
+      });
     }
-    const deviceCounts: Record<string, number> = {};
-    devices.forEach(d => {
-      deviceCounts[d.name] = (deviceCounts[d.name] || 0) + 1;
-    });
-    Object.entries(deviceCounts).forEach(([name, qty]) => {
-      materialsList.push({ name, qty, unit: 'un' });
+
+    // 2. Dispositivos (filtrando arquitetura)
+    const ARCHITECTURE_TYPES = new Set([
+      'door', 'door_correr', 'door_pivotante', 'open_van', 'window', 'stairs',
+    ]);
+    const electricalDevices = devices.filter(d => !ARCHITECTURE_TYPES.has(d.type));
+
+    const deviceCounts: Record<string, { qty: number; price: number }> = {};
+    electricalDevices.forEach(d => {
+      const priceMap: Record<string, number> = {
+        qdc: 85.00,
+        poste: 850.00,
+        medidor: 180.00,
+        interruptor: 15.00,
+        lampada: 18.00,
+        tele_rj45: 22.00,
+        tele_rj11: 18.00,
+        tele_coaxial: 16.00,
+        cftv_camera: 280.00,
+        sensor_presenca: 45.00,
+        central_alarme: 350.00,
+        switch_simple: 15.00,
+        switch_parallel: 20.00,
+        switch_intermediate: 25.00,
+        tug_baixa: 15.00,
+        tug_media: 16.00,
+        tug_alta: 18.00,
+        tue_chuveiro: 35.00,
+        tue_ar: 40.00,
+        ceiling_light: 18.00,
+        sconce: 22.00,
+        fluorescent: 25.00,
+        box_octogonal: 12.00,
+        box_4x2: 10.00,
+        box_4x4: 15.00,
+      };
+      const price = priceMap[d.type] ?? 12.00;
+      deviceCounts[d.name] = { qty: (deviceCounts[d.name]?.qty || 0) + 1, price };
     });
 
+    Object.entries(deviceCounts).forEach(([name, data]) => {
+      materialsList.push({ name, qty: data.qty, unit: 'un', price: data.price });
+    });
+
+    // 3. Disjuntores (Agrupados em um único item "Disjuntor Termomagnético", abandonando o disjuntor separado por circuito)
+    if (circuits.length > 0) {
+      materialsList.push({
+        name: 'Disjuntor Termomagnético',
+        qty: circuits.length,
+        unit: 'un',
+        price: 18.00
+      });
+    }
+
+    // 4. Conduítes (Eletrodutos)
+    const wiringRouting = calculateWiringRouting(devices, conduits, circuits);
+    let totalConduitLength = 0;
+    const cableLengths: Record<number, number> = {};
+
+    conduits.forEach(c => {
+      const fromDev = devices.find(d => d.id === c.fromDeviceId);
+      const toDev = devices.find(d => d.id === c.toDeviceId);
+      if (!fromDev || !toDev) return;
+      const distance = Math.sqrt(Math.pow(fromDev.x - toDev.x, 2) + Math.pow(fromDev.y - toDev.y, 2)) + 2.0;
+      totalConduitLength += distance;
+
+      const wires = wiringRouting[c.id] || [];
+      wires.forEach(w => {
+        const circuit = circuits.find(circ => circ.number === w.circuitNumber);
+        if (!circuit) return;
+        const circDevices = devices.filter(d => d.circuitId === circuit.id);
+        const totalPower = circDevices.reduce((sum, d) => sum + d.power, 0);
+        const qdc = devices.find(d => d.type === 'qdc');
+        let maxDist = 10.0;
+        if (qdc && circDevices.length > 0) {
+          maxDist = Math.max(...circDevices.map(d => Math.sqrt(Math.pow(d.x - qdc.x, 2) + Math.pow(d.y - qdc.y, 2)) + 2.0));
+        }
+        const res = dimensionateCircuit(circuit.type, totalPower || 100, circuit.voltage, maxDist, circuit.groupedCircuits);
+        const qtyWires = w.phase + w.neutral + w.ground + w.ret;
+        cableLengths[res.selectedSection] = (cableLengths[res.selectedSection] || 0) + (distance * qtyWires);
+      });
+    });
+
+    if (totalConduitLength > 0) {
+      materialsList.push({
+        name: 'Eletroduto Corrugado Flexível 3/4"',
+        qty: Math.round(totalConduitLength * 10) / 10,
+        unit: 'm',
+        price: 3.50
+      });
+    }
+
+    // 5. Cabos
+    Object.entries(cableLengths).forEach(([bitola, length]) => {
+      const b = parseFloat(bitola);
+      const price = b <= 1.5 ? 2.20 : b === 2.5 ? 3.80 : b === 4.0 ? 5.50 : b === 6.0 ? 8.20 : 15.50;
+      materialsList.push({
+        name: `Cabo de Cobre Flexível ${bitola} mm²`,
+        qty: Math.round(length * 10) / 10,
+        unit: 'm',
+        price
+      });
+    });
+
+    // 6. Legenda e Circuitos
     const legendMap: Record<string, { label: string; qty: number }> = {};
     devices.forEach(d => {
       if (!legendMap[d.type]) {
@@ -642,6 +748,7 @@ export const useCadStore = create<CadState>()(
       };
       return { conduits: [...s.conduits, newConduit] };
     });
+    get().recomputeDerivedState();
   },
 
   removeConduit: (id) => {
