@@ -347,15 +347,18 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
           selectedGuideLineId: gid,
           selectedTextId: tid,
           selectedDimensionId: did,
+          selectedConduitId: cid,
           removeGuideLine: delGuide,
           removeText: delText,
           removeDimension: delDim,
+          removeConduit: delConduit,
         } = useCadStore.getState();
         if (sid) delDev(sid);
         if (wid) delWall(wid);
         if (gid) delGuide(gid);
         if (tid) delText(tid);
         if (did) delDim(did);
+        if (cid) delConduit(cid);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -1610,16 +1613,34 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
           const wires = wiringRouting[conduit.id] || [];
           const isConduitSelected = selectedConduitId === conduit.id;
           const conduitColor = isConduitSelected ? "#0078d7" : "#6b7280";
-          const conduitWidth = isConduitSelected ? 4.0 : 2.5;
+          const conduitWidth = isConduitSelected ? 5.0 : 2.5;
           return (
             <Group key={conduit.id}>
+               {/* Linha de highlight (glow) quando selecionado */}
+               {isConduitSelected && (
+                 <Line
+                   points={curve.points}
+                   stroke="rgba(0, 120, 215, 0.25)"
+                   strokeWidth={14}
+                   tension={0.4}
+                   listening={false}
+                 />
+               )}
                <Line
                  points={curve.points}
                  stroke={conduitColor}
                  strokeWidth={conduitWidth}
                  tension={0.4}
                  opacity={0.85}
+                 hitStrokeWidth={18}
+                 dash={isConduitSelected ? [8, 4] : undefined}
                  onClick={(e) => {
+                   e.cancelBubble = true;
+                   if (currentTool === 'select') {
+                     setSelectedConduitId(conduit.id);
+                   }
+                 }}
+                 onTap={(e) => {
                    e.cancelBubble = true;
                    if (currentTool === 'select') {
                      setSelectedConduitId(conduit.id);
