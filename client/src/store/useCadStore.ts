@@ -75,6 +75,7 @@ export interface MaterialItem {
   qty: number;
   unit: string;
   price?: number;
+  category?: 'fiacao_cabos' | 'protecao' | 'infraestrutura' | 'dispositivos';
 }
 
 export interface CircuitTableRow {
@@ -380,6 +381,14 @@ export const useCadStore = create<CadState>()(
     const { walls, devices, circuits, conduits } = get();
     const materialsList: MaterialItem[] = [];
 
+    // Helper para categorização de dispositivos
+    const getDeviceCategory = (type: string): 'fiacao_cabos' | 'protecao' | 'infraestrutura' | 'dispositivos' => {
+      if (type.startsWith('box_') || type === 'qdc' || type === 'poste' || type === 'medidor') {
+        return 'infraestrutura';
+      }
+      return 'dispositivos';
+    };
+
     // 1. Paredes
     let totalWallLength = 0;
     walls.forEach(w => {
@@ -390,7 +399,8 @@ export const useCadStore = create<CadState>()(
         name: 'Alvenaria (Paredes)',
         qty: Math.round(totalWallLength * 10) / 10,
         unit: 'm',
-        price: 150.00
+        price: 150.00,
+        category: 'infraestrutura'
       });
     }
 
@@ -400,7 +410,7 @@ export const useCadStore = create<CadState>()(
     ]);
     const electricalDevices = devices.filter(d => !ARCHITECTURE_TYPES.has(d.type));
 
-    const deviceCounts: Record<string, { qty: number; price: number }> = {};
+    const deviceCounts: Record<string, { qty: number; price: number; type: string }> = {};
     electricalDevices.forEach(d => {
       const priceMap: Record<string, number> = {
         qdc: 85.00,
@@ -430,24 +440,49 @@ export const useCadStore = create<CadState>()(
         box_4x4: 15.00,
       };
       const price = priceMap[d.type] ?? 12.00;
-      deviceCounts[d.name] = { qty: (deviceCounts[d.name]?.qty || 0) + 1, price };
+      deviceCounts[d.name] = {
+        qty: (deviceCounts[d.name]?.qty || 0) + 1,
+        price,
+        type: d.type
+      };
     });
 
     Object.entries(deviceCounts).forEach(([name, data]) => {
-      materialsList.push({ name, qty: data.qty, unit: 'un', price: data.price });
+      materialsList.push({
+        name,
+        qty: data.qty,
+        unit: 'un',
+        price: data.price,
+        category: getDeviceCategory(data.type)
+      });
     });
 
-    // 3. Disjuntores (Agrupados em um único item "Disjuntor Termomagnético", abandonando o disjuntor separado por circuito)
-    if (circuits.length > 0) {
-      materialsList.push({
-        name: 'Disjuntor Termomagnético',
-        qty: circuits.length,
-        unit: 'un',
-        price: 18.00
-      });
-    }
+    // 3. Disjuntores (Agrupados por corrente de dimensionamento e categorizados como Proteção)
+    const breakerCounts: Record<number, number> = {};
+    circuits.forEach(c => {
+      const cd = devices.filter(d => d.circuitId === c.id);
+      const totalPower = cd.reduce((sum, d) => sum + (d.power || 0), 0);
+      const qdc = devices.find(d => d.type === 'qdc');
+      let maxDist = 10.0;
+      if (qdc && cd.length > 0) {
+        maxDist = Math.max(...cd.map(d => Math.sqrt(Math.pow(d.x - qdc.x, 2) + Math.pow(d.y - qdc.y, 2)) + 2.0));
+      }
+      const res = dimensionateCircuit(c.type, totalPower || 100, c.voltage, maxDist, c.groupedCircuits);
+      const rating = res.circuitBreaker;
+      breakerCounts[rating] = (breakerCounts[rating] || 0) + 1;
+    });
 
-    // 4. Conduítes (Eletrodutos)
+    Object.entries(breakerCounts).forEach(([amp, count]) => {
+      materialsList.push({
+        name: `Disjuntor Termomagnético ${amp}A`,
+        qty: count,
+        unit: 'un',
+        price: 18.00,
+        category: 'protecao'
+      });
+    });
+
+    // 4. Conduítes (Eletrodutos - categorizados como Infraestrutura)
     const wiringRouting = calculateWiringRouting(devices, conduits, circuits);
     let totalConduitLength = 0;
     const cableLengths: Record<number, number> = {};
@@ -481,11 +516,12 @@ export const useCadStore = create<CadState>()(
         name: 'Eletroduto Corrugado Flexível 3/4"',
         qty: Math.round(totalConduitLength * 10) / 10,
         unit: 'm',
-        price: 3.50
+        price: 3.50,
+        category: 'infraestrutura'
       });
     }
 
-    // 5. Cabos
+    // 5. Cabos (categorizados como Fiação/Cabos)
     Object.entries(cableLengths).forEach(([bitola, length]) => {
       const b = parseFloat(bitola);
       const price = b <= 1.5 ? 2.20 : b === 2.5 ? 3.80 : b === 4.0 ? 5.50 : b === 6.0 ? 8.20 : 15.50;
@@ -493,7 +529,8 @@ export const useCadStore = create<CadState>()(
         name: `Cabo de Cobre Flexível ${bitola} mm²`,
         qty: Math.round(length * 10) / 10,
         unit: 'm',
-        price
+        price,
+        category: 'fiacao_cabos'
       });
     });
 

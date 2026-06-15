@@ -48,6 +48,7 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
     addCircuit, removeCircuit, resetWorkspace,
     undo, redo,
     splitCircuitsLight, splitCircuitsTUG, splitCircuitsTUE, autoWire,
+    walls, ppm, texts, dimensions: cadDimensions,
   } = useCadStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -60,7 +61,7 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
   const [_saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   const [isDimensioningOpen, setIsDimensioningOpen] = useState(false);
-  const [modalActiveTab, setModalActiveTab] = useState<'dimensioning' | 'budget'>('dimensioning');
+  const [modalActiveTab, setModalActiveTab] = useState<'dimensioning' | 'quantitative' | 'budget'>('dimensioning');
 
   const [newCircuitNumber, setNewCircuitNumber] = useState(1);
   const [newCircuitName, setNewCircuitName] = useState('');
@@ -263,48 +264,422 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
   };
 
   // Estado local para itens manuais adicionados pelo usuário e overrides de preço/nome/quantidade
-  const [manualBudgetItems, setManualBudgetItems] = useState<Array<{ name: string; qty: string; unit: string; price: number }>>([]);
-  const [priceOverrides, setPriceOverrides] = useState<Record<number, number>>({});
-  const [nameOverrides, setNameOverrides] = useState<Record<number, string>>({});
-  const [qtyOverrides, setQtyOverrides] = useState<Record<number, string>>({});
+  const [manualBudgetItems, setManualBudgetItems] = useState<Array<{
+    id: string;
+    name: string;
+    qty: string;
+    unit: string;
+    price: number;
+    category: 'fiacao_cabos' | 'protecao' | 'infraestrutura' | 'dispositivos';
+  }>>([]);
+  const [priceOverrides, setPriceOverrides] = useState<Record<string, number>>({});
+  const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({});
+  const [qtyOverrides, setQtyOverrides] = useState<Record<string, string>>({});
 
-  const autoBudgetItems = (materialsList || []).map(item => ({
-    name: item.name,
-    qty: item.qty.toString(),
-    unit: item.unit,
-    price: item.price ?? 12.00,
-    total: item.qty * (item.price ?? 12.00)
-  }));
+  const autoBudgetItems = (materialsList || []).map(item => {
+    const originalName = item.name;
+    const name = nameOverrides[originalName] !== undefined ? nameOverrides[originalName] : item.name;
+    const qty = qtyOverrides[originalName] !== undefined ? qtyOverrides[originalName] : item.qty.toString();
+    const price = priceOverrides[originalName] !== undefined ? priceOverrides[originalName] : (item.price ?? 12.00);
+    const qtyFloat = parseFloat(qty) || 0;
+    return {
+      originalName,
+      name,
+      qty,
+      unit: item.unit,
+      price,
+      total: qtyFloat * price,
+      category: item.category || 'dispositivos',
+      isAuto: true,
+    };
+  });
 
   // Combina itens automáticos (com overrides) + itens manuais
   const budgetItems = [
-    ...autoBudgetItems.map((item, idx) => ({
-      ...item,
-      name: nameOverrides[idx] !== undefined ? nameOverrides[idx] : item.name,
-      qty: qtyOverrides[idx] !== undefined ? qtyOverrides[idx] : item.qty,
-      price: priceOverrides[idx] !== undefined ? priceOverrides[idx] : item.price,
-      total: parseFloat(qtyOverrides[idx] !== undefined ? qtyOverrides[idx] : item.qty) * (priceOverrides[idx] !== undefined ? priceOverrides[idx] : item.price),
-      isAuto: true,
-      originalIdx: idx,
-    })),
-    ...manualBudgetItems.map((item, idx) => ({
-      ...item,
-      total: parseFloat(item.qty) * item.price,
-      isAuto: false,
-      originalIdx: autoBudgetItems.length + idx,
-    })),
+    ...autoBudgetItems,
+    ...manualBudgetItems.map(item => {
+      const qtyFloat = parseFloat(item.qty) || 0;
+      return {
+        originalName: item.id,
+        name: item.name,
+        qty: item.qty,
+        unit: item.unit,
+        price: item.price,
+        total: qtyFloat * item.price,
+        category: item.category,
+        isAuto: false,
+      };
+    })
   ];
 
   const grandTotal = budgetItems.reduce((sum, item) => sum + item.total, 0);
+
+  const categoriesList: Array<{
+    key: 'fiacao_cabos' | 'protecao' | 'infraestrutura' | 'dispositivos';
+    title: string;
+    icon: string;
+  }> = [
+    { key: 'fiacao_cabos', title: 'Fiação / Cabos', icon: '🔌' },
+    { key: 'protecao', title: 'Proteção (Disjuntores/DR)', icon: '🛡️' },
+    { key: 'infraestrutura', title: 'Infraestrutura (Eletrodutos/Caixas)', icon: '🧱' },
+    { key: 'dispositivos', title: 'Dispositivos (Tomadas/Interruptores)', icon: '💡' },
+  ];
+
+  const renderCategoryTable = (isBudgetTab: boolean) => {
+    if (budgetItems.length === 0) {
+      return (
+        <div style={{ textAlign: 'center', padding: '24px', color: '#94a3b8' }}>
+          Sem materiais. Desenhe paredes, adicione pontos elétricos e conduítes.
+        </div>
+      );
+    }
+
+    return (
+      <div className="dimensioning-table-wrapper">
+        <table className="dimensioning-table">
+          <thead>
+            <tr>
+              <th>Descrição do Material</th>
+              <th style={{ width: '80px', textAlign: 'center' }}>Quant.</th>
+              <th style={{ width: '60px', textAlign: 'center' }}>Unid.</th>
+              {isBudgetTab && <th style={{ width: '110px', textAlign: 'right' }}>Unitário (R$)</th>}
+              {isBudgetTab && <th style={{ width: '110px', textAlign: 'right' }}>Total (R$)</th>}
+              <th style={{ width: '180px' }}>Seção / Categoria</th>
+              <th style={{ width: '50px', textAlign: 'center' }}>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {categoriesList.map(cat => {
+              const itemsInCat = budgetItems.filter(item => item.category === cat.key);
+
+              return (
+                <React.Fragment key={cat.key}>
+                  {/* Cabeçalho da Seção */}
+                  <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
+                    <td colSpan={isBudgetTab ? 7 : 5} style={{ padding: '10px 12px', color: '#1e3a8a', textAlign: 'left', borderBottom: '2px solid #cbd5e1' }}>
+                      <span style={{ marginRight: '6px' }}>{cat.icon}</span> {cat.title}
+                    </td>
+                  </tr>
+
+                  {itemsInCat.length === 0 ? (
+                    <tr>
+                      <td colSpan={isBudgetTab ? 7 : 5} style={{ textAlign: 'center', padding: '12px', color: '#94a3b8', fontStyle: 'italic', fontSize: '0.8rem' }}>
+                        Nenhum material nesta categoria.
+                      </td>
+                    </tr>
+                  ) : (
+                    itemsInCat.map((item, idx) => (
+                      <tr key={`${item.isAuto ? 'a' : 'm'}-${item.originalName}-${idx}`} style={{ background: !item.isAuto ? '#fefce8' : undefined }}>
+                        {/* Nome editável */}
+                        <td>
+                          <input
+                            type="text"
+                            value={item.name}
+                            onChange={(e) => {
+                              if (item.isAuto) {
+                                setNameOverrides(prev => ({ ...prev, [item.originalName]: e.target.value }));
+                              } else {
+                                setManualBudgetItems(prev => prev.map(m => m.id === item.originalName ? { ...m, name: e.target.value } : m));
+                              }
+                            }}
+                            style={{
+                              border: 'none',
+                              background: 'transparent',
+                              fontWeight: 'bold',
+                              fontSize: '0.8rem',
+                              color: '#0f172a',
+                              width: '100%',
+                              padding: '4px 2px',
+                              outline: 'none',
+                              borderBottom: '1px dashed #cbd5e1',
+                            }}
+                            title="Clique para editar o nome"
+                          />
+                        </td>
+                        {/* Quantidade editável */}
+                        <td className="mono" style={{ textAlign: 'center' }}>
+                          <input
+                            type="text"
+                            value={item.qty}
+                            onChange={(e) => {
+                              if (item.isAuto) {
+                                setQtyOverrides(prev => ({ ...prev, [item.originalName]: e.target.value }));
+                              } else {
+                                setManualBudgetItems(prev => prev.map(m => m.id === item.originalName ? { ...m, qty: e.target.value } : m));
+                              }
+                            }}
+                            style={{
+                              border: 'none', background: 'transparent', fontFamily: 'monospace',
+                              fontSize: '0.8rem', color: '#0f172a', width: '60px', padding: '4px 2px',
+                              outline: 'none', borderBottom: '1px dashed #cbd5e1', textAlign: 'center',
+                            }}
+                          />
+                        </td>
+                        <td style={{ textAlign: 'center' }}>{item.unit}</td>
+                        {/* Preço editável (apenas se for aba de orçamento) */}
+                        {isBudgetTab && (
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '2px' }}>
+                              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>R$</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={item.price.toFixed(2)}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value) || 0;
+                                  if (item.isAuto) {
+                                    setPriceOverrides(prev => ({ ...prev, [item.originalName]: val }));
+                                  } else {
+                                    setManualBudgetItems(prev => prev.map(m => m.id === item.originalName ? { ...m, price: val } : m));
+                                  }
+                                }}
+                                style={{
+                                  border: 'none', background: 'transparent', fontFamily: 'monospace',
+                                  fontSize: '0.8rem', color: '#0f172a', width: '70px', padding: '4px 2px',
+                                  outline: 'none', borderBottom: '1px dashed #cbd5e1', textAlign: 'right',
+                                }}
+                                title="Clique para editar o preço unitário"
+                              />
+                            </div>
+                          </td>
+                        )}
+                        {/* Total calculado (apenas se for aba de orçamento) */}
+                        {isBudgetTab && (
+                          <td className="mono" style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                            R$ {item.total.toFixed(2)}
+                          </td>
+                        )}
+                        {/* Select de Categoria */}
+                        <td>
+                          {item.isAuto ? (
+                            <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'capitalize' }}>
+                              {categoriesList.find(c => c.key === item.category)?.title}
+                            </span>
+                          ) : (
+                            <select
+                              value={item.category}
+                              onChange={(e) => {
+                                const catVal = e.target.value as any;
+                                setManualBudgetItems(prev => prev.map(m => m.id === item.originalName ? { ...m, category: catVal } : m));
+                              }}
+                              style={{
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '4px',
+                                fontSize: '0.75rem',
+                                padding: '2px 4px',
+                                color: '#334155',
+                                background: '#fff',
+                                outline: 'none',
+                                width: '100%'
+                              }}
+                            >
+                              {categoriesList.map(c => (
+                                <option key={c.key} value={c.key}>{c.title}</option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
+                        {/* Botão de Excluir */}
+                        <td style={{ textAlign: 'center' }}>
+                          {item.isAuto ? (
+                            <span style={{ color: '#94a3b8', fontSize: '0.85rem' }} title="Item automático do canvas">🔒</span>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setManualBudgetItems(prev => prev.filter(m => m.id !== item.originalName));
+                              }}
+                              style={{
+                                border: 'none', background: 'none', color: '#ef4444',
+                                cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold',
+                                padding: '2px 4px', lineHeight: 1,
+                              }}
+                              title="Excluir item manual"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </React.Fragment>
+              );
+            })}
+
+            {/* Linha de Total Geral de Orçamento */}
+            {isBudgetTab && budgetItems.length > 0 && (
+              <tr style={{ fontWeight: 'bold', fontSize: '0.9rem', background: '#f0f9ff' }}>
+                <td colSpan={4} style={{ textAlign: 'right', color: '#1e3a8a', borderTop: '2px solid #2563eb', padding: '12px' }}>
+                  VALOR TOTAL ESTIMADO DO PROJETO:
+                </td>
+                <td className="mono" style={{ textAlign: 'right', color: '#2563eb', borderTop: '2px solid #2563eb', fontSize: '1rem', whiteSpace: 'nowrap', padding: '12px' }}>
+                  R$ {grandTotal.toFixed(2)}
+                </td>
+                <td colSpan={2} style={{ borderTop: '2px solid #2563eb' }}></td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+
+        {/* Botão adicionar item manual */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 0', gap: '8px' }}>
+          <button
+            className="modal-action-btn"
+            style={{ fontSize: '0.8rem', padding: '6px 14px' }}
+            onClick={() => {
+              setManualBudgetItems(prev => [
+                ...prev,
+                {
+                  id: `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                  name: 'Novo Material',
+                  qty: '1',
+                  unit: 'un',
+                  price: 0.00,
+                  category: 'dispositivos'
+                }
+              ]);
+            }}
+          >
+            ➕ Adicionar Item Manual
+          </button>
+          <button
+            className="modal-action-btn"
+            style={{ fontSize: '0.8rem', padding: '6px 14px', background: '#64748b', color: '#fff' }}
+            onClick={() => {
+              if (window.confirm('Deseja resetar todas as edições manuais e itens adicionados?')) {
+                setPriceOverrides({});
+                setNameOverrides({});
+                setQtyOverrides({});
+                setManualBudgetItems([]);
+              }
+            }}
+            title="Restaura nomes e preços originais e remove itens manuais"
+          >
+            🔄 Resetar Edições
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   const handleExportPDF = () => {
     const pw = window.open('', '_blank');
     if (!pw) { alert('Habilite pop-ups para gerar o PDF.'); return; }
 
     let drawingPage = '';
-    if ((window as any).cadStage) {
+    const stage = (window as any).cadStage;
+    if (stage) {
       try {
-        const dataUrl = (window as any).cadStage.toDataURL({ pixelRatio: 2 });
+        const stageW = stage.width();
+        const stageH = stage.height();
+
+        // Calcular Bounding Box real em pixels com base na posição em metros dos elementos e ppm
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+
+        const addPoint = (x: number, y: number) => {
+          const px = x * ppm;
+          const py = y * ppm;
+          if (px < minX) minX = px;
+          if (px > maxX) maxX = px;
+          if (py < minY) minY = py;
+          if (py > maxY) maxY = py;
+        };
+
+        walls.forEach(w => {
+          addPoint(w.p1.x, w.p1.y);
+          addPoint(w.p2.x, w.p2.y);
+        });
+
+        devices.forEach(d => {
+          addPoint(d.x, d.y);
+        });
+
+        if (texts) {
+          texts.forEach(t => {
+            addPoint(t.x, t.y);
+          });
+        }
+
+        if (cadDimensions) {
+          cadDimensions.forEach(d => {
+            addPoint(d.p1.x, d.p1.y);
+            addPoint(d.p2.x, d.p2.y);
+          });
+        }
+
+        // Fallback para stage inteiro se o canvas estiver vazio
+        if (minX === Infinity) {
+          minX = 0;
+          minY = 0;
+          maxX = stageW;
+          maxY = stageH;
+        }
+
+        // Adicionar margem de segurança
+        const safetyMargin = 40;
+        minX -= safetyMargin;
+        minY -= safetyMargin;
+        maxX += safetyMargin;
+        maxY += safetyMargin;
+
+        const boxW = maxX - minX;
+        const boxH = maxY - minY;
+
+        // Calcular escala de Fit
+        const scaleX = stageW / boxW;
+        const scaleY = stageH / boxH;
+        const fitScale = Math.min(scaleX, scaleY);
+
+        // Calcular centralização
+        const centerX = minX + boxW / 2;
+        const centerY = minY + boxH / 2;
+        const panX = stageW / 2 - centerX * fitScale;
+        const panY = stageH / 2 - centerY * fitScale;
+
+        // Guardar transformações originais do Stage
+        const oldZoom = stage.scaleX();
+        const oldX = stage.x();
+        const oldY = stage.y();
+
+        // Ocultar temporariamente contornos do Transformer para que não saiam na foto
+        let transformerNode: any = null;
+        const transformerNodes: any[] = [];
+        try {
+          transformerNode = stage.findOne('Transformer');
+          if (transformerNode) {
+            transformerNodes.push(...transformerNode.nodes());
+            transformerNode.nodes([]);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+
+        // Aplicar escala e posição de ajuste temporárias
+        stage.scale({ x: fitScale, y: fitScale });
+        stage.position({ x: panX, y: panY });
+        stage.batchDraw();
+
+        // Capturar a viewport inteira (do pixel 0,0 até width,height)
+        const dataUrl = stage.toDataURL({
+          x: 0,
+          y: 0,
+          width: stageW,
+          height: stageH,
+          pixelRatio: 2
+        });
+
+        // Restaurar estado do Stage e do Transformer
+        stage.scale({ x: oldZoom, y: oldZoom });
+        stage.position({ x: oldX, y: oldY });
+        if (transformerNode && transformerNodes.length > 0) {
+          transformerNode.nodes(transformerNodes);
+        }
+        stage.batchDraw();
+
         drawingPage = `
         <div class="page" style="page-break-after:always; display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; padding:0; background:#ffffff;">
           <div style="width:100%; height:100%; display:flex; justify-content:center; align-items:center; box-sizing:border-box; padding:20px;">
@@ -315,6 +690,24 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
         console.error('Erro ao capturar imagem do canvas:', err);
       }
     }
+
+    // Gerar as páginas categorizadas e limpas para o PDF
+    const renderPdfSection = (isBudget: boolean) => {
+      return categoriesList.map(cat => {
+        const items = budgetItems.filter(item => item.category === cat.key);
+        if (items.length === 0) return '';
+        return `
+        <tr style="background:#f1f5f9;font-weight:bold"><td colspan="${isBudget ? 5 : 3}">${cat.icon} ${cat.title}</td></tr>
+        ${items.map(i => {
+          if (isBudget) {
+            return `<tr><td>${i.name}</td><td class="mono" style="text-align:center">${i.qty}</td><td style="text-align:center">${i.unit}</td><td class="mono tr">R$ ${i.price.toFixed(2)}</td><td class="mono tr" style="font-weight:bold">R$ ${i.total.toFixed(2)}</td></tr>`;
+          } else {
+            return `<tr><td>${i.name}</td><td class="mono" style="text-align:center">${i.qty}</td><td style="text-align:center">${i.unit}</td></tr>`;
+          }
+        }).join('')}
+        `;
+      }).join('');
+    };
 
     const html = `<!DOCTYPE html><html><head><title>Projeto Elétrico – Eletric SF</title><style>
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
@@ -331,6 +724,7 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
       .sigline{width:45%;border-top:1px solid #64748b;text-align:center;padding-top:8px;font-size:0.75rem;color:#475569}
     </style></head><body>
     ${drawingPage}
+    
     <div class="page">
       <h1>${projectName}</h1><p style="color:#475569;font-size:0.75rem">CAD/BIM Residencial Normativo — Data: ${new Date().toLocaleDateString('pt-BR')}</p>
       <h3>Memorial de Dimensionamento (NBR 5410)</h3>
@@ -346,12 +740,21 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
       }).join('')}
       </tbody></table>
     </div>
+
     <div class="page">
       <h1>${projectName}</h1>
-      <h3>Orçamento & Lista de Materiais</h3>
-      <table><thead><tr><th>Item</th><th>Qtd</th><th>Unid</th><th class="tr">Unitário (R$)</th><th class="tr">Total (R$)</th></tr></thead><tbody>
-      ${budgetItems.map(i => `<tr><td>${i.name}</td><td class="mono">${i.qty}</td><td>${i.unit}</td><td class="mono tr">R$ ${i.price.toFixed(2)}</td><td class="mono tr" style="font-weight:bold">R$ ${i.total.toFixed(2)}</td></tr>`).join('')}
-      <tr style="font-size:0.9rem;font-weight:bold"><td colspan="4" style="text-align:right;border-top:2px solid #2563eb;padding:12px">TOTAL ESTIMADO:</td><td class="mono tr" style="color:#2563eb;border-top:2px solid #2563eb;padding:12px">R$ ${grandTotal.toFixed(2)}</td></tr>
+      <h3>Lista Quantitativa de Materiais (Lista de Compra)</h3>
+      <table><thead><tr><th>Descrição do Material</th><th style="width:100px;text-align:center">Quantidade</th><th style="width:80px;text-align:center">Unidade</th></tr></thead><tbody>
+      ${renderPdfSection(false)}
+      </tbody></table>
+    </div>
+
+    <div class="page">
+      <h1>${projectName}</h1>
+      <h3>Orçamento Estimado do Projeto</h3>
+      <table><thead><tr><th>Descrição do Material</th><th style="width:100px;text-align:center">Quantidade</th><th style="width:80px;text-align:center">Unidade</th><th class="tr" style="width:120px">Unitário (R$)</th><th class="tr" style="width:120px">Total (R$)</th></tr></thead><tbody>
+      ${renderPdfSection(true)}
+      <tr style="font-size:0.9rem;font-weight:bold"><td colspan="4" style="text-align:right;border-top:2px solid #2563eb;padding:12px">VALOR TOTAL ESTIMADO:</td><td class="mono tr" style="color:#2563eb;border-top:2px solid #2563eb;padding:12px">R$ ${grandTotal.toFixed(2)}</td></tr>
       </tbody></table>
       <div class="sig"><div class="sigline">Responsável Técnico Elétrico<br><span style="font-size:0.65rem;color:#64748b">CREA/CFT</span></div><div class="sigline">Cliente Final<br><span style="font-size:0.65rem;color:#64748b">Aprovação</span></div></div>
     </div></body></html>`;
@@ -441,13 +844,19 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
                     className={`modal-tab ${modalActiveTab === 'dimensioning' ? 'active' : ''}`}
                     onClick={() => setModalActiveTab('dimensioning')}
                   >
-                    📊 Dimensionamento NBR 5410
+                    📊 Quadro de Cargas / Dimensionamento
+                  </button>
+                  <button
+                    className={`modal-tab ${modalActiveTab === 'quantitative' ? 'active' : ''}`}
+                    onClick={() => setModalActiveTab('quantitative')}
+                  >
+                    📋 Lista Quantitativa
                   </button>
                   <button
                     className={`modal-tab ${modalActiveTab === 'budget' ? 'active' : ''}`}
                     onClick={() => setModalActiveTab('budget')}
                   >
-                    💰 Orçamento & Materiais
+                    💰 Orçamento Final
                   </button>
                 </div>
               </div>
@@ -609,167 +1018,8 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
                 </>
               )}
 
-              {modalActiveTab === 'budget' && (
-                <div className="dimensioning-table-wrapper">
-                  <table className="dimensioning-table">
-                    <thead>
-                      <tr>
-                        <th>Descrição do Material</th>
-                        <th>Quant.</th>
-                        <th>Unid.</th>
-                        <th style={{ textAlign: 'right' }}>Unitário (R$)</th>
-                        <th style={{ textAlign: 'right' }}>Total (R$)</th>
-                        <th style={{ width: '36px' }}></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {budgetItems.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: '#94a3b8' }}>
-                            Sem materiais. Desenhe paredes, adicione pontos elétricos e conduítes.
-                          </td>
-                        </tr>
-                      ) : (
-                        budgetItems.map((item, idx) => (
-                          <tr key={idx} style={{ background: !item.isAuto ? '#fefce8' : undefined }}>
-                            {/* Nome editável */}
-                            <td>
-                              <input
-                                type="text"
-                                value={item.name}
-                                onChange={(e) => {
-                                  if (item.isAuto) {
-                                    setNameOverrides(prev => ({ ...prev, [item.originalIdx]: e.target.value }));
-                                  } else {
-                                    const manualIdx = item.originalIdx - autoBudgetItems.length;
-                                    setManualBudgetItems(prev => prev.map((m, i) => i === manualIdx ? { ...m, name: e.target.value } : m));
-                                  }
-                                }}
-                                style={{
-                                  border: 'none',
-                                  background: 'transparent',
-                                  fontWeight: 'bold',
-                                  fontSize: '0.8rem',
-                                  color: '#0f172a',
-                                  width: '100%',
-                                  padding: '4px 2px',
-                                  outline: 'none',
-                                  borderBottom: '1px dashed #cbd5e1',
-                                }}
-                                title="Clique para editar o nome"
-                              />
-                            </td>
-                            {/* Quantidade editável */}
-                            <td className="mono">
-                              <input
-                                type="text"
-                                value={item.qty}
-                                onChange={(e) => {
-                                  if (item.isAuto) {
-                                    setQtyOverrides(prev => ({ ...prev, [item.originalIdx]: e.target.value }));
-                                  } else {
-                                    const manualIdx = item.originalIdx - autoBudgetItems.length;
-                                    setManualBudgetItems(prev => prev.map((m, i) => i === manualIdx ? { ...m, qty: e.target.value } : m));
-                                  }
-                                }}
-                                style={{
-                                  border: 'none', background: 'transparent', fontFamily: 'monospace',
-                                  fontSize: '0.8rem', color: '#0f172a', width: '60px', padding: '4px 2px',
-                                  outline: 'none', borderBottom: '1px dashed #cbd5e1', textAlign: 'center',
-                                }}
-                              />
-                            </td>
-                            <td>{item.unit}</td>
-                            {/* Preço editável */}
-                            <td style={{ textAlign: 'right' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '2px' }}>
-                                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>R$</span>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={item.price.toFixed(2)}
-                                  onChange={(e) => {
-                                    const val = parseFloat(e.target.value) || 0;
-                                    if (item.isAuto) {
-                                      setPriceOverrides(prev => ({ ...prev, [item.originalIdx]: val }));
-                                    } else {
-                                      const manualIdx = item.originalIdx - autoBudgetItems.length;
-                                      setManualBudgetItems(prev => prev.map((m, i) => i === manualIdx ? { ...m, price: val } : m));
-                                    }
-                                  }}
-                                  style={{
-                                    border: 'none', background: 'transparent', fontFamily: 'monospace',
-                                    fontSize: '0.8rem', color: '#0f172a', width: '70px', padding: '4px 2px',
-                                    outline: 'none', borderBottom: '1px dashed #cbd5e1', textAlign: 'right',
-                                  }}
-                                  title="Clique para editar o preço unitário"
-                                />
-                              </div>
-                            </td>
-                            <td className="mono" style={{ textAlign: 'right', fontWeight: 'bold' }}>R$ {item.total.toFixed(2)}</td>
-                            {/* Botão Excluir */}
-                            <td style={{ textAlign: 'center', padding: '2px' }}>
-                              {item.isAuto ? (
-                                <span style={{ color: '#cbd5e1', fontSize: '0.75rem' }} title="Item gerado automaticamente">🔒</span>
-                              ) : (
-                                <button
-                                  onClick={() => {
-                                    const manualIdx = item.originalIdx - autoBudgetItems.length;
-                                    setManualBudgetItems(prev => prev.filter((_, i) => i !== manualIdx));
-                                  }}
-                                  style={{
-                                    border: 'none', background: 'none', color: '#ef4444',
-                                    cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold',
-                                    padding: '2px 4px', lineHeight: 1,
-                                  }}
-                                  title="Excluir item manual"
-                                >
-                                  ✕
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                      {/* Linha de Total */}
-                      {budgetItems.length > 0 && (
-                        <tr style={{ fontWeight: 'bold', fontSize: '0.9rem', background: '#f0f9ff' }}>
-                          <td colSpan={5} style={{ textAlign: 'right', color: '#1e3a8a', borderTop: '2px solid #2563eb' }}>
-                            VALOR TOTAL ESTIMADO DO PROJETO:
-                          </td>
-                          <td className="mono" style={{ textAlign: 'right', color: '#2563eb', borderTop: '2px solid #2563eb', fontSize: '1rem', whiteSpace: 'nowrap' }}>
-                            R$ {grandTotal.toFixed(2)}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                  {/* Botão adicionar item manual */}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '10px 0', gap: '8px' }}>
-                    <button
-                      className="modal-action-btn"
-                      style={{ fontSize: '0.8rem', padding: '6px 14px' }}
-                      onClick={() => {
-                        setManualBudgetItems(prev => [
-                          ...prev,
-                          { name: 'Novo Material', qty: '1', unit: 'un', price: 0.00 }
-                        ]);
-                      }}
-                    >
-                      ➕ Adicionar Item Manual
-                    </button>
-                    <button
-                      className="modal-action-btn"
-                      style={{ fontSize: '0.8rem', padding: '6px 14px', background: '#64748b', color: '#fff' }}
-                      onClick={() => { setPriceOverrides({}); setNameOverrides({}); setQtyOverrides({}); }}
-                      title="Restaura nomes e preços automáticos"
-                    >
-                      🔄 Resetar Edições
-                    </button>
-                  </div>
-                </div>
-              )}
+              {modalActiveTab === 'quantitative' && renderCategoryTable(false)}
+              {modalActiveTab === 'budget' && renderCategoryTable(true)}
             </div>
           </div>
         </div>
