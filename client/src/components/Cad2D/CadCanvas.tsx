@@ -138,11 +138,11 @@ const getWallVans = (wall: Wall, devs: Device[]) => {
 
 export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
   const {
-    ppm, bgImageSrc, bgImageLock, bgImageScale, bgImagePos, bgImageRotation, bgImageSelected,
-    isCalibrating, calibrationPoints, zoom, pan, showGrid,
+    ppm, bgImageSrc, bgImageLock, bgImageScaleX, bgImageScaleY, bgImagePos, bgImageRotation, bgImageSelected,
+    isCalibrating, calibrationPoints, zoom, pan, showGrid, showOriginAxes,
     walls, devices, circuits, conduits,
     currentTool, selectedDeviceType, activeWallPoints, selectedDeviceId, selectedWallId,
-    setZoom, setPan, setBgImagePos, setBgImageRotation, setBgImageSelected, addCalibrationPoint, setIsCalibrating,
+    setZoom, setPan, setBgImagePos, setBgImageRotation, setBgImageSelected, addCalibrationPoint, setIsCalibrating, setBgImageScale,
     setSelectedDeviceId, setSelectedWallId, setSelectedConduitId, clearSelection,
     addWall, addActiveWallPoint, clearActiveWallPoints,
     addDevice, addConduit, selectedConduitId,
@@ -153,9 +153,10 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     guideLines, selectedGuideLineId, selectedGuideType,
     texts, selectedTextId,
     dimensions, selectedDimensionId, activeDimensionPoints,
-    addGuideLine, setSelectedGuideLineId,
+    addGuideLine, setSelectedGuideLineId, updateGuideLine,
     addText, updateTextPosition, setSelectedTextId,
     addDimension, addActiveDimensionPoint, clearActiveDimensionPoints, setSelectedDimensionId,
+    updateDimensionPoints, updateDimensionOffset,
     updateWall,
   } = useCadStore();
 
@@ -172,12 +173,14 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
   const [doorCycle, setDoorCycle] = useState<number>(0);
   const [activeHandle, setActiveHandle] = useState<{ wallId: string; pointKey: 'p1' | 'p2' } | null>(null);
   const [conduitSnapDevice, setConduitSnapDevice] = useState<Device | null>(null);
+  // Anchor de arrastamento de extremidade de cota
+  const [dimDragAnchor, setDimDragAnchor] = useState<{ dimId: string; endKey: 'p1' | 'p2' } | null>(null);
 
-  const { updateDeviceProperties, setBgImageScale } = useCadStore();
+  const { updateDeviceProperties, setBgImageScaleX, setBgImageScaleY } = useCadStore();
 
   const getWallDragSnap = (pt: Point2D, excludeWallId?: string): Point2D => {
     let snapPt = { ...pt };
-    const tolerance = 12 / (ppm * zoom);
+    const tolerance = 20 / (ppm * zoom);
 
     // 1. Prioridade Máxima: Cruzamento / Interseção de linhas de guia
     let closestGuideX: number | null = null;
@@ -210,15 +213,19 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
       return snapPt;
     }
 
-    // 2. Segunda Prioridade: Guias individuais (vertical ou horizontal)
+    // 2. Segunda Prioridade: Guias individuais (vertical ou horizontal) + Snap de 1 cm em eixos sem guia
     let snappedToGuide = false;
     if (closestGuideX !== null) {
       snapPt.x = closestGuideX;
       snappedToGuide = true;
+    } else {
+      snapPt.x = Math.round(pt.x / 0.01) * 0.01;
     }
     if (closestGuideY !== null) {
       snapPt.y = closestGuideY;
       snappedToGuide = true;
+    } else {
+      snapPt.y = Math.round(pt.y / 0.01) * 0.01;
     }
 
     // 3. Terceira Prioridade: Snap magnético em quinas de outras paredes
@@ -243,7 +250,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
       }
     }
 
-    // 4. Quarta Prioridade: Snap magnético ao longo do segmento (corpo) de outras paredes
+    // 4. Quarta Prioridade: Snap magnético ao longo do segmento (corpo) de outras paredes (ignorável se grudado na guia)
     let minSegmentDist = Infinity;
     let closestSegmentPoint: Point2D | null = null;
 
@@ -256,7 +263,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
       }
     });
 
-    if (closestSegmentPoint) {
+    if (closestSegmentPoint && !snappedToGuide) {
       return closestSegmentPoint;
     }
 
@@ -429,6 +436,18 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     }
   };
 
+  const handleMouseUp = () => { 
+    isPanning.current = false; 
+    if (activeHandle) {
+      setActiveHandle(null);
+      useCadStore.getState().recomputeDerivedState();
+    }
+    // Finaliza o arrasto do anchor da cota
+    if (dimDragAnchor) {
+      setDimDragAnchor(null);
+    }
+  };
+
   const handleMouseMove = (e: any) => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -449,7 +468,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     };
     setMousePos(realPos);
     
-    const tolerance = 12 / (ppm * zoom);
+    const tolerance = (currentTool === 'wall' || currentTool === 'dimension') ? (20 / (ppm * zoom)) : (12 / (ppm * zoom));
 
     // Se estivermos na ferramenta de eletroduto manual
     if (currentTool === 'conduit') {
@@ -501,6 +520,19 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
       stage.batchDraw();
       return;
     }
+
+    // Se estivermos arrastando um anchor de extremidade de cota
+    if (dimDragAnchor) {
+      const targetDim = dimensions.find(d => d.id === dimDragAnchor.dimId);
+      if (targetDim) {
+        const snapped = getWallDragSnap(realPos);
+        const updatedP1 = dimDragAnchor.endKey === 'p1' ? snapped : targetDim.p1;
+        const updatedP2 = dimDragAnchor.endKey === 'p2' ? snapped : targetDim.p2;
+        updateDimensionPoints(dimDragAnchor.dimId, updatedP1, updatedP2);
+      }
+      return;
+    }
+
 
     const { meterSpacing } = getGridConfig();
     let snappedX = realPos.x;
@@ -566,11 +598,14 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
       }
     }
 
+    const isPrecisionTool = currentTool === 'wall' || currentTool === 'dimension';
+    const step = isPrecisionTool ? 0.01 : meterSpacing;
+
     if (!snappedToGuideX) {
-      snappedX = Math.round(realPos.x / meterSpacing) * meterSpacing;
+      snappedX = Math.round(realPos.x / step) * step;
     }
     if (!snappedToGuideY) {
-      snappedY = Math.round(realPos.y / meterSpacing) * meterSpacing;
+      snappedY = Math.round(realPos.y / step) * step;
     }
 
     let snappedPos = currentTool === 'wall' ? getWallDragSnap(realPos) : { x: snappedX, y: snappedY };
@@ -600,13 +635,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     }
   };
 
-  const handleMouseUp = () => { 
-    isPanning.current = false; 
-    if (activeHandle) {
-      setActiveHandle(null);
-      useCadStore.getState().recomputeDerivedState();
-    }
-  };
+
 
   const calculateDeviceSnap = (mouseReal: Point2D) => {
     const freeTypes = ['lampada', 'ceiling_light', 'fluorescent', 'qdc', 'poste', 'medidor', 'box_octogonal'];
@@ -672,7 +701,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
               const metros = parseFloat(m.replace(',', '.'));
               if (!isNaN(metros) && metros > 0) {
                 // Calibração proporcional: ajusta a escala da imagem de fundo para se adequar ao ppm global fixo
-                const newScale = bgImageScale * (metros * ppm) / distPx;
+                const newScale = bgImageScaleX * (metros * ppm) / distPx;
                 setBgImageScale(newScale);
               }
             }
@@ -717,13 +746,23 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     }
 
     if (currentTool === 'dimension') {
-      const targetPoint = snappedWallPoint || snappedMousePos;
+      let targetPoint = snappedWallPoint || snappedMousePos;
       const { lastDimensionOffset } = useCadStore.getState();
       
       if (!activeDimensionPoints || activeDimensionPoints.length === 0) {
         addActiveDimensionPoint(targetPoint);
       } else if (activeDimensionPoints.length === 1) {
         const p1 = activeDimensionPoints[0];
+        // Aplica a trava ortogonal no clique final (p2) se não grudado em parede
+        if (!snappedWallPoint) {
+          const dx = Math.abs(snappedMousePos.x - p1.x);
+          const dy = Math.abs(snappedMousePos.y - p1.y);
+          if (dx > dy) {
+            targetPoint = { x: snappedMousePos.x, y: p1.y };
+          } else {
+            targetPoint = { x: p1.x, y: snappedMousePos.y };
+          }
+        }
         if (p1.x !== targetPoint.x || p1.y !== targetPoint.y) {
           if (lastDimensionOffset !== null) {
             // Se já temos um offset da cota anterior, cria a cota sequencial instantaneamente
@@ -1098,14 +1137,50 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
 
         {!paperSpaceActive && showGrid && gridLines}
 
+        {/* ─── Marco Zero: Eixos Absolutos X (vermelho) e Y (verde) ── */}
+        {!paperSpaceActive && showOriginAxes && (
+          <>
+            {/* Eixo X — vermelho, horizontal */}
+            <Line
+              points={[-50000, 0, 50000, 0]}
+              stroke="#ef4444"
+              strokeWidth={1.5 / zoom}
+              opacity={0.7}
+              listening={false}
+              dash={[8 / zoom, 4 / zoom]}
+            />
+            {/* Eixo Y — verde, vertical */}
+            <Line
+              points={[0, -50000, 0, 50000]}
+              stroke="#22c55e"
+              strokeWidth={1.5 / zoom}
+              opacity={0.7}
+              listening={false}
+              dash={[8 / zoom, 4 / zoom]}
+            />
+            {/* Ponto de origem */}
+            <Circle x={0} y={0} radius={5 / zoom} fill="#f59e0b" stroke="#ffffff" strokeWidth={1 / zoom} listening={false} />
+            {/* Rótulo de Origem */}
+            <Text
+              text="(0,0)"
+              x={6 / zoom}
+              y={6 / zoom}
+              fontSize={11 / zoom}
+              fontFamily="Fira Code, monospace"
+              fill="#f59e0b"
+              listening={false}
+            />
+          </>
+        )}
+
         {imageObj && (
           <Image
             id="bg-image-node"
             image={imageObj}
             x={bgImagePos.x}
             y={bgImagePos.y}
-            scaleX={bgImageScale}
-            scaleY={bgImageScale}
+            scaleX={bgImageScaleX}
+            scaleY={bgImageScaleY}
             rotation={bgImageRotation}
             opacity={0.45}
             listening={!bgImageLock}
@@ -1268,57 +1343,75 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
             : [-10000, g.value * ppm, 10000, g.value * ppm];
 
           return (
-            <Line
-              key={g.id}
-              points={points}
-              stroke={color}
-              strokeWidth={strokeW}
-              hitStrokeWidth={16}
-              dash={[6, 4]}
-              draggable={currentTool === 'select'}
-              dragBoundFunc={(pos) => {
-                const stage = stageRef.current;
-                if (!stage) return pos;
-                return g.type === 'vertical'
-                  ? { x: pos.x, y: stage.y() }
-                  : { x: stage.x(), y: pos.y };
-              }}
-              onDragEnd={(e) => {
-                const node = e.target;
-                const deltaX = node.x() / ppm;
-                const deltaY = node.y() / ppm;
-
-                if (g.type === 'vertical') {
-                  const rawNewValue = g.value + deltaX;
-                  useCadStore.setState((s) => ({
-                    guideLines: s.guideLines.map(gl => gl.id === g.id ? { ...gl, value: rawNewValue } : gl)
-                  }));
-                } else {
-                  const rawNewValue = g.value + deltaY;
-                  useCadStore.setState((s) => ({
-                    guideLines: s.guideLines.map(gl => gl.id === g.id ? { ...gl, value: rawNewValue } : gl)
-                  }));
-                }
-                node.position({ x: 0, y: 0 });
-                node.getLayer()?.batchDraw();
-              }}
-              onClick={(e) => {
-                e.cancelBubble = true;
-                if (currentTool === 'select') {
-                  setSelectedGuideLineId(g.id);
-                }
-              }}
-              onMouseEnter={(e) => {
-                if (currentTool === 'select') {
-                  e.target.getStage()!.container().style.cursor = g.type === 'vertical' ? 'col-resize' : 'row-resize';
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.target.getStage()!.container().style.cursor = cursorStyle;
-              }}
-            />
+            <Group key={g.id}>
+              <Line
+                points={points}
+                stroke={color}
+                strokeWidth={strokeW}
+                hitStrokeWidth={16}
+                dash={[6, 4]}
+                draggable={currentTool === 'select'}
+                dragBoundFunc={(pos) => {
+                  const stage = stageRef.current;
+                  if (!stage) return pos;
+                  return g.type === 'vertical'
+                    ? { x: pos.x, y: stage.y() }
+                    : { x: stage.x(), y: pos.y };
+                }}
+                onDragEnd={(e) => {
+                  const node = e.target;
+                  const deltaX = node.x() / ppm;
+                  const deltaY = node.y() / ppm;
+                  const rawNewValue = g.type === 'vertical' ? g.value + deltaX : g.value + deltaY;
+                  updateGuideLine(g.id, rawNewValue);
+                  node.position({ x: 0, y: 0 });
+                  node.getLayer()?.batchDraw();
+                }}
+                onClick={(e) => {
+                  e.cancelBubble = true;
+                  if (currentTool === 'select') {
+                    setSelectedGuideLineId(g.id);
+                  }
+                }}
+                onMouseEnter={(e) => {
+                  if (currentTool === 'select') {
+                    e.target.getStage()!.container().style.cursor = g.type === 'vertical' ? 'col-resize' : 'row-resize';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.target.getStage()!.container().style.cursor = cursorStyle;
+                }}
+              />
+              {/* Rótulo de coordenada da guia */}
+              {isSelected && (
+                <Group
+                  x={g.type === 'vertical' ? g.value * ppm : 0}
+                  y={g.type === 'horizontal' ? g.value * ppm : 0}
+                >
+                  <Rect
+                    x={4 / zoom}
+                    y={-14 / zoom}
+                    width={54 / zoom}
+                    height={16 / zoom}
+                    fill="#0078d7"
+                    cornerRadius={3 / zoom}
+                    listening={false}
+                  />
+                  <Text
+                    text={`${g.type === 'vertical' ? 'X' : 'Y'}: ${g.value.toFixed(2)} m`}
+                    x={6 / zoom}
+                    y={-12 / zoom}
+                    fontSize={9 / zoom}
+                    fontFamily="Fira Code, monospace"
+                    fill="#ffffff"
+                    listening={false}
+                  />
+                </Group>
+              )}
+            </Group>
           );
         })}
+
 
         {/* Renderização das Cotas Técnicas (Medidas) */}
         {dimensions && dimensions.map((d) => {
@@ -1423,7 +1516,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                   cornerRadius={2}
                 />
                 <Text
-                  text={`${L.toFixed(2)} m`}
+                  text={d.labelOverride ? `${d.labelOverride} m` : `${L.toFixed(2)} m`}
                   x={-24}
                   y={-6}
                   width={48}
@@ -1434,6 +1527,64 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                   fontStyle="bold"
                 />
               </Group>
+
+              {/* Âncoras arrastáveis nas extremidades da cota (visíveis ao selecionar) */}
+              {isSelected && currentTool === 'select' && (
+                <>
+                  {/* Anchor de P1 */}
+                  <Circle
+                    x={d.p1.x * ppm}
+                    y={d.p1.y * ppm}
+                    radius={7 / zoom}
+                    fill="#0078d7"
+                    stroke="#ffffff"
+                    strokeWidth={1.5 / zoom}
+                    draggable
+                    onMouseEnter={(e) => {
+                      e.target.getStage()!.container().style.cursor = 'crosshair';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.getStage()!.container().style.cursor = cursorStyle;
+                    }}
+                    onDragStart={() => {
+                      setDimDragAnchor({ dimId: d.id, endKey: 'p1' });
+                    }}
+                    onDragMove={(e) => {
+                      e.target.position({ x: 0, y: 0 }); // Deixa o handleMouseMove cuidar do update
+                    }}
+                    onDragEnd={(e) => {
+                      e.target.position({ x: 0, y: 0 });
+                      setDimDragAnchor(null);
+                    }}
+                  />
+                  {/* Anchor de P2 */}
+                  <Circle
+                    x={d.p2.x * ppm}
+                    y={d.p2.y * ppm}
+                    radius={7 / zoom}
+                    fill="#0078d7"
+                    stroke="#ffffff"
+                    strokeWidth={1.5 / zoom}
+                    draggable
+                    onMouseEnter={(e) => {
+                      e.target.getStage()!.container().style.cursor = 'crosshair';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.getStage()!.container().style.cursor = cursorStyle;
+                    }}
+                    onDragStart={() => {
+                      setDimDragAnchor({ dimId: d.id, endKey: 'p2' });
+                    }}
+                    onDragMove={(e) => {
+                      e.target.position({ x: 0, y: 0 });
+                    }}
+                    onDragEnd={(e) => {
+                      e.target.position({ x: 0, y: 0 });
+                      setDimDragAnchor(null);
+                    }}
+                  />
+                </>
+              )}
             </Group>
           );
         })}
@@ -1464,7 +1615,16 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
         {currentTool === 'dimension' && activeDimensionPoints && (
           activeDimensionPoints.length === 1 ? (() => {
             const p1 = activeDimensionPoints[0];
-            const p2 = snappedMousePos;
+            let p2 = snappedWallPoint || snappedMousePos;
+            if (!snappedWallPoint) {
+              const dx = Math.abs(snappedMousePos.x - p1.x);
+              const dy = Math.abs(snappedMousePos.y - p1.y);
+              if (dx > dy) {
+                p2 = { x: snappedMousePos.x, y: p1.y };
+              } else {
+                p2 = { x: p1.x, y: snappedMousePos.y };
+              }
+            }
             const dx = p2.x - p1.x;
             const dy = p2.y - p1.y;
             const L = Math.sqrt(dx * dx + dy * dy);
@@ -1998,7 +2158,8 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                 rotation: node.rotation(),
               });
             } else if (bgImageSelected && node.id() === 'bg-image-node') {
-              setBgImageScale(node.scaleX());
+              setBgImageScaleX(node.scaleX());
+              setBgImageScaleY(node.scaleY());
               setBgImageRotation(node.rotation());
               setBgImagePos({ x: node.x(), y: node.y() });
             }

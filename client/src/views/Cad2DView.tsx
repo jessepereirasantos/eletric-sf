@@ -111,7 +111,7 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
         
         const {
           projectName, walls, devices, circuits, conduits, guideLines, texts, dimensions, ppm,
-          bgImageSrc, bgImageLock, bgImageScale, bgImagePos, bgImageRotation
+          bgImageSrc, bgImageLock, bgImageScale, bgImageScaleX, bgImageScaleY, bgImagePos, bgImageRotation
         } = projectData;
 
         useCadStore.setState({
@@ -126,7 +126,8 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
           ppm: ppm || 100,
           bgImageSrc: bgImageSrc || null,
           bgImageLock: bgImageLock !== undefined ? bgImageLock : true,
-          bgImageScale: bgImageScale || 1.0,
+          bgImageScaleX: bgImageScaleX || bgImageScale || 1.0,
+          bgImageScaleY: bgImageScaleY || bgImageScale || 1.0,
           bgImagePos: bgImagePos || { x: 0, y: 0 },
           bgImageRotation: bgImageRotation || 0,
         });

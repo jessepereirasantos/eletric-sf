@@ -111,6 +111,154 @@ const WallProperties: React.FC<{ wall: Wall }> = ({ wall }) => {
   );
 };
 
+// ─── Painel de Propriedades de Cota ───────────────────────────
+
+const DimensionProperties: React.FC<{ dimId: string }> = ({ dimId }) => {
+  const { dimensions, removeDimension, clearSelection, updateDimensionLabel, updateDimensionPoints, updateDimensionOffset } = useCadStore();
+  const dim = dimensions.find(d => d.id === dimId);
+  if (!dim) return null;
+
+  const dx = dim.p2.x - dim.p1.x;
+  const dy = dim.p2.y - dim.p1.y;
+  const L = Math.sqrt(dx * dx + dy * dy);
+
+  const [labelVal, setLabelVal] = React.useState(dim.labelOverride ?? '');
+
+  const handleLabelApply = () => {
+    const v = labelVal.trim();
+    if (v === '') {
+      updateDimensionLabel(dimId, '');
+    } else {
+      updateDimensionLabel(dimId, v);
+    }
+  };
+
+  return (
+    <div className="props-panel-content">
+      <div className="props-header">
+        <span className="props-icon">⟺</span>
+        <div>
+          <div className="props-title">Cota / Medida</div>
+          <div className="props-subtitle">Comprimento: {L.toFixed(2)} m</div>
+        </div>
+      </div>
+
+      <div className="props-field">
+        <label>P1 — X (m)</label>
+        <input
+          type="number" className="props-input" step={0.01}
+          value={Math.round(dim.p1.x * 100) / 100}
+          onChange={e => updateDimensionPoints(dimId, { x: parseFloat(e.target.value) || 0, y: dim.p1.y }, dim.p2)}
+        />
+      </div>
+      <div className="props-field">
+        <label>P1 — Y (m)</label>
+        <input
+          type="number" className="props-input" step={0.01}
+          value={Math.round(dim.p1.y * 100) / 100}
+          onChange={e => updateDimensionPoints(dimId, { x: dim.p1.x, y: parseFloat(e.target.value) || 0 }, dim.p2)}
+        />
+      </div>
+      <div className="props-field">
+        <label>P2 — X (m)</label>
+        <input
+          type="number" className="props-input" step={0.01}
+          value={Math.round(dim.p2.x * 100) / 100}
+          onChange={e => updateDimensionPoints(dimId, dim.p1, { x: parseFloat(e.target.value) || 0, y: dim.p2.y })}
+        />
+      </div>
+      <div className="props-field">
+        <label>P2 — Y (m)</label>
+        <input
+          type="number" className="props-input" step={0.01}
+          value={Math.round(dim.p2.y * 100) / 100}
+          onChange={e => updateDimensionPoints(dimId, dim.p1, { x: dim.p2.x, y: parseFloat(e.target.value) || 0 })}
+        />
+      </div>
+      <div className="props-field">
+        <label>Afastamento (m)</label>
+        <input
+          type="number" className="props-input" step={0.05}
+          value={dim.offset ?? 0}
+          onChange={e => updateDimensionOffset(dimId, parseFloat(e.target.value) || 0)}
+        />
+      </div>
+      <div className="props-field">
+        <label>Rótulo personalizado (opcional)</label>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <input
+            type="text" className="props-input"
+            placeholder="Ex: 3.50"
+            value={labelVal}
+            onChange={e => setLabelVal(e.target.value)}
+            onBlur={handleLabelApply}
+            onKeyDown={e => e.key === 'Enter' && handleLabelApply()}
+            style={{ flex: 1 }}
+          />
+          <button
+            type="button"
+            onClick={handleLabelApply}
+            style={{ padding: '0 8px', background: '#0f172a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+          >
+            ✓
+          </button>
+        </div>
+        <div className="props-hint" style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>
+          Deixe em branco para usar o valor calculado automaticamente.
+        </div>
+      </div>
+
+      <div className="props-actions">
+        <button className="props-btn-danger" onClick={() => { removeDimension(dimId); clearSelection(); }}>
+          🗑 Excluir Cota
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ─── Painel de Propriedades de Linha de Guia ──────────────────
+
+const GuideLineProperties: React.FC<{ guideId: string }> = ({ guideId }) => {
+  const { guideLines, removeGuideLine, clearSelection, updateGuideLine } = useCadStore();
+  const guide = guideLines.find(g => g.id === guideId);
+  if (!guide) return null;
+
+  return (
+    <div className="props-panel-content">
+      <div className="props-header">
+        <span className="props-icon">📐</span>
+        <div>
+          <div className="props-title">Linha de Guia</div>
+          <div className="props-subtitle">{guide.type === 'vertical' ? 'Vertical (eixo X)' : 'Horizontal (eixo Y)'}</div>
+        </div>
+      </div>
+
+      <div className="props-field">
+        <label>Posição {guide.type === 'vertical' ? 'X' : 'Y'} — em metros (Marco Zero)</label>
+        <input
+          type="number"
+          className="props-input"
+          step={0.01}
+          value={Math.round(guide.value * 100) / 100}
+          onChange={e => updateGuideLine(guideId, parseFloat(e.target.value) || 0)}
+        />
+      </div>
+
+      <div className="props-info" style={{ fontSize: '11px', color: '#64748b', marginTop: '8px' }}>
+        <div>Referência: Marco Zero = (0, 0)</div>
+        <div>Posição atual: {guide.value.toFixed(3)} m</div>
+      </div>
+
+      <div className="props-actions">
+        <button className="props-btn-danger" onClick={() => { removeGuideLine(guideId); clearSelection(); }}>
+          🗑 Excluir Guia
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ─── Painel de Propriedades de Dispositivo ────────────────────
 
 const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
@@ -935,12 +1083,16 @@ const ConduitProperties: React.FC<{ conduit: Conduit }> = ({ conduit }) => {
 // ─── Painel de Propriedades da Planta Rascunho (Imagem de Fundo) ──
 const BgImageProperties: React.FC = () => {
   const { 
-    bgImageScale, bgImageRotation, bgImagePos,
-    setBgImageScale, setBgImageRotation, setBgImagePos, setBgImageLock, setBgImageSelected
+    bgImageScaleX, bgImageScaleY, bgImageRotation, bgImagePos,
+    setBgImageScaleX, setBgImageScaleY, setBgImageRotation, setBgImagePos, setBgImageLock, setBgImageSelected
   } = useCadStore();
 
-  const handleScaleChange = (val: number) => {
-    setBgImageScale(Math.max(0.01, val));
+  const handleScaleXChange = (val: number) => {
+    setBgImageScaleX(Math.max(0.01, val));
+  };
+
+  const handleScaleYChange = (val: number) => {
+    setBgImageScaleY(Math.max(0.01, val));
   };
 
   const handleRotationChange = (val: number) => {
@@ -964,26 +1116,49 @@ const BgImageProperties: React.FC = () => {
         </div>
       </div>
 
-      {/* Escala */}
+      {/* Escala X */}
       <div className="props-field">
-        <label>Escala (Multiplicador)</label>
+        <label>Escala Largura (X)</label>
         <div className="props-input-row">
           <input
             type="range"
             min={0.1}
             max={5.0}
             step={0.01}
-            value={bgImageScale}
-            onChange={e => handleScaleChange(parseFloat(e.target.value))}
+            value={bgImageScaleX}
+            onChange={e => handleScaleXChange(parseFloat(e.target.value))}
           />
-          <span className="props-value">{bgImageScale.toFixed(2)}x</span>
+          <span className="props-value">{bgImageScaleX.toFixed(2)}x</span>
         </div>
         <input
           type="number"
           className="props-input"
           min={0.01} max={100} step={0.01}
-          value={parseFloat(bgImageScale.toFixed(3))}
-          onChange={e => handleScaleChange(parseFloat(e.target.value) || 1.0)}
+          value={parseFloat(bgImageScaleX.toFixed(3))}
+          onChange={e => handleScaleXChange(parseFloat(e.target.value) || 1.0)}
+        />
+      </div>
+
+      {/* Escala Y */}
+      <div className="props-field">
+        <label>Escala Altura (Y)</label>
+        <div className="props-input-row">
+          <input
+            type="range"
+            min={0.1}
+            max={5.0}
+            step={0.01}
+            value={bgImageScaleY}
+            onChange={e => handleScaleYChange(parseFloat(e.target.value))}
+          />
+          <span className="props-value">{bgImageScaleY.toFixed(2)}x</span>
+        </div>
+        <input
+          type="number"
+          className="props-input"
+          min={0.01} max={100} step={0.01}
+          value={parseFloat(bgImageScaleY.toFixed(3))}
+          onChange={e => handleScaleYChange(parseFloat(e.target.value) || 1.0)}
         />
       </div>
 
@@ -1054,12 +1229,19 @@ const BgImageProperties: React.FC = () => {
 // ─── Painel Principal (exportado) ─────────────────────────────
 
 export const PropertiesPanel: React.FC = () => {
-  const { selectedDeviceId, selectedWallId, selectedTextId, selectedConduitId, devices, walls, texts, conduits, paperSpaceActive, bgImageSelected, bgImageSrc } = useCadStore();
+  const {
+    selectedDeviceId, selectedWallId, selectedTextId, selectedConduitId,
+    selectedDimensionId, selectedGuideLineId,
+    devices, walls, texts, conduits, paperSpaceActive, bgImageSelected, bgImageSrc
+  } = useCadStore();
 
   const selectedDevice = selectedDeviceId ? devices.find(d => d.id === selectedDeviceId) : null;
   const selectedWall = selectedWallId ? walls.find(w => w.id === selectedWallId) : null;
   const selectedText = selectedTextId ? (texts || []).find(t => t.id === selectedTextId) : null;
   const selectedConduit = selectedConduitId ? conduits.find(c => c.id === selectedConduitId) : null;
+
+  const noSelection = !selectedWall && !selectedDevice && !selectedText && !selectedConduit
+    && !bgImageSelected && !selectedDimensionId && !selectedGuideLineId;
 
   return (
     <aside className="properties-panel">
@@ -1072,8 +1254,10 @@ export const PropertiesPanel: React.FC = () => {
       {selectedText && <TextProperties textItem={selectedText} />}
       {selectedConduit && <ConduitProperties conduit={selectedConduit} />}
       {bgImageSelected && bgImageSrc && <BgImageProperties />}
-      {!selectedWall && !selectedDevice && !selectedText && !selectedConduit && !bgImageSelected && paperSpaceActive && <PaperProperties />}
-      {!selectedWall && !selectedDevice && !selectedText && !selectedConduit && !bgImageSelected && !paperSpaceActive && <EmptyPanel />}
+      {selectedDimensionId && <DimensionProperties dimId={selectedDimensionId} />}
+      {selectedGuideLineId && <GuideLineProperties guideId={selectedGuideLineId} />}
+      {noSelection && paperSpaceActive && <PaperProperties />}
+      {noSelection && !paperSpaceActive && <EmptyPanel />}
     </aside>
   );
 };

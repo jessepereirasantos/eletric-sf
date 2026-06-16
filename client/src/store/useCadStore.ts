@@ -123,6 +123,7 @@ export interface CadDimension {
   p1: Point2D;
   p2: Point2D;
   offset?: number; // Afastamento horizontal da cota em metros
+  labelOverride?: string; // Texto personalizado da cota (ex: '3.50')
 }
 
 // Snapshot para undo/redo
@@ -136,7 +137,8 @@ interface HistorySnapshot {
   dimensions: CadDimension[];
   bgImageSrc: string | null;
   bgImageLock: boolean;
-  bgImageScale: number;
+  bgImageScaleX: number;
+  bgImageScaleY: number;
   bgImagePos: Point2D;
   bgImageRotation: number;
 }
@@ -149,7 +151,8 @@ interface CadState {
   ppm: number;
   bgImageSrc: string | null;
   bgImageLock: boolean;
-  bgImageScale: number;
+  bgImageScaleX: number;
+  bgImageScaleY: number;
   bgImagePos: Point2D;
   bgImageRotation: number;
   bgImageSelected: boolean;
@@ -158,6 +161,7 @@ interface CadState {
   zoom: number;
   pan: Point2D;
   showGrid: boolean;
+  showOriginAxes: boolean;
 
   projectName: string;
   materialsList: MaterialItem[];
@@ -191,6 +195,8 @@ interface CadState {
   setBgImageSrc: (src: string | null) => void;
   setBgImageLock: (lock: boolean) => void;
   setBgImageScale: (scale: number) => void;
+  setBgImageScaleX: (scale: number) => void;
+  setBgImageScaleY: (scale: number) => void;
   setBgImagePos: (pos: Point2D) => void;
   setBgImageRotation: (rotation: number) => void;
   setBgImageSelected: (selected: boolean) => void;
@@ -258,9 +264,16 @@ interface CadState {
   addDimension: (p1: Point2D, p2: Point2D, offset?: number) => void;
   removeDimension: (id: string) => void;
   updateDimensionPoints: (id: string, p1: Point2D, p2: Point2D) => void;
+  updateDimensionOffset: (id: string, offset: number) => void;
+  updateDimensionLabel: (id: string, label: string) => void;
   addActiveDimensionPoint: (pt: Point2D) => void;
   clearActiveDimensionPoints: () => void;
   lastDimensionOffset: number | null;
+
+  // Guias Paramétricas
+  updateGuideLine: (id: string, value: number) => void;
+  showOriginAxes: boolean;
+  setShowOriginAxes: (show: boolean) => void;
 
   // Estado de Pranchas (Paper Space)
   paperSpaceActive: boolean;
@@ -315,7 +328,8 @@ const takeSnapshot = (state: CadState): HistorySnapshot => ({
   dimensions: JSON.parse(JSON.stringify(state.dimensions || [])),
   bgImageSrc: state.bgImageSrc,
   bgImageLock: state.bgImageLock,
-  bgImageScale: state.bgImageScale,
+  bgImageScaleX: state.bgImageScaleX,
+  bgImageScaleY: state.bgImageScaleY,
   bgImagePos: JSON.parse(JSON.stringify(state.bgImagePos || { x: 0, y: 0 })),
   bgImageRotation: state.bgImageRotation,
 });
@@ -347,11 +361,13 @@ export const useCadStore = create<CadState>()(
         paperSheetNum: fields.sheetNum !== undefined ? fields.sheetNum : s.paperSheetNum,
       })),
       bgImageLock: true,
-      bgImageScale: 1.0,
+      bgImageScaleX: 1.0,
+      bgImageScaleY: 1.0,
       bgImagePos: { x: 0, y: 0 },
       bgImageRotation: 0,
       bgImageSelected: false,
       lastDimensionOffset: null,
+      showOriginAxes: true,
       isCalibrating: false,
       calibrationPoints: [],
       zoom: 1.0,
@@ -389,7 +405,9 @@ export const useCadStore = create<CadState>()(
       setPpm: (ppm) => set({ ppm }),
       setBgImageSrc: (src) => set({ bgImageSrc: src, calibrationPoints: [] }),
       setBgImageLock: (lock) => set({ bgImageLock: lock }),
-      setBgImageScale: (scale) => set({ bgImageScale: scale }),
+      setBgImageScale: (scale) => set({ bgImageScaleX: scale, bgImageScaleY: scale }),
+      setBgImageScaleX: (scale) => set({ bgImageScaleX: scale }),
+      setBgImageScaleY: (scale) => set({ bgImageScaleY: scale }),
       setBgImagePos: (pos) => set({ bgImagePos: pos }),
       setBgImageRotation: (rotation) => set({ bgImageRotation: rotation }),
       setBgImageSelected: (selected) => set((s) => ({
@@ -794,7 +812,8 @@ export const useCadStore = create<CadState>()(
       dimensions: prev.dimensions || [],
       bgImageSrc: prev.bgImageSrc,
       bgImageLock: prev.bgImageLock,
-      bgImageScale: prev.bgImageScale,
+      bgImageScaleX: prev.bgImageScaleX,
+      bgImageScaleY: prev.bgImageScaleY,
       bgImagePos: prev.bgImagePos,
       bgImageRotation: prev.bgImageRotation,
       history: s.history.slice(0, -1),
@@ -822,7 +841,8 @@ export const useCadStore = create<CadState>()(
       dimensions: next.dimensions || [],
       bgImageSrc: next.bgImageSrc,
       bgImageLock: next.bgImageLock,
-      bgImageScale: next.bgImageScale,
+      bgImageScaleX: next.bgImageScaleX,
+      bgImageScaleY: next.bgImageScaleY,
       bgImagePos: next.bgImagePos,
       bgImageRotation: next.bgImageRotation,
       future: s.future.slice(0, -1),
@@ -1287,6 +1307,11 @@ export const useCadStore = create<CadState>()(
       }]
     }));
   },
+  updateGuideLine: (id, value) => {
+    set((s) => ({
+      guideLines: (s.guideLines || []).map(g => g.id === id ? { ...g, value } : g)
+    }));
+  },
   removeGuideLine: (id) => {
     get().pushHistory();
     set((s) => ({
@@ -1355,14 +1380,26 @@ export const useCadStore = create<CadState>()(
       dimensions: (s.dimensions || []).map(d => d.id === id ? { ...d, p1, p2 } : d)
     }));
   },
+  updateDimensionOffset: (id, offset) => {
+    set((s) => ({
+      dimensions: (s.dimensions || []).map(d => d.id === id ? { ...d, offset } : d)
+    }));
+  },
+  updateDimensionLabel: (id, label) => {
+    set((s) => ({
+      dimensions: (s.dimensions || []).map(d => d.id === id ? { ...d, labelOverride: label } : d)
+    }));
+  },
   addActiveDimensionPoint: (pt) => set((s) => ({ activeDimensionPoints: [...(s.activeDimensionPoints || []), pt] })),
   clearActiveDimensionPoints: () => set({ activeDimensionPoints: [], lastDimensionOffset: null }),
+  setShowOriginAxes: (show) => set({ showOriginAxes: show }),
 
   resetWorkspace: () => set({
     ppm: 100,
     bgImageSrc: null,
     bgImageLock: true,
-    bgImageScale: 1.0,
+    bgImageScaleX: 1.0,
+    bgImageScaleY: 1.0,
     bgImagePos: { x: 0, y: 0 },
     bgImageRotation: 0,
     bgImageSelected: false,
@@ -1596,7 +1633,8 @@ export const useCadStore = create<CadState>()(
             currentDbProjectId: data.project.id,
             bgImageSrc: projectData.bgImageSrc || null,
             bgImageLock: projectData.bgImageLock !== undefined ? projectData.bgImageLock : true,
-            bgImageScale: projectData.bgImageScale || 1.0,
+            bgImageScaleX: projectData.bgImageScaleX || projectData.bgImageScale || 1.0,
+            bgImageScaleY: projectData.bgImageScaleY || projectData.bgImageScale || 1.0,
             bgImagePos: projectData.bgImagePos || { x: 0, y: 0 },
             bgImageRotation: projectData.bgImageRotation || 0,
             history: [],
@@ -1648,7 +1686,8 @@ export const useCadStore = create<CadState>()(
       currentDbProjectId: state.currentDbProjectId,
       bgImageSrc: state.bgImageSrc,
       bgImageLock: state.bgImageLock,
-      bgImageScale: state.bgImageScale,
+      bgImageScaleX: state.bgImageScaleX,
+      bgImageScaleY: state.bgImageScaleY,
       bgImagePos: state.bgImagePos,
       bgImageRotation: state.bgImageRotation,
     }),

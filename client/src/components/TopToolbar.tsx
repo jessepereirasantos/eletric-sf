@@ -121,6 +121,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ onImportPlant, onOpenDim
   const {
     currentTool,
     showGrid,
+    showOriginAxes,
     history,
     future,
     selectedDeviceId,
@@ -128,6 +129,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ onImportPlant, onOpenDim
     setCurrentTool,
     setSelectedDeviceType,
     toggleGrid,
+    setShowOriginAxes,
     undo,
     redo,
     removeDevice,
@@ -196,7 +198,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ onImportPlant, onOpenDim
               ppm: state.ppm,
               bgImageSrc: state.bgImageSrc,
               bgImageLock: state.bgImageLock,
-              bgImageScale: state.bgImageScale,
+              bgImageScaleX: state.bgImageScaleX,
+              bgImageScaleY: state.bgImageScaleY,
               bgImagePos: state.bgImagePos,
               bgImageRotation: state.bgImageRotation,
             }, null, 2);
@@ -331,6 +334,14 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ onImportPlant, onOpenDim
           >
             <span className="tb-icon">⊞</span>
             <span className="tb-label">Grid</span>
+          </button>
+          <button
+            className={`tb-btn ${showOriginAxes ? 'tb-btn-active' : ''}`}
+            title="Ativar/Desativar Eixos Marco Zero (0,0)"
+            onClick={() => setShowOriginAxes(!showOriginAxes)}
+          >
+            <span className="tb-icon">╏</span>
+            <span className="tb-label">Marco Zero</span>
           </button>
           <button className="tb-btn" title="Zoom +" onClick={() => setZoom(Math.min(zoom * 1.25, 10))}>
             <span className="tb-icon">🔍+</span>
