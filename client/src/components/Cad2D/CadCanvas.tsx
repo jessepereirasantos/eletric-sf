@@ -138,11 +138,11 @@ const getWallVans = (wall: Wall, devs: Device[]) => {
 
 export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
   const {
-    ppm, bgImageSrc, bgImageLock, bgImageScale, bgImagePos,
+    ppm, bgImageSrc, bgImageLock, bgImageScale, bgImagePos, bgImageRotation, bgImageSelected,
     isCalibrating, calibrationPoints, zoom, pan, showGrid,
     walls, devices, circuits, conduits,
     currentTool, selectedDeviceType, activeWallPoints, selectedDeviceId, selectedWallId,
-    setZoom, setPan, setBgImagePos, addCalibrationPoint, setIsCalibrating,
+    setZoom, setPan, setBgImagePos, setBgImageRotation, setBgImageSelected, addCalibrationPoint, setIsCalibrating,
     setSelectedDeviceId, setSelectedWallId, setSelectedConduitId, clearSelection,
     addWall, addActiveWallPoint, clearActiveWallPoints,
     addDevice, addConduit, selectedConduitId,
@@ -307,10 +307,17 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
         transformerRef.current.getLayer().batchDraw();
         return;
       }
+    } else if (bgImageSelected) {
+      const node = stageRef.current.findOne('#bg-image-node');
+      if (node) {
+        transformerRef.current.nodes([node]);
+        transformerRef.current.getLayer().batchDraw();
+        return;
+      }
     }
     transformerRef.current.nodes([]);
     transformerRef.current.getLayer()?.batchDraw();
-  }, [selectedDeviceId, devices]);
+  }, [selectedDeviceId, bgImageSelected, devices, imageObj]);
 
   const isPanning = useRef(false);
   const startPanPos = useRef<Point2D>({ x: 0, y: 0 });
@@ -711,12 +718,20 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
 
     if (currentTool === 'dimension') {
       const targetPoint = snappedWallPoint || snappedMousePos;
+      const { lastDimensionOffset } = useCadStore.getState();
+      
       if (!activeDimensionPoints || activeDimensionPoints.length === 0) {
         addActiveDimensionPoint(targetPoint);
       } else if (activeDimensionPoints.length === 1) {
         const p1 = activeDimensionPoints[0];
         if (p1.x !== targetPoint.x || p1.y !== targetPoint.y) {
-          addActiveDimensionPoint(targetPoint);
+          if (lastDimensionOffset !== null) {
+            // Se já temos um offset da cota anterior, cria a cota sequencial instantaneamente
+            addDimension(p1, targetPoint, lastDimensionOffset);
+            useCadStore.setState({ activeDimensionPoints: [targetPoint] });
+          } else {
+            addActiveDimensionPoint(targetPoint);
+          }
         }
       } else if (activeDimensionPoints.length === 2) {
         const p1 = activeDimensionPoints[0];
@@ -724,15 +739,18 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
         const dx = p2.x - p1.x;
         const dy = p2.y - p1.y;
         const L = Math.sqrt(dx * dx + dy * dy);
+        let offset = 0;
         if (L > 0) {
           const nx = -dy / L;
           const ny = dx / L;
-          const offset = (clickMetres.x - p1.x) * nx + (clickMetres.y - p1.y) * ny;
-          addDimension(p1, p2, offset);
-        } else {
-          addDimension(p1, p2, 0);
+          offset = (clickMetres.x - p1.x) * nx + (clickMetres.y - p1.y) * ny;
         }
-        clearActiveDimensionPoints();
+        addDimension(p1, p2, offset);
+        // Salva o offset e redefine o activeDimensionPoints para continuar a cota a partir de p2
+        useCadStore.setState({
+          activeDimensionPoints: [p2],
+          lastDimensionOffset: offset,
+        });
       }
       return;
     }
@@ -1082,15 +1100,23 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
 
         {imageObj && (
           <Image
+            id="bg-image-node"
             image={imageObj}
             x={bgImagePos.x}
             y={bgImagePos.y}
             scaleX={bgImageScale}
             scaleY={bgImageScale}
+            rotation={bgImageRotation}
             opacity={0.45}
             listening={!bgImageLock}
             draggable={!bgImageLock}
             onDragEnd={(e) => setBgImagePos({ x: e.target.x(), y: e.target.y() })}
+            onClick={(e) => {
+              e.cancelBubble = true;
+              if (currentTool === 'select' && !bgImageLock) {
+                setBgImageSelected(true);
+              }
+            }}
           />
         )}
       </Layer>
@@ -1436,18 +1462,58 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
 
         {/* Preview da Cota Ativa em Desenho (Fluxo de 3 cliques) */}
         {currentTool === 'dimension' && activeDimensionPoints && (
-          activeDimensionPoints.length === 1 ? (
-            <Group>
-              <Line
-                points={[activeDimensionPoints[0].x * ppm, activeDimensionPoints[0].y * ppm, snappedMousePos.x * ppm, snappedMousePos.y * ppm]}
-                stroke="#2563eb"
-                strokeWidth={1.5}
-                dash={[4, 4]}
-              />
-              <Circle x={activeDimensionPoints[0].x * ppm} y={activeDimensionPoints[0].y * ppm} radius={4} fill="#2563eb" />
-              <Circle x={snappedMousePos.x * ppm} y={snappedMousePos.y * ppm} radius={4} fill="#2563eb" />
-            </Group>
-          ) : activeDimensionPoints.length === 2 ? (() => {
+          activeDimensionPoints.length === 1 ? (() => {
+            const p1 = activeDimensionPoints[0];
+            const p2 = snappedMousePos;
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const L = Math.sqrt(dx * dx + dy * dy);
+            const midX = ((p1.x + p2.x) / 2) * ppm;
+            const midY = ((p1.y + p2.y) / 2) * ppm;
+            
+            let textRot = Math.atan2(dy, dx) * (180 / Math.PI);
+            if (textRot > 90 || textRot < -90) {
+              textRot += 180;
+            }
+
+            return (
+              <Group>
+                <Line
+                  points={[p1.x * ppm, p1.y * ppm, p2.x * ppm, p2.y * ppm]}
+                  stroke="#2563eb"
+                  strokeWidth={1.5}
+                  dash={[4, 4]}
+                />
+                <Circle x={p1.x * ppm} y={p1.y * ppm} radius={4} fill="#2563eb" />
+                <Circle x={p2.x * ppm} y={p2.y * ppm} radius={4} fill="#2563eb" />
+                {L > 0.01 && (
+                  <Group x={midX} y={midY} rotation={textRot}>
+                    <Rect
+                      x={-24}
+                      y={-8}
+                      width={48}
+                      height={16}
+                      fill="#ffffff"
+                      stroke="#2563eb"
+                      strokeWidth={1 / zoom}
+                      cornerRadius={2}
+                    />
+                    <Text
+                      text={`${L.toFixed(2)} m`}
+                      x={-24}
+                      y={-6}
+                      width={48}
+                      fontSize={10}
+                      fontFamily="Inter, sans-serif"
+                      fill="#2563eb"
+                      align="center"
+                      fontStyle="bold"
+                    />
+                  </Group>
+                )}
+              </Group>
+            );
+          })() : activeDimensionPoints.length === 2 ? (() => {
             const p1 = activeDimensionPoints[0];
             const p2 = activeDimensionPoints[1];
             const dx = p2.x - p1.x;
@@ -1918,18 +1984,23 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
         <Transformer
           ref={transformerRef}
           rotateEnabled={true}
-          resizeEnabled={false}
+          resizeEnabled={bgImageSelected}
+          keepRatio={true}
           borderDash={[3, 3]}
           anchorStroke="#0078d7"
           anchorFill="#ffffff"
           anchorSize={6}
           borderStroke="#0078d7"
           onTransformEnd={(e) => {
+            const node = e.target;
             if (selectedDeviceId) {
-              const node = e.target;
               updateDeviceProperties(selectedDeviceId, {
                 rotation: node.rotation(),
               });
+            } else if (bgImageSelected && node.id() === 'bg-image-node') {
+              setBgImageScale(node.scaleX());
+              setBgImageRotation(node.rotation());
+              setBgImagePos({ x: node.x(), y: node.y() });
             }
           }}
         />

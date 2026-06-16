@@ -194,6 +194,11 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ onImportPlant, onOpenDim
               texts: state.texts || [],
               dimensions: state.dimensions || [],
               ppm: state.ppm,
+              bgImageSrc: state.bgImageSrc,
+              bgImageLock: state.bgImageLock,
+              bgImageScale: state.bgImageScale,
+              bgImagePos: state.bgImagePos,
+              bgImageRotation: state.bgImageRotation,
             }, null, 2);
 
             if ('showSaveFilePicker' in window) {

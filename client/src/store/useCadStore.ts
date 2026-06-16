@@ -134,6 +134,11 @@ interface HistorySnapshot {
   guideLines: GuideLine[];
   texts: CadText[];
   dimensions: CadDimension[];
+  bgImageSrc: string | null;
+  bgImageLock: boolean;
+  bgImageScale: number;
+  bgImagePos: Point2D;
+  bgImageRotation: number;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -146,6 +151,8 @@ interface CadState {
   bgImageLock: boolean;
   bgImageScale: number;
   bgImagePos: Point2D;
+  bgImageRotation: number;
+  bgImageSelected: boolean;
   isCalibrating: boolean;
   calibrationPoints: Point2D[];
   zoom: number;
@@ -185,6 +192,8 @@ interface CadState {
   setBgImageLock: (lock: boolean) => void;
   setBgImageScale: (scale: number) => void;
   setBgImagePos: (pos: Point2D) => void;
+  setBgImageRotation: (rotation: number) => void;
+  setBgImageSelected: (selected: boolean) => void;
   setIsCalibrating: (active: boolean) => void;
   addCalibrationPoint: (point: Point2D) => void;
   clearCalibrationPoints: () => void;
@@ -251,6 +260,7 @@ interface CadState {
   updateDimensionPoints: (id: string, p1: Point2D, p2: Point2D) => void;
   addActiveDimensionPoint: (pt: Point2D) => void;
   clearActiveDimensionPoints: () => void;
+  lastDimensionOffset: number | null;
 
   // Estado de Pranchas (Paper Space)
   paperSpaceActive: boolean;
@@ -303,6 +313,11 @@ const takeSnapshot = (state: CadState): HistorySnapshot => ({
   guideLines: JSON.parse(JSON.stringify(state.guideLines || [])),
   texts: JSON.parse(JSON.stringify(state.texts || [])),
   dimensions: JSON.parse(JSON.stringify(state.dimensions || [])),
+  bgImageSrc: state.bgImageSrc,
+  bgImageLock: state.bgImageLock,
+  bgImageScale: state.bgImageScale,
+  bgImagePos: JSON.parse(JSON.stringify(state.bgImagePos || { x: 0, y: 0 })),
+  bgImageRotation: state.bgImageRotation,
 });
 
 export const useCadStore = create<CadState>()(
@@ -334,6 +349,9 @@ export const useCadStore = create<CadState>()(
       bgImageLock: true,
       bgImageScale: 1.0,
       bgImagePos: { x: 0, y: 0 },
+      bgImageRotation: 0,
+      bgImageSelected: false,
+      lastDimensionOffset: null,
       isCalibrating: false,
       calibrationPoints: [],
       zoom: 1.0,
@@ -373,6 +391,16 @@ export const useCadStore = create<CadState>()(
       setBgImageLock: (lock) => set({ bgImageLock: lock }),
       setBgImageScale: (scale) => set({ bgImageScale: scale }),
       setBgImagePos: (pos) => set({ bgImagePos: pos }),
+      setBgImageRotation: (rotation) => set({ bgImageRotation: rotation }),
+      setBgImageSelected: (selected) => set((s) => ({
+        bgImageSelected: selected,
+        selectedDeviceId: selected ? null : s.selectedDeviceId,
+        selectedWallId: selected ? null : s.selectedWallId,
+        selectedGuideLineId: selected ? null : s.selectedGuideLineId,
+        selectedTextId: selected ? null : s.selectedTextId,
+        selectedDimensionId: selected ? null : s.selectedDimensionId,
+        selectedConduitId: selected ? null : s.selectedConduitId,
+      })),
       setIsCalibrating: (active) => set({ isCalibrating: active, calibrationPoints: [] }),
       addCalibrationPoint: (point) => set((s) => ({ calibrationPoints: [...s.calibrationPoints, point] })),
       clearCalibrationPoints: () => set({ calibrationPoints: [] }),
@@ -734,16 +762,17 @@ export const useCadStore = create<CadState>()(
     selectedDimensionId: null,
     selectedConduitId: null,
     activeDimensionPoints: [],
+    lastDimensionOffset: null,
   }),
   setSelectedDeviceType: (type) => set({ selectedDeviceType: type }),
-  setSelectedDeviceId: (id) => set({ selectedDeviceId: id, selectedWallId: null, selectedGuideLineId: null, selectedTextId: null, selectedDimensionId: null, selectedConduitId: null }),
-  setSelectedWallId: (id) => set({ selectedWallId: id, selectedDeviceId: null, selectedGuideLineId: null, selectedTextId: null, selectedDimensionId: null, selectedConduitId: null }),
-  setSelectedGuideLineId: (id) => set({ selectedGuideLineId: id, selectedWallId: null, selectedDeviceId: null, selectedTextId: null, selectedDimensionId: null, selectedConduitId: null }),
+  setSelectedDeviceId: (id) => set({ selectedDeviceId: id, selectedWallId: null, selectedGuideLineId: null, selectedTextId: null, selectedDimensionId: null, selectedConduitId: null, bgImageSelected: false }),
+  setSelectedWallId: (id) => set({ selectedWallId: id, selectedDeviceId: null, selectedGuideLineId: null, selectedTextId: null, selectedDimensionId: null, selectedConduitId: null, bgImageSelected: false }),
+  setSelectedGuideLineId: (id) => set({ selectedGuideLineId: id, selectedWallId: null, selectedDeviceId: null, selectedTextId: null, selectedDimensionId: null, selectedConduitId: null, bgImageSelected: false }),
   setSelectedGuideType: (type) => set({ selectedGuideType: type }),
-  setSelectedTextId: (id) => set({ selectedTextId: id, selectedWallId: null, selectedDeviceId: null, selectedGuideLineId: null, selectedDimensionId: null, selectedConduitId: null }),
-  setSelectedDimensionId: (id) => set({ selectedDimensionId: id, selectedWallId: null, selectedDeviceId: null, selectedGuideLineId: null, selectedTextId: null, selectedConduitId: null }),
-  setSelectedConduitId: (id) => set({ selectedConduitId: id, selectedDeviceId: null, selectedWallId: null, selectedGuideLineId: null, selectedTextId: null, selectedDimensionId: null }),
-  clearSelection: () => set({ selectedDeviceId: null, selectedWallId: null, selectedGuideLineId: null, selectedTextId: null, selectedDimensionId: null, selectedConduitId: null }),
+  setSelectedTextId: (id) => set({ selectedTextId: id, selectedWallId: null, selectedDeviceId: null, selectedGuideLineId: null, selectedDimensionId: null, selectedConduitId: null, bgImageSelected: false }),
+  setSelectedDimensionId: (id) => set({ selectedDimensionId: id, selectedWallId: null, selectedDeviceId: null, selectedGuideLineId: null, selectedTextId: null, selectedConduitId: null, bgImageSelected: false }),
+  setSelectedConduitId: (id) => set({ selectedConduitId: id, selectedDeviceId: null, selectedWallId: null, selectedGuideLineId: null, selectedTextId: null, selectedDimensionId: null, bgImageSelected: false }),
+  clearSelection: () => set({ selectedDeviceId: null, selectedWallId: null, selectedGuideLineId: null, selectedTextId: null, selectedDimensionId: null, selectedConduitId: null, bgImageSelected: false }),
 
   pushHistory: () => set((s) => {
     const snap = takeSnapshot(s);
@@ -763,6 +792,11 @@ export const useCadStore = create<CadState>()(
       guideLines: prev.guideLines || [],
       texts: prev.texts || [],
       dimensions: prev.dimensions || [],
+      bgImageSrc: prev.bgImageSrc,
+      bgImageLock: prev.bgImageLock,
+      bgImageScale: prev.bgImageScale,
+      bgImagePos: prev.bgImagePos,
+      bgImageRotation: prev.bgImageRotation,
       history: s.history.slice(0, -1),
       future: [...s.future, snap].slice(-MAX_HISTORY),
       selectedDeviceId: null,
@@ -786,6 +820,11 @@ export const useCadStore = create<CadState>()(
       guideLines: next.guideLines || [],
       texts: next.texts || [],
       dimensions: next.dimensions || [],
+      bgImageSrc: next.bgImageSrc,
+      bgImageLock: next.bgImageLock,
+      bgImageScale: next.bgImageScale,
+      bgImagePos: next.bgImagePos,
+      bgImageRotation: next.bgImageRotation,
       future: s.future.slice(0, -1),
       history: [...s.history, snap].slice(-MAX_HISTORY),
       selectedDeviceId: null,
@@ -1317,7 +1356,7 @@ export const useCadStore = create<CadState>()(
     }));
   },
   addActiveDimensionPoint: (pt) => set((s) => ({ activeDimensionPoints: [...(s.activeDimensionPoints || []), pt] })),
-  clearActiveDimensionPoints: () => set({ activeDimensionPoints: [] }),
+  clearActiveDimensionPoints: () => set({ activeDimensionPoints: [], lastDimensionOffset: null }),
 
   resetWorkspace: () => set({
     ppm: 100,
@@ -1325,6 +1364,9 @@ export const useCadStore = create<CadState>()(
     bgImageLock: true,
     bgImageScale: 1.0,
     bgImagePos: { x: 0, y: 0 },
+    bgImageRotation: 0,
+    bgImageSelected: false,
+    lastDimensionOffset: null,
     isCalibrating: false,
     calibrationPoints: [],
     zoom: 1.0,
@@ -1552,6 +1594,11 @@ export const useCadStore = create<CadState>()(
             dimensions: projectData.dimensions || [],
             projectName: data.project.name,
             currentDbProjectId: data.project.id,
+            bgImageSrc: projectData.bgImageSrc || null,
+            bgImageLock: projectData.bgImageLock !== undefined ? projectData.bgImageLock : true,
+            bgImageScale: projectData.bgImageScale || 1.0,
+            bgImagePos: projectData.bgImagePos || { x: 0, y: 0 },
+            bgImageRotation: projectData.bgImageRotation || 0,
             history: [],
             future: []
           });
@@ -1599,6 +1646,11 @@ export const useCadStore = create<CadState>()(
       token: state.token,
       user: state.user,
       currentDbProjectId: state.currentDbProjectId,
+      bgImageSrc: state.bgImageSrc,
+      bgImageLock: state.bgImageLock,
+      bgImageScale: state.bgImageScale,
+      bgImagePos: state.bgImagePos,
+      bgImageRotation: state.bgImageRotation,
     }),
     onRehydrateStorage: () => (state) => {
       if (state && typeof state.recomputeDerivedState === 'function') {

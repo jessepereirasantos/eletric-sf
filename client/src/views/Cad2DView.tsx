@@ -43,6 +43,7 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
     projectName, legend, materialsList,
     currentTool, selectedDeviceType,
     setBgImageSrc, setBgImageLock, setIsCalibrating,
+    setBgImageSelected,
     setProjectName,
     setCurrentTool, setSelectedDeviceType: setStoreDeviceType,
     addCircuit, removeCircuit, resetWorkspace,
@@ -109,7 +110,8 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
         const projectData = JSON.parse(event.target.result as string);
         
         const {
-          projectName, walls, devices, circuits, conduits, guideLines, texts, dimensions, ppm
+          projectName, walls, devices, circuits, conduits, guideLines, texts, dimensions, ppm,
+          bgImageSrc, bgImageLock, bgImageScale, bgImagePos, bgImageRotation
         } = projectData;
 
         useCadStore.setState({
@@ -122,6 +124,11 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
           texts: texts || [],
           dimensions: dimensions || [],
           ppm: ppm || 100,
+          bgImageSrc: bgImageSrc || null,
+          bgImageLock: bgImageLock !== undefined ? bgImageLock : true,
+          bgImageScale: bgImageScale || 1.0,
+          bgImagePos: bgImagePos || { x: 0, y: 0 },
+          bgImageRotation: bgImageRotation || 0,
         });
 
         useCadStore.getState().recomputeDerivedState();
@@ -813,7 +820,11 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
               <span className="status-pill status-green">📐 Planta Base Ativa</span>
               <button
                 className={`status-btn ${bgImageLock ? '' : 'status-btn-warn'}`}
-                onClick={() => setBgImageLock(!bgImageLock)}
+                onClick={() => {
+                  const nextLock = !bgImageLock;
+                  setBgImageLock(nextLock);
+                  setBgImageSelected(!nextLock);
+                }}
               >
                 {bgImageLock ? '🔓 Desbloquear' : '🔒 Travar'}
               </button>

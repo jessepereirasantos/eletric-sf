@@ -932,10 +932,129 @@ const ConduitProperties: React.FC<{ conduit: Conduit }> = ({ conduit }) => {
   );
 };
 
+// ─── Painel de Propriedades da Planta Rascunho (Imagem de Fundo) ──
+const BgImageProperties: React.FC = () => {
+  const { 
+    bgImageScale, bgImageRotation, bgImagePos,
+    setBgImageScale, setBgImageRotation, setBgImagePos, setBgImageLock, setBgImageSelected
+  } = useCadStore();
+
+  const handleScaleChange = (val: number) => {
+    setBgImageScale(Math.max(0.01, val));
+  };
+
+  const handleRotationChange = (val: number) => {
+    setBgImageRotation((val % 360 + 360) % 360);
+  };
+
+  const handlePosChange = (axis: 'x' | 'y', val: number) => {
+    setBgImagePos({
+      ...bgImagePos,
+      [axis]: val
+    });
+  };
+
+  return (
+    <div className="props-panel-content">
+      <div className="props-header">
+        <span className="props-icon" style={{ fontSize: '20px', display: 'flex', alignItems: 'center' }}>🖼️</span>
+        <div>
+          <div className="props-title">Planta Rascunho</div>
+          <div className="props-subtitle">Ajuste de imagem base</div>
+        </div>
+      </div>
+
+      {/* Escala */}
+      <div className="props-field">
+        <label>Escala (Multiplicador)</label>
+        <div className="props-input-row">
+          <input
+            type="range"
+            min={0.1}
+            max={5.0}
+            step={0.01}
+            value={bgImageScale}
+            onChange={e => handleScaleChange(parseFloat(e.target.value))}
+          />
+          <span className="props-value">{bgImageScale.toFixed(2)}x</span>
+        </div>
+        <input
+          type="number"
+          className="props-input"
+          min={0.01} max={100} step={0.01}
+          value={parseFloat(bgImageScale.toFixed(3))}
+          onChange={e => handleScaleChange(parseFloat(e.target.value) || 1.0)}
+        />
+      </div>
+
+      {/* Rotação */}
+      <div className="props-field">
+        <label>Rotação (Graus)</label>
+        <div className="props-input-row">
+          <input
+            type="range"
+            min={0}
+            max={359}
+            step={1}
+            value={Math.round(bgImageRotation)}
+            onChange={e => handleRotationChange(parseInt(e.target.value))}
+          />
+          <span className="props-value">{Math.round(bgImageRotation)}°</span>
+        </div>
+        <input
+          type="number"
+          className="props-input"
+          min={0} max={360} step={1}
+          value={Math.round(bgImageRotation)}
+          onChange={e => handleRotationChange(parseInt(e.target.value) || 0)}
+        />
+      </div>
+
+      {/* Posição X */}
+      <div className="props-field">
+        <label>Posição X (Pixels)</label>
+        <input
+          type="number"
+          className="props-input"
+          step={5}
+          value={Math.round(bgImagePos.x)}
+          onChange={e => handlePosChange('x', parseInt(e.target.value) || 0)}
+        />
+      </div>
+
+      {/* Posição Y */}
+      <div className="props-field">
+        <label>Posição Y (Pixels)</label>
+        <input
+          type="number"
+          className="props-input"
+          step={5}
+          value={Math.round(bgImagePos.y)}
+          onChange={e => handlePosChange('y', parseInt(e.target.value) || 0)}
+        />
+      </div>
+
+      {/* Ações */}
+      <div className="props-actions" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '16px' }}>
+        <button 
+          className="props-btn-primary" 
+          onClick={() => { 
+            setBgImageLock(true); 
+            setBgImageSelected(false); 
+          }}
+          style={{ width: '100%', background: '#0f172a', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+        >
+          🔒 Travar Posição da Planta
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ─── Painel Principal (exportado) ─────────────────────────────
 
 export const PropertiesPanel: React.FC = () => {
-  const { selectedDeviceId, selectedWallId, selectedTextId, selectedConduitId, devices, walls, texts, conduits, paperSpaceActive } = useCadStore();
+  const { selectedDeviceId, selectedWallId, selectedTextId, selectedConduitId, devices, walls, texts, conduits, paperSpaceActive, bgImageSelected, bgImageSrc } = useCadStore();
 
   const selectedDevice = selectedDeviceId ? devices.find(d => d.id === selectedDeviceId) : null;
   const selectedWall = selectedWallId ? walls.find(w => w.id === selectedWallId) : null;
@@ -952,8 +1071,9 @@ export const PropertiesPanel: React.FC = () => {
       {selectedDevice && <DeviceProperties device={selectedDevice} />}
       {selectedText && <TextProperties textItem={selectedText} />}
       {selectedConduit && <ConduitProperties conduit={selectedConduit} />}
-      {!selectedWall && !selectedDevice && !selectedText && !selectedConduit && paperSpaceActive && <PaperProperties />}
-      {!selectedWall && !selectedDevice && !selectedText && !selectedConduit && !paperSpaceActive && <EmptyPanel />}
+      {bgImageSelected && bgImageSrc && <BgImageProperties />}
+      {!selectedWall && !selectedDevice && !selectedText && !selectedConduit && !bgImageSelected && paperSpaceActive && <PaperProperties />}
+      {!selectedWall && !selectedDevice && !selectedText && !selectedConduit && !bgImageSelected && !paperSpaceActive && <EmptyPanel />}
     </aside>
   );
 };
