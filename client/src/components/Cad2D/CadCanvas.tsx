@@ -175,6 +175,11 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
   const [conduitSnapDevice, setConduitSnapDevice] = useState<Device | null>(null);
   // Anchor de arrastamento de extremidade de cota
   const [dimDragAnchor, setDimDragAnchor] = useState<{ dimId: string; endKey: 'p1' | 'p2' } | null>(null);
+  const [guideDragInfo, setGuideDragInfo] = useState<{
+    type: 'vertical' | 'horizontal';
+    startValue: number;
+    currentValue: number;
+  } | null>(null);
 
   const { updateDeviceProperties, setBgImageScaleX, setBgImageScaleY } = useCadStore();
 
@@ -1200,8 +1205,8 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
             scaleY={bgImageScaleY}
             rotation={bgImageRotation}
             opacity={0.45}
-            listening={!bgImageLock}
-            draggable={!bgImageLock}
+            listening={!bgImageLock && currentTool === 'select'}
+            draggable={!bgImageLock && currentTool === 'select'}
             onDragEnd={(e) => setBgImagePos({ x: e.target.x(), y: e.target.y() })}
             onClick={(e) => {
               e.cancelBubble = true;
@@ -1375,13 +1380,46 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                     ? { x: pos.x, y: stage.y() }
                     : { x: stage.x(), y: pos.y };
                 }}
+                onDragStart={() => {
+                  // Duplica a guia na posição original para que ela fique no lugar
+                  addGuideLine(g.type, g.value);
+                  setGuideDragInfo({
+                    type: g.type,
+                    startValue: g.value,
+                    currentValue: g.value,
+                  });
+                }}
+                onDragMove={(e) => {
+                  const node = e.target;
+                  const deltaX = node.x() / ppm;
+                  const deltaY = node.y() / ppm;
+                  const rawNewValue = g.type === 'vertical' ? g.value + deltaX : g.value + deltaY;
+                  // Snap de 1 cm (0.01m)
+                  const snappedVal = Math.round(rawNewValue / 0.01) * 0.01;
+                  const deltaSnapped = snappedVal - g.value;
+                  
+                  if (g.type === 'vertical') {
+                    node.x(deltaSnapped * ppm);
+                  } else {
+                    node.y(deltaSnapped * ppm);
+                  }
+
+                  setGuideDragInfo({
+                    type: g.type,
+                    startValue: g.value,
+                    currentValue: snappedVal,
+                  });
+                }}
                 onDragEnd={(e) => {
                   const node = e.target;
                   const deltaX = node.x() / ppm;
                   const deltaY = node.y() / ppm;
                   const rawNewValue = g.type === 'vertical' ? g.value + deltaX : g.value + deltaY;
-                  updateGuideLine(g.id, rawNewValue);
+                  const snappedVal = Math.round(rawNewValue / 0.01) * 0.01;
+                  
+                  updateGuideLine(g.id, snappedVal);
                   node.position({ x: 0, y: 0 });
+                  setGuideDragInfo(null);
                   node.getLayer()?.batchDraw();
                 }}
                 onClick={(e) => {
@@ -1428,6 +1466,137 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
             </Group>
           );
         })}
+
+        {/* Indicador de Distância Temporário ao Arrastar/Duplicar Linha de Guia */}
+        {guideDragInfo && guideDragInfo.type === 'vertical' && (
+          <Group>
+            {/* Linha horizontal temporária entre a guia de referência e a nova posição */}
+            <Line
+              points={[
+                guideDragInfo.startValue * ppm,
+                mousePos.y * ppm,
+                guideDragInfo.currentValue * ppm,
+                mousePos.y * ppm
+              ]}
+              stroke="#0078d7"
+              strokeWidth={2 / zoom}
+              dash={[4, 4]}
+            />
+            {/* Setas/Ticks nas pontas */}
+            <Line
+              points={[
+                guideDragInfo.startValue * ppm,
+                mousePos.y * ppm - 10 / zoom,
+                guideDragInfo.startValue * ppm,
+                mousePos.y * ppm + 10 / zoom
+              ]}
+              stroke="#0078d7"
+              strokeWidth={2 / zoom}
+            />
+            <Line
+              points={[
+                guideDragInfo.currentValue * ppm,
+                mousePos.y * ppm - 10 / zoom,
+                guideDragInfo.currentValue * ppm,
+                mousePos.y * ppm + 10 / zoom
+              ]}
+              stroke="#0078d7"
+              strokeWidth={2 / zoom}
+            />
+            {/* Balão de texto com a metragem */}
+            <Group
+              x={((guideDragInfo.startValue + guideDragInfo.currentValue) / 2) * ppm}
+              y={mousePos.y * ppm - 20 / zoom}
+            >
+              <Rect
+                x={-30 / zoom}
+                y={-10 / zoom}
+                width={60 / zoom}
+                height={20 / zoom}
+                fill="#ffffff"
+                stroke="#0078d7"
+                strokeWidth={1 / zoom}
+                cornerRadius={3 / zoom}
+              />
+              <Text
+                text={`${Math.abs(guideDragInfo.currentValue - guideDragInfo.startValue).toFixed(2)} m`}
+                x={-30 / zoom}
+                y={-5 / zoom}
+                width={60 / zoom}
+                fontSize={10 / zoom}
+                fontFamily="Inter, sans-serif"
+                fontStyle="bold"
+                fill="#0078d7"
+                align="center"
+              />
+            </Group>
+          </Group>
+        )}
+
+        {guideDragInfo && guideDragInfo.type === 'horizontal' && (
+          <Group>
+            {/* Linha vertical temporária */}
+            <Line
+              points={[
+                mousePos.x * ppm,
+                guideDragInfo.startValue * ppm,
+                mousePos.x * ppm,
+                guideDragInfo.currentValue * ppm
+              ]}
+              stroke="#0078d7"
+              strokeWidth={2 / zoom}
+              dash={[4, 4]}
+            />
+            {/* Setas/Ticks nas pontas */}
+            <Line
+              points={[
+                mousePos.x * ppm - 10 / zoom,
+                guideDragInfo.startValue * ppm,
+                mousePos.x * ppm + 10 / zoom,
+                guideDragInfo.startValue * ppm
+              ]}
+              stroke="#0078d7"
+              strokeWidth={2 / zoom}
+            />
+            <Line
+              points={[
+                mousePos.x * ppm - 10 / zoom,
+                guideDragInfo.currentValue * ppm,
+                mousePos.x * ppm + 10 / zoom,
+                guideDragInfo.currentValue * ppm
+              ]}
+              stroke="#0078d7"
+              strokeWidth={2 / zoom}
+            />
+            {/* Balão de texto */}
+            <Group
+              x={mousePos.x * ppm + 15 / zoom}
+              y={((guideDragInfo.startValue + guideDragInfo.currentValue) / 2) * ppm}
+            >
+              <Rect
+                x={-30 / zoom}
+                y={-10 / zoom}
+                width={60 / zoom}
+                height={20 / zoom}
+                fill="#ffffff"
+                stroke="#0078d7"
+                strokeWidth={1 / zoom}
+                cornerRadius={3 / zoom}
+              />
+              <Text
+                text={`${Math.abs(guideDragInfo.currentValue - guideDragInfo.startValue).toFixed(2)} m`}
+                x={-30 / zoom}
+                y={-5 / zoom}
+                width={60 / zoom}
+                fontSize={10 / zoom}
+                fontFamily="Inter, sans-serif"
+                fontStyle="bold"
+                fill="#0078d7"
+                align="center"
+              />
+            </Group>
+          </Group>
+        )}
 
 
         {/* Renderização das Cotas Técnicas (Medidas) */}
