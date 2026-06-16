@@ -272,7 +272,6 @@ interface CadState {
 
   // Guias Paramétricas
   updateGuideLine: (id: string, value: number) => void;
-  showOriginAxes: boolean;
   setShowOriginAxes: (show: boolean) => void;
 
   // Estado de Pranchas (Paper Space)

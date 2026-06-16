@@ -156,7 +156,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     addGuideLine, setSelectedGuideLineId, updateGuideLine,
     addText, updateTextPosition, setSelectedTextId,
     addDimension, addActiveDimensionPoint, clearActiveDimensionPoints, setSelectedDimensionId,
-    updateDimensionPoints, updateDimensionOffset,
+    updateDimensionPoints,
     updateWall,
   } = useCadStore();
 
@@ -181,6 +181,13 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
   const getWallDragSnap = (pt: Point2D, excludeWallId?: string): Point2D => {
     let snapPt = { ...pt };
     const tolerance = 20 / (ppm * zoom);
+
+    // 0. Snap ao Marco Zero (Origem 0,0) se ativo e próximo (raio de 15px na tela)
+    const originTolerance = 15 / (ppm * zoom);
+    const distToOrigin = Math.sqrt(pt.x * pt.x + pt.y * pt.y);
+    if (showOriginAxes && distToOrigin <= originTolerance) {
+      return { x: 0, y: 0 };
+    }
 
     // 1. Prioridade Máxima: Cruzamento / Interseção de linhas de guia
     let closestGuideX: number | null = null;
@@ -539,6 +546,16 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     let snappedY = realPos.y;
     let snappedToGuideX = false;
     let snappedToGuideY = false;
+
+    // Snap ao Marco Zero (Origem 0,0) se ativo e próximo (raio de 15px na tela)
+    const originTolerance = 15 / (ppm * zoom);
+    const distToOrigin = Math.sqrt(realPos.x * realPos.x + realPos.y * realPos.y);
+    if (showOriginAxes && distToOrigin <= originTolerance) {
+      snappedX = 0;
+      snappedY = 0;
+      snappedToGuideX = true;
+      snappedToGuideY = true;
+    }
 
     // Novo Snap de quinas de parede para a ferramenta de cota
     let snapWallPoint: Point2D | null = null;
