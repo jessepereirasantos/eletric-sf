@@ -745,14 +745,53 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
       }
 
       const powerMap: Record<string, number> = {
-        tomada_baixa: 100, tomada_media: 100, tomada_alta: 100, tomada_220: 1500,
-        lampada: 60, interruptor: 0, interruptor_duplo: 0,
-        qdc: 0, poste: 0, medidor: 0,
+        // Tomadas TUG
+        tug_baixa: 100, tomada_baixa: 100,
+        tug_media: 100, tomada_media: 100,
+        tug_alta: 100, tomada_alta: 100,
+        tomada_220: 1500,
+        // Tomadas TUE
+        tue_chuveiro: 5500,
+        tue_ar: 1500,
+        // Cargas do Catálogo
+        motor: 750, // 1 CV ~750W
+        bomba_agua: 375, // 0.5 CV ~375W
+        torneira_eletrica: 4400,
+        // Iluminação
+        ceiling_light: 60, lampada: 60,
+        sconce: 40, lampada_parede: 40,
+        fluorescent: 40,
+        // Interruptores e Comandos (0W)
+        switch_simple: 0, interruptor: 0,
+        switch_parallel: 0, switch_intermediate: 0,
+        interruptor_duplo: 0, interruptor_triplo: 0,
+        interruptor_teleruptora: 0,
+        sensor_presenca: 0,
+        fotocelula: 0,
+        campainha: 15,
+        // Telecom e outros
+        tele_rj45: 0, tele_rj11: 0, tele_coaxial: 0,
+        cftv_camera: 10, central_alarme: 20,
+        // Caixas e infraestrutura
+        qdc: 0, poste: 0, medidor: 0, meter: 0,
+        box_octogonal: 0, box_4x2: 0, box_4x4: 0
       };
-      const voltageMap: Record<string, 127 | 220> = { tomada_220: 220 };
+
+      const voltageMap: Record<string, 127 | 220> = {
+        tomada_220: 220,
+        tue_chuveiro: 220,
+        tue_ar: 220,
+        motor: 220,
+        bomba_agua: 220,
+        torneira_eletrica: 220
+      };
       
       const isDoor = selectedDeviceType.startsWith('door');
       const finalFlip = isDoor ? (doorCycle === 1 || doorCycle === 3) : false;
+
+      // Fase inicial para novas cargas do catálogo
+      const isCargaCatalogo = ['motor', 'bomba_agua', 'torneira_eletrica'].includes(selectedDeviceType);
+      const phasesDefault = isCargaCatalogo ? 'mono' : undefined;
 
       addDevice({
         type: selectedDeviceType,
@@ -763,6 +802,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
         power: powerMap[selectedDeviceType] ?? 100,
         voltage: voltageMap[selectedDeviceType] ?? 127,
         flip: finalFlip,
+        phases: phasesDefault as any,
       });
       return;
     }
@@ -802,16 +842,53 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
 
   const getDeviceFriendlyName = (type: string): string => {
     const names: Record<string, string> = {
-      tomada_baixa: 'Tomada Baixa 10A (0.3m)',
-      tomada_media: 'Tomada Média 10A (1.1m)',
-      tomada_alta: 'Tomada Alta 10A (2.2m)',
-      tomada_220: 'Tomada Específica 20A 220V',
+      // Tomadas TUG e TUE
+      tug_baixa: 'Tomada TUG Baixa 10A (0.3m)',
+      tomada_baixa: 'Tomada TUG Baixa 10A (0.3m)',
+      tug_media: 'Tomada TUG Média 10A (1.1m)',
+      tomada_media: 'Tomada TUG Média 10A (1.1m)',
+      tug_alta: 'Tomada TUG Alta 10A (2.2m)',
+      tomada_alta: 'Tomada TUG Alta 10A (2.2m)',
+      tomada_220: 'Tomada Específica 20A 220V (1.1m)',
+      tue_chuveiro: 'Tomada TUE Chuveiro (2.2m)',
+      tue_ar: 'Tomada TUE Ar Condicionado (2.2m)',
+      
+      // Cargas do Catálogo
+      motor: 'Motor Elétrico (Força)',
+      bomba_agua: 'Bomba d\'Água (Força)',
+      torneira_eletrica: 'Torneira Elétrica (Força)',
+      
+      // Iluminação
+      ceiling_light: 'Ponto de Luz no Teto',
+      lampada: 'Ponto de Luz no Teto',
+      sconce: 'Arandela (Ponto de Luz na Parede)',
+      lampada_parede: 'Arandela (Ponto de Luz na Parede)',
+      fluorescent: 'Lâmpada Fluorescente (Teto)',
+      
+      // Interruptores e Sensores (Comandos)
+      switch_simple: 'Interruptor Simples (1.1m)',
       interruptor: 'Interruptor Simples (1.1m)',
+      switch_parallel: 'Interruptor Paralelo 3-Way (1.1m)',
+      switch_intermediate: 'Interruptor Intermediário 4-Way (1.1m)',
       interruptor_duplo: 'Interruptor Duplo (1.1m)',
-      lampada: 'Ponto de Luz (Teto)',
+      interruptor_triplo: 'Interruptor Triplo (1.1m)',
+      interruptor_teleruptora: 'Interruptor Telerruptora (1.1m)',
+      sensor_presenca: 'Sensor de Presença (Parede)',
+      fotocelula: 'Relé Fotocélula (Parede)',
+      campainha: 'Campainha / Cigarra',
+      
+      // Telecom e Segurança
+      tele_rj45: 'Tomada RJ45 (Rede/Dados)',
+      tele_rj11: 'Tomada RJ11 (Telefone)',
+      tele_coaxial: 'Tomada Coaxial (TV)',
+      cftv_camera: 'Câmera CFTV',
+      central_alarme: 'Central de Alarme',
+      
+      // Infraestrutura
       qdc: 'Quadro de Distribuição (QDC)',
       poste: 'Poste Padrão de Entrada',
       medidor: 'Caixa de Medição Concessionária',
+      meter: 'Caixa de Medição Concessionária',
       box_octogonal: 'Caixa Octogonal (Teto)',
       box_4x2: 'Caixa 4x2 (Parede)',
       box_4x4: 'Caixa 4x4 (Parede)',

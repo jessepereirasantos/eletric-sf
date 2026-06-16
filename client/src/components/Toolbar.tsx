@@ -290,6 +290,24 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       ],
     },
     {
+      key: 'cargas_motor',
+      label: 'Motores e Cargas',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 6v12M8 10h8M8 14h8" />
+        </svg>
+      ),
+      hasDropdown: true,
+      defaultTool: 'device',
+      defaultDevice: 'motor',
+      items: [
+        { type: 'motor', label: 'Motor Elétrico', isDevice: true, symbolDesc: 'Ⓜ️' },
+        { type: 'bomba_agua', label: 'Bomba d\'Água', isDevice: true, symbolDesc: '⛲' },
+        { type: 'torneira_eletrica', label: 'Torneira Elétrica', isDevice: true, symbolDesc: '🚰' },
+      ],
+    },
+    {
       key: 'interruptores',
       label: 'Interruptores',
       icon: <IconSwitch />,
@@ -317,7 +335,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     },
     {
       key: 'seguranca',
-      label: 'Segurança / Automação',
+      label: 'Segurança / Sensores',
       icon: <IconSecurity />,
       hasDropdown: true,
       defaultTool: 'device',
@@ -325,6 +343,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       items: [
         { type: 'cftv_camera', label: 'Câmera CFTV', isDevice: true, symbolDesc: '📹' },
         { type: 'sensor_presenca', label: 'Sensor de Presença', isDevice: true, symbolDesc: '🚨' },
+        { type: 'fotocelula', label: 'Fotocélula (Sensor)', isDevice: true, symbolDesc: '👁️' },
+        { type: 'campainha', label: 'Campainha / Cigarra', isDevice: true, symbolDesc: '🔔' },
         { type: 'central_alarme', label: 'Central de Alarme', isDevice: true, symbolDesc: '📟' },
       ],
     },

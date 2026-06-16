@@ -130,15 +130,18 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
       tele_rj45: '▲', tele_rj11: '▲', tele_coaxial: '▲',
       cftv_camera: '📹', sensor_presenca: '🚨', central_alarme: '📟',
       box_octogonal: '⬡', box_4x2: '▭', box_4x4: '□',
+      // Ícones das novas cargas
+      motor: 'Ⓜ️', bomba_agua: '⛲', torneira_eletrica: '🚰',
+      fotocelula: '👁️', campainha: '🔔',
     };
     return icons[type] || '●';
   };
 
   const getTitle = (type: string) => {
     const titles: Record<string, string> = {
-      tug_baixa: 'Tomada TUG Baixa (10A)',
-      tug_media: 'Tomada TUG Média (10A)',
-      tug_alta: 'Tomada TUG Alta (10A)',
+      tug_baixa: 'Tomada TUG Baixa 10A (0.3m)',
+      tug_media: 'Tomada TUG Média 10A (1.1m)',
+      tug_alta: 'Tomada TUG Alta 10A (2.2m)',
       tue_chuveiro: 'Tomada TUE Chuveiro',
       tue_ar: 'Tomada TUE Ar Condic.',
       ceiling_light: 'Ponto de Luz no Teto',
@@ -165,6 +168,12 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
       box_octogonal: 'Caixa Octogonal (Teto)',
       box_4x2: 'Caixa 4x2 (Parede)',
       box_4x4: 'Caixa 4x4 (Parede)',
+      // Títulos das novas cargas
+      motor: 'Motor Elétrico (Força)',
+      bomba_agua: 'Bomba d\'Água (Força)',
+      torneira_eletrica: 'Torneira Elétrica (Força)',
+      fotocelula: 'Fotocélula (Sensor)',
+      campainha: 'Campainha / Cigarra',
     };
     return titles[type] || device.name;
   };
@@ -175,9 +184,11 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
   const isQDC = device.type === 'qdc';
   const isEsquadria = device.type.startsWith('door') || device.type === 'window' || device.type === 'open_van';
   const isTelecom = device.type.startsWith('tele_');
-  const isSeguranca = device.type === 'cftv_camera' || device.type === 'sensor_presenca' || device.type === 'central_alarme';
+  const isSeguranca = device.type === 'cftv_camera' || device.type === 'sensor_presenca' || device.type === 'central_alarme' || device.type === 'fotocelula' || device.type === 'campainha';
   const isBox = device.type.startsWith('box_');
-  const isModular = (isTomada || isInterruptor || isTelecom) && !isBox;
+  const isCargaCatalogo = ['motor', 'bomba_agua', 'torneira_eletrica'].includes(device.type);
+  const isComandoEspecial = ['sensor_presenca', 'fotocelula'].includes(device.type);
+  const isModular = (isTomada || isInterruptor || isTelecom) && !isBox && !isCargaCatalogo && !isComandoEspecial;
 
   return (
     <div className="props-panel-content">
@@ -215,8 +226,8 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
         </div>
       )}
 
-      {/* Tensão — tomadas e QDC */}
-      {(isTomada || isQDC) && (
+      {/* Tensão — tomadas, QDC e Cargas */}
+      {(isTomada || isQDC || isCargaCatalogo) && (
         <div className="props-field">
           <label>Tensão Nominal</label>
           <div className="props-toggle-row">
@@ -232,8 +243,8 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
         </div>
       )}
 
-      {/* Potência — tomadas, lâmpadas, telecom e segurança */}
-      {(isTomada || isLampada || isTelecom || isSeguranca) && (
+      {/* Potência — tomadas, lâmpadas, telecom, segurança e cargas do catálogo */}
+      {(isTomada || isLampada || isTelecom || isSeguranca || isCargaCatalogo) && (
         <div className="props-field">
           <label>Potência (W)</label>
           <input
@@ -248,9 +259,9 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
               Média residencial: 100W/ponto (TUG) ou 1500W-7500W (TUE)
             </div>
           )}
-          {isTelecom && (
+          {isCargaCatalogo && (
             <div className="props-hint">
-              Pontos de sinal lógico (geralmente sem carga ativa direta no circuito de força)
+              Cargas específicas: Motor (750W = 1CV), Torneira (4400W), Bomba (375W)
             </div>
           )}
         </div>
@@ -317,8 +328,88 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
         </div>
       )}
 
+      {/* Fases de Alimentação (Cargas do Catálogo) */}
+      {isCargaCatalogo && (
+        <div className="props-field">
+          <label>Fases de Alimentação</label>
+          <select
+            className="props-select"
+            value={device.phases ?? 'mono'}
+            onChange={e => update({ phases: e.target.value as any })}
+          >
+            <option value="mono">Monofásico (F + N)</option>
+            <option value="bi">Bifásico (F + F)</option>
+            <option value="tri">Trifásico (3F)</option>
+          </select>
+        </div>
+      )}
+
+      {/* Topologia Interna do QDC (Apenas QDC) */}
+      {isQDC && (
+        <div style={{ borderTop: '1px solid #cbd5e1', paddingTop: '12px', marginTop: '12px', marginBottom: '12px' }}>
+          <h4 style={{ margin: '0 0 8px 0', fontSize: '0.8rem', fontWeight: 'bold', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            🛡️ Topologia Interna (Proteção)
+          </h4>
+          
+          <div className="props-field" style={{ marginBottom: '8px' }}>
+            <label>Disjuntor Geral</label>
+            <select
+              className="props-select"
+              value={device.qdcGeralBreaker ?? 0}
+              onChange={e => update({ qdcGeralBreaker: parseInt(e.target.value) || 0 })}
+            >
+              <option value={0}>Nenhum (Sem Geral)</option>
+              <option value={32}>32 A</option>
+              <option value={40}>40 A</option>
+              <option value={50}>50 A</option>
+              <option value={63}>63 A</option>
+              <option value={80}>80 A</option>
+              <option value={100}>100 A</option>
+            </select>
+          </div>
+
+          <div className="props-field" style={{ marginBottom: '8px' }}>
+            <label>Proteção DR (Diferencial Residual)</label>
+            <select
+              className="props-select"
+              value={device.qdcDRType ?? 'none'}
+              onChange={e => update({ qdcDRType: e.target.value as any })}
+            >
+              <option value="none">Nenhum</option>
+              <option value="geral">DR Geral (30mA)</option>
+              <option value="grupos">DRs por Grupos de Circuitos</option>
+            </select>
+          </div>
+
+          <div className="props-field" style={{ marginBottom: '8px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 'normal' }}>
+              <input
+                type="checkbox"
+                checked={!!device.qdcHasDPS}
+                onChange={e => update({ qdcHasDPS: e.target.checked })}
+              />
+              DPS Geral (Proteção Contra Surtos)
+            </label>
+          </div>
+
+          <div className="props-field" style={{ marginBottom: '8px' }}>
+            <label>Barramentos de Distribuição</label>
+            <select
+              className="props-select"
+              value={device.qdcBusbarType ?? 'none'}
+              onChange={e => update({ qdcBusbarType: e.target.value as any })}
+            >
+              <option value="none">Nenhum</option>
+              <option value="monofasico">Monofásico (F + N + T)</option>
+              <option value="bifasico">Bifásico (2F + N + T)</option>
+              <option value="trifasico">Trifásico (3F + N + T)</option>
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* Circuito vinculado */}
-      {(isTomada || isLampada || isInterruptor || isTelecom || isSeguranca) && (
+      {(isTomada || isLampada || isInterruptor || isTelecom || isSeguranca || isCargaCatalogo || isComandoEspecial) && (
         <div className="props-field">
           <label>Circuito</label>
           <select
@@ -341,8 +432,8 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
         </div>
       )}
 
-      {/* Letra do Comando (apenas para interruptores e lâmpadas) */}
-      {(isInterruptor || isLampada) && (
+      {/* Letra do Comando (apenas para interruptores, lâmpadas e comandos especiais) */}
+      {(isInterruptor || isLampada || isComandoEspecial) && (
         <div className="props-field">
           <label>Letra do Comando (Acionamento)</label>
           <input

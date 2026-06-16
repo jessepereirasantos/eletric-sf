@@ -837,6 +837,86 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
         </Group>
       );
 
+    case 'motor':
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <Circle x={0} y={0} radius={H} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
+          <Text text="M" x={-H * 0.65} y={-H * 0.65} width={H * 1.3} fontSize={H * 1.2} fontStyle="bold" align="center" fill={stroke} listening={false} />
+          {circuitNumber && (
+            <Text text={String(circuitNumber)} x={H * 1.15} y={-H * 0.5} fontSize={H * 0.7} fontStyle="bold" fill={stroke} listening={false} />
+          )}
+          <SelectionRing r={H * 1.35} />
+        </Group>
+      );
+
+    case 'bomba_agua':
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <Circle x={0} y={0} radius={H} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
+          <Text text="BBA" x={-H * 0.9} y={-H * 0.45} width={H * 1.8} fontSize={H * 0.8} fontStyle="bold" align="center" fill={stroke} listening={false} />
+          {circuitNumber && (
+            <Text text={String(circuitNumber)} x={H * 1.15} y={-H * 0.5} fontSize={H * 0.7} fontStyle="bold" fill={stroke} listening={false} />
+          )}
+          <SelectionRing r={H * 1.35} />
+        </Group>
+      );
+
+    case 'torneira_eletrica':
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <WallMountGroup>
+            <Circle x={0} y={-H * 0.75} radius={H * 0.75} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
+            <Text text="TE" x={-H * 0.7} y={-H * 1.15} width={H * 1.4} fontSize={H * 0.8} fontStyle="bold" align="center" fill={stroke} listening={false} />
+            {circuitNumber && (
+              <Text text={String(circuitNumber)} x={H * 0.9} y={-H * 1.4} fontSize={H * 0.65} fontStyle="bold" fill={stroke} listening={false} />
+            )}
+            <SelectionRing cy={-H * 0.75} r={S * 0.8} />
+          </WallMountGroup>
+        </Group>
+      );
+
+    case 'fotocelula':
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <WallMountGroup>
+            <Circle x={0} y={-H * 0.75} radius={H * 0.5} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
+            <Line points={[-H * 0.8, -H * 0.75, H * 0.8, -H * 0.75]} stroke={stroke} strokeWidth={sw * 0.8} />
+            <Text text="FC" x={-H * 0.5} y={-H * 1.1} width={H} fontSize={H * 0.6} fontStyle="bold" align="center" fill={stroke} listening={false} />
+            {(commandLetter || circuitNumber) && (
+              <Text
+                text={`${commandLetter ?? ''}${circuitNumber ?? ''}`}
+                x={H * 0.7}
+                y={-H * 1.2}
+                fontSize={H * 0.65}
+                fontStyle="bold"
+                fill={stroke}
+                listening={false}
+              />
+            )}
+            <SelectionRing cy={-H * 0.75} r={S * 0.75} />
+          </WallMountGroup>
+        </Group>
+      );
+
+    case 'campainha':
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <WallMountGroup>
+            <Arc
+              x={0} y={0}
+              innerRadius={0} outerRadius={H}
+              angle={180} rotation={-180}
+              fill={FILL_WHITE} stroke={stroke} strokeWidth={sw}
+            />
+            <Text text="C" x={-H * 0.3} y={-H * 0.8} fontSize={H * 0.7} fontStyle="bold" fill={stroke} listening={false} />
+            {circuitNumber && (
+              <Text text={String(circuitNumber)} x={H * 1.1} y={-H * 0.8} fontSize={H * 0.6} fontStyle="bold" fill={stroke} listening={false} />
+            )}
+            <SelectionRing cy={-H * 0.4} r={S * 0.75} />
+          </WallMountGroup>
+        </Group>
+      );
+
     default:
       return (
         <Group x={x} y={y} {...commonProps}>

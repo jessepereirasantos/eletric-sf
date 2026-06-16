@@ -731,7 +731,7 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
       <table><thead><tr><th>Circuito</th><th>Tipo</th><th>Tensão</th><th>Carga (W)</th><th>Ip (A)</th><th>Agrup.</th><th>Ip' (A)</th><th>Dist. (m)</th><th>Cabo Mín.</th><th>Queda V</th><th>Cabo Final</th><th>Disjuntor</th></tr></thead><tbody>
       ${circuits.length === 0 ? '<tr><td colspan="12" style="text-align:center;padding:12px">Sem circuitos.</td></tr>' : circuits.map(c => {
         const cd = devices.filter(d => d.circuitId === c.id);
-        const tp = cd.reduce((s, d) => s + d.power, 0);
+        const tp = cd.reduce((s, d) => s + (d.power || 0), 0);
         const qdc = devices.find(d => d.type === 'qdc');
         let dist = 10;
         if (qdc && cd.length > 0) dist = Math.max(...cd.map(d => Math.sqrt(Math.pow(d.x - qdc.x, 2) + Math.pow(d.y - qdc.y, 2)) + 2));
@@ -986,7 +986,7 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
                         ) : (
                           circuits.map(c => {
                             const cd = devices.filter(d => d.circuitId === c.id);
-                            const totalPower = cd.reduce((s, d) => s + d.power, 0);
+                            const totalPower = cd.reduce((s, d) => s + (d.power || 0), 0);
                             const qdc = devices.find(d => d.type === 'qdc');
                             let maxDist = 10.0;
                             if (qdc && cd.length > 0) maxDist = Math.max(...cd.map(d => Math.sqrt(Math.pow(d.x - qdc.x, 2) + Math.pow(d.y - qdc.y, 2)) + 2.0));

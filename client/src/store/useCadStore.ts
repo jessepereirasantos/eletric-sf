@@ -41,6 +41,11 @@ export interface Device {
   width?: number; // Largura paramétrica em metros
   flip?: boolean;  // Sentido de abertura (True = Esquerda, False/undefined = Direita)
   commandLetter?: string; // Letra do comando (acionamento de iluminação)
+  phases?: 'mono' | 'bi' | 'tri'; // Fases para motores/cargas
+  qdcGeralBreaker?: number; // Proteção Geral QDC (A)
+  qdcDRType?: 'none' | 'geral' | 'grupos'; // Tipo de DR
+  qdcHasDPS?: boolean; // Presença de DPS
+  qdcBusbarType?: 'none' | 'monofasico' | 'bifasico' | 'trifasico'; // Tipo de barramento
 }
 
 export interface Circuit {
@@ -391,9 +396,15 @@ export const useCadStore = create<CadState>()(
 
     // 1. Paredes
     let totalWallLength = 0;
-    walls.forEach(w => {
-      totalWallLength += Math.sqrt(Math.pow(w.p2.x - w.p1.x, 2) + Math.pow(w.p2.y - w.p1.y, 2));
-    });
+    try {
+      walls.forEach(w => {
+        if (w && w.p1 && w.p2) {
+          totalWallLength += Math.sqrt(Math.pow(w.p2.x - w.p1.x, 2) + Math.pow(w.p2.y - w.p1.y, 2));
+        }
+      });
+    } catch (e) {
+      console.error('Erro ao calcular comprimento das paredes:', e);
+    }
     if (totalWallLength > 0) {
       materialsList.push({
         name: 'Alvenaria (Paredes)',
@@ -408,7 +419,7 @@ export const useCadStore = create<CadState>()(
     const ARCHITECTURE_TYPES = new Set([
       'door', 'door_correr', 'door_pivotante', 'open_van', 'window', 'stairs',
     ]);
-    const electricalDevices = devices.filter(d => !ARCHITECTURE_TYPES.has(d.type));
+    const electricalDevices = devices.filter(d => d && !ARCHITECTURE_TYPES.has(d.type));
 
     const deviceCounts: Record<string, { qty: number; price: number; type: string }> = {};
     electricalDevices.forEach(d => {
@@ -438,10 +449,17 @@ export const useCadStore = create<CadState>()(
         box_octogonal: 12.00,
         box_4x2: 10.00,
         box_4x4: 15.00,
+        // Preços das novas cargas
+        motor: 450.00,
+        bomba_agua: 320.00,
+        torneira_eletrica: 150.00,
+        fotocelula: 38.00,
+        campainha: 25.00,
       };
       const price = priceMap[d.type] ?? 12.00;
-      deviceCounts[d.name] = {
-        qty: (deviceCounts[d.name]?.qty || 0) + 1,
+      const deviceName = d.name || 'Dispositivo Elétrico';
+      deviceCounts[deviceName] = {
+        qty: (deviceCounts[deviceName]?.qty || 0) + 1,
         price,
         type: d.type
       };
@@ -457,24 +475,105 @@ export const useCadStore = create<CadState>()(
       });
     });
 
+    // 2.1. QDC Inteligente - Componentes de Proteção Internos
+    try {
+      const qdcs = devices.filter(d => d.type === 'qdc');
+      qdcs.forEach(q => {
+        // Disjuntor Geral
+        if (q.qdcGeralBreaker && q.qdcGeralBreaker > 0) {
+          materialsList.push({
+            name: `Disjuntor Geral Termomagnético Din ${q.qdcGeralBreaker}A (QDC)`,
+            qty: 1,
+            unit: 'un',
+            price: 45.00,
+            category: 'protecao'
+          });
+        }
+        
+        // Interruptor DR (Diferencial Residual)
+        if (q.qdcDRType === 'geral') {
+          materialsList.push({
+            name: 'Interruptor Diferencial Residual (DR) Geral 30mA (QDC)',
+            qty: 1,
+            unit: 'un',
+            price: 120.00,
+            category: 'protecao'
+          });
+        } else if (q.qdcDRType === 'grupos') {
+          materialsList.push({
+            name: 'Interruptor Diferencial Residual (DR) 30mA (Grupo - QDC)',
+            qty: 2,
+            unit: 'un',
+            price: 95.00,
+            category: 'protecao'
+          });
+        }
+
+        // DPS (Dispositivo de Proteção contra Surtos)
+        if (q.qdcHasDPS) {
+          const dpsQty = q.qdcBusbarType === 'trifasico' ? 3 : q.qdcBusbarType === 'bifasico' ? 2 : 1;
+          materialsList.push({
+            name: 'Dispositivo de Proteção contra Surtos (DPS) Class II 275V 45kA (QDC)',
+            qty: dpsQty,
+            unit: 'un',
+            price: 55.00,
+            category: 'protecao'
+          });
+        }
+
+        // Barramentos
+        if (q.qdcBusbarType && q.qdcBusbarType !== 'none') {
+          const barDesc = q.qdcBusbarType === 'monofasico' ? 'Monofásico' : q.qdcBusbarType === 'bifasico' ? 'Bifásico' : 'Trifásico';
+          materialsList.push({
+            name: `Barramento de Fase Tipo Pente ${barDesc} (QDC)`,
+            qty: 1,
+            unit: 'un',
+            price: 35.00,
+            category: 'protecao'
+          });
+          materialsList.push({
+            name: 'Kit de Barramentos de Neutro e Terra para QDC',
+            qty: 1,
+            unit: 'un',
+            price: 22.00,
+            category: 'protecao'
+          });
+        }
+      });
+    } catch (errQdc) {
+      console.error('Erro ao calcular componentes internos do QDC:', errQdc);
+    }
+
     // 3. Disjuntores (Agrupados por corrente de dimensionamento e categorizados como Proteção)
     const breakerCounts: Record<number, number> = {};
-    circuits.forEach(c => {
-      const cd = devices.filter(d => d.circuitId === c.id);
-      const totalPower = cd.reduce((sum, d) => sum + (d.power || 0), 0);
-      const qdc = devices.find(d => d.type === 'qdc');
-      let maxDist = 10.0;
-      if (qdc && cd.length > 0) {
-        maxDist = Math.max(...cd.map(d => Math.sqrt(Math.pow(d.x - qdc.x, 2) + Math.pow(d.y - qdc.y, 2)) + 2.0));
-      }
-      const res = dimensionateCircuit(c.type, totalPower || 100, c.voltage, maxDist, c.groupedCircuits);
-      const rating = res.circuitBreaker;
-      breakerCounts[rating] = (breakerCounts[rating] || 0) + 1;
-    });
+    if (circuits && circuits.length > 0) {
+      circuits.forEach(c => {
+        try {
+          const cd = devices.filter(d => d && d.circuitId === c.id);
+          const totalPower = cd.reduce((sum, d) => sum + (d.power || 0), 0);
+          const qdc = devices.find(d => d.type === 'qdc');
+          let maxDist = 10.0;
+          if (qdc && cd.length > 0) {
+            maxDist = Math.max(...cd.map(d => Math.sqrt(Math.pow(d.x - qdc.x, 2) + Math.pow(d.y - qdc.y, 2)) + 2.0));
+          }
+          const cType = c.type || 'tug';
+          const cVoltage = c.voltage || 127;
+          const cGrouped = c.groupedCircuits || 1;
+
+          const res = dimensionateCircuit(cType, totalPower || 100, cVoltage, maxDist, cGrouped);
+          const rating = res.circuitBreaker;
+          breakerCounts[rating] = (breakerCounts[rating] || 0) + 1;
+        } catch (err) {
+          console.error("Erro no dimensionamento do disjuntor do circuito", c.id, err);
+          const fallbackBreaker = c.type === 'iluminacao' ? 10 : 20;
+          breakerCounts[fallbackBreaker] = (breakerCounts[fallbackBreaker] || 0) + 1;
+        }
+      });
+    }
 
     Object.entries(breakerCounts).forEach(([amp, count]) => {
       materialsList.push({
-        name: `Disjuntor Termomagnético ${amp}A`,
+        name: `Disjuntor Termomagnético Monopolar Din ${amp}A`,
         qty: count,
         unit: 'un',
         price: 18.00,
@@ -483,37 +582,60 @@ export const useCadStore = create<CadState>()(
     });
 
     // 4. Conduítes (Eletrodutos - categorizados como Infraestrutura)
-    const wiringRouting = calculateWiringRouting(devices, conduits, circuits);
+    let wiringRouting: Record<string, any[]> = {};
+    try {
+      wiringRouting = calculateWiringRouting(devices, conduits, circuits) || {};
+    } catch (eRouting) {
+      console.error("Erro ao calcular roteamento da fiação:", eRouting);
+    }
+
     let totalConduitLength = 0;
     const cableLengths: Record<number, number> = {};
 
-    conduits.forEach(c => {
-      const fromDev = devices.find(d => d.id === c.fromDeviceId);
-      const toDev = devices.find(d => d.id === c.toDeviceId);
-      if (!fromDev || !toDev) return;
-      const distance = Math.sqrt(Math.pow(fromDev.x - toDev.x, 2) + Math.pow(fromDev.y - toDev.y, 2)) + 2.0;
-      totalConduitLength += distance;
+    if (conduits && conduits.length > 0) {
+      conduits.forEach(c => {
+        try {
+          const fromDev = devices.find(d => d.id === c.fromDeviceId);
+          const toDev = devices.find(d => d.id === c.toDeviceId);
+          if (!fromDev || !toDev) return;
+          const distance = Math.sqrt(Math.pow(fromDev.x - toDev.x, 2) + Math.pow(fromDev.y - toDev.y, 2)) + 2.0;
+          totalConduitLength += distance;
 
-      const wires = wiringRouting[c.id] || [];
-      wires.forEach(w => {
-        const circuit = circuits.find(circ => circ.number === w.circuitNumber);
-        if (!circuit) return;
-        const circDevices = devices.filter(d => d.circuitId === circuit.id);
-        const totalPower = circDevices.reduce((sum, d) => sum + d.power, 0);
-        const qdc = devices.find(d => d.type === 'qdc');
-        let maxDist = 10.0;
-        if (qdc && circDevices.length > 0) {
-          maxDist = Math.max(...circDevices.map(d => Math.sqrt(Math.pow(d.x - qdc.x, 2) + Math.pow(d.y - qdc.y, 2)) + 2.0));
+          const wires = wiringRouting[c.id] || [];
+          wires.forEach(w => {
+            try {
+              const circuit = circuits.find(circ => circ.number === w.circuitNumber);
+              if (!circuit) return;
+              const circDevices = devices.filter(d => d.circuitId === circuit.id);
+              const totalPower = circDevices.reduce((sum, d) => sum + (d.power || 0), 0);
+              const qdc = devices.find(d => d.type === 'qdc');
+              let maxDist = 10.0;
+              if (qdc && circDevices.length > 0) {
+                maxDist = Math.max(...circDevices.map(d => Math.sqrt(Math.pow(d.x - qdc.x, 2) + Math.pow(d.y - qdc.y, 2)) + 2.0));
+              }
+              const cType = circuit.type || 'tug';
+              const cVoltage = circuit.voltage || 127;
+              const cGrouped = circuit.groupedCircuits || 1;
+
+              const res = dimensionateCircuit(cType, totalPower || 100, cVoltage, maxDist, cGrouped);
+              const qtyWires = (w.phase || 0) + (w.neutral || 0) + (w.ground || 0) + (w.ret || 0);
+              cableLengths[res.selectedSection] = (cableLengths[res.selectedSection] || 0) + (distance * qtyWires);
+            } catch (errInner) {
+              console.error("Erro ao dimensionar bitola para conduíte", c.id, errInner);
+              const fallbackSection = 2.5;
+              const qtyWires = (w.phase || 0) + (w.neutral || 0) + (w.ground || 0) + (w.ret || 0);
+              cableLengths[fallbackSection] = (cableLengths[fallbackSection] || 0) + (distance * qtyWires);
+            }
+          });
+        } catch (errConduit) {
+          console.error("Erro ao processar conduíte", c.id, errConduit);
         }
-        const res = dimensionateCircuit(circuit.type, totalPower || 100, circuit.voltage, maxDist, circuit.groupedCircuits);
-        const qtyWires = w.phase + w.neutral + w.ground + w.ret;
-        cableLengths[res.selectedSection] = (cableLengths[res.selectedSection] || 0) + (distance * qtyWires);
       });
-    });
+    }
 
     if (totalConduitLength > 0) {
       materialsList.push({
-        name: 'Eletroduto Corrugado Flexível 3/4"',
+        name: 'Eletroduto Corrugado Flexível Amarelo 3/4"',
         qty: Math.round(totalConduitLength * 10) / 10,
         unit: 'm',
         price: 3.50,
@@ -526,7 +648,7 @@ export const useCadStore = create<CadState>()(
       const b = parseFloat(bitola);
       const price = b <= 1.5 ? 2.20 : b === 2.5 ? 3.80 : b === 4.0 ? 5.50 : b === 6.0 ? 8.20 : 15.50;
       materialsList.push({
-        name: `Cabo de Cobre Flexível ${bitola} mm²`,
+        name: `Cabo de Cobre Flexível ${bitola} mm² (70°C, 750V)`,
         qty: Math.round(length * 10) / 10,
         unit: 'm',
         price,
@@ -537,10 +659,12 @@ export const useCadStore = create<CadState>()(
     // 6. Legenda e Circuitos
     const legendMap: Record<string, { label: string; qty: number }> = {};
     devices.forEach(d => {
-      if (!legendMap[d.type]) {
-        legendMap[d.type] = { label: d.name, qty: 0 };
+      if (d && d.type) {
+        if (!legendMap[d.type]) {
+          legendMap[d.type] = { label: d.name || d.type, qty: 0 };
+        }
+        legendMap[d.type].qty++;
       }
-      legendMap[d.type].qty++;
     });
     const legend = Object.entries(legendMap).map(([type, info]) => ({
       symbol: type,
@@ -549,29 +673,51 @@ export const useCadStore = create<CadState>()(
     }));
 
     const circuitTable: CircuitTableRow[] = circuits.map(c => {
-      const cd = devices.filter(d => d.circuitId === c.id);
-      const totalPower = cd.reduce((s, d) => s + d.power, 0);
-      const { devices: devs } = get();
-      const qdc = devs.find(d => d.type === 'qdc');
-      let maxDist = 10.0;
-      if (qdc && cd.length > 0) {
-        maxDist = Math.max(...cd.map(d => Math.sqrt(Math.pow(d.x - qdc.x, 2) + Math.pow(d.y - qdc.y, 2)) + 2.0));
+      try {
+        const cd = devices.filter(d => d.circuitId === c.id);
+        const totalPower = cd.reduce((s, d) => s + (d.power || 0), 0);
+        const { devices: devs } = get();
+        const qdc = devs.find(d => d.type === 'qdc');
+        let maxDist = 10.0;
+        if (qdc && cd.length > 0) {
+          maxDist = Math.max(...cd.map(d => Math.sqrt(Math.pow(d.x - qdc.x, 2) + Math.pow(d.y - qdc.y, 2)) + 2.0));
+        }
+        const cType = c.type || 'tug';
+        const cVoltage = c.voltage || 127;
+        const cGrouped = c.groupedCircuits || 1;
+
+        const res = dimensionateCircuit(cType, totalPower || 100, cVoltage, maxDist, cGrouped);
+        return {
+          number: c.number,
+          name: c.name || `Circuito ${c.number}`,
+          type: cType,
+          voltage: cVoltage,
+          totalPower,
+          currentProject: res.currentProject,
+          fatorAgrupamento: res.fatorAgrupamento,
+          currentCorrected: res.currentCorrected,
+          maxDist,
+          selectedSection: res.selectedSection,
+          voltageDropPercent: res.voltageDropPercent,
+          circuitBreaker: res.circuitBreaker,
+        };
+      } catch (errTable) {
+        console.error("Erro ao recalcular tabela de circuito", c.id, errTable);
+        return {
+          number: c.number,
+          name: c.name || `Circuito ${c.number}`,
+          type: c.type || 'tug',
+          voltage: c.voltage || 127,
+          totalPower: 0,
+          currentProject: 0,
+          fatorAgrupamento: 1.0,
+          currentCorrected: 0,
+          maxDist: 10.0,
+          selectedSection: 2.5,
+          voltageDropPercent: 0,
+          circuitBreaker: 20,
+        };
       }
-      const res = dimensionateCircuit(c.type, totalPower || 100, c.voltage, maxDist, c.groupedCircuits);
-      return {
-        number: c.number,
-        name: c.name,
-        type: c.type,
-        voltage: c.voltage,
-        totalPower,
-        currentProject: res.currentProject,
-        fatorAgrupamento: res.fatorAgrupamento,
-        currentCorrected: res.currentCorrected,
-        maxDist,
-        selectedSection: res.selectedSection,
-        voltageDropPercent: res.voltageDropPercent,
-        circuitBreaker: res.circuitBreaker,
-      };
     });
 
     set({ materialsList, legend, circuitTable });
@@ -1454,6 +1600,11 @@ export const useCadStore = create<CadState>()(
       user: state.user,
       currentDbProjectId: state.currentDbProjectId,
     }),
+    onRehydrateStorage: () => (state) => {
+      if (state && typeof state.recomputeDerivedState === 'function') {
+        state.recomputeDerivedState();
+      }
+    }
   }
 )
 );
