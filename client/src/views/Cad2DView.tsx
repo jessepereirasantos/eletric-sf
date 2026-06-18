@@ -9,8 +9,8 @@ import { dimensionateCircuit } from '../utils/nbr5410';
 import type { ToolType, DeviceType } from '../types';
 
 interface Cad2DViewProps {
-  activeTab: 'cad2d' | 'render3d' | 'unifilar';
-  onTabChange: (tab: 'cad2d' | 'render3d' | 'unifilar') => void;
+  activeTab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets';
+  onTabChange: (tab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets') => void;
 }
 
 // ─── Helpers para File System Access API ───────────────────────

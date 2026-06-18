@@ -16,7 +16,11 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
     if (!clippingState.enabled) return [];
     let normal = new THREE.Vector3(0, 0, -1); // Cortar acima de Z
     if (clippingState.axis === 'X') normal = new THREE.Vector3(-1, 0, 0);
+    if (clippingState.axis === '-X') normal = new THREE.Vector3(1, 0, 0);
     if (clippingState.axis === 'Y') normal = new THREE.Vector3(0, -1, 0);
+    if (clippingState.axis === '-Y') normal = new THREE.Vector3(0, 1, 0);
+    if (clippingState.axis === 'Z') normal = new THREE.Vector3(0, 0, -1);
+    if (clippingState.axis === '-Z') normal = new THREE.Vector3(0, 0, 1);
     return [new THREE.Plane(normal, clippingState.value)];
   }, [clippingState]);
 
@@ -48,15 +52,20 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
     // Esquadrias
     if (type.startsWith('door')) {
       const doorW = device.width ?? 0.8;
-      return { z: 1.05, width: doorW, depth: 0.04, height: 2.10, color: '#b45309', isEsquadria: true };
+      const doorH = device.height3d ?? 2.10;
+      return { z: doorH / 2, width: doorW, depth: 0.04, height: doorH, color: '#b45309', isEsquadria: true };
     }
     if (type === 'window') {
       const winW = device.width ?? 1.2;
-      return { z: 1.55, width: winW, depth: 0.05, height: 1.10, color: '#38bdf8', isEsquadria: true };
+      const winH = device.height3d ?? 1.10;
+      const peitoril = device.peitoril ?? 1.00;
+      // Z centro é a metade da altura da janela mais a altura do peitoril
+      return { z: peitoril + winH / 2, width: winW, depth: 0.05, height: winH, color: '#38bdf8', isEsquadria: true };
     }
     if (type === 'open_van') {
       const vanW = device.width ?? 1.0;
-      return { z: 1.05, width: vanW, depth: 0.15, height: 2.10, color: '#cbd5e1', isEsquadria: true }; // transparente/vazio na real, mas podemos fazer algo sutil
+      const vanH = device.height3d ?? 2.10;
+      return { z: vanH / 2, width: vanW, depth: 0.15, height: vanH, color: '#cbd5e1', isEsquadria: true }; // transparente/vazio na real
     }
 
     // Tomadas e Interruptores (Z de Norma)
@@ -89,28 +98,38 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
   // Se for vão livre simples, não precisa de malha sólida
   if (device.type === 'open_van') return null;
 
-  // Desenhar portas com painéis pivotados se aplicável
+  // Desenhar portas com painéis pivotados se  // Desenhar portas realistas
   if (device.type.startsWith('door')) {
-    // Porta aberta a 90 graus para veracidade visual
-    const angleOffset = device.flip ? -Math.PI / 2 : Math.PI / 2;
+    // Porta aberta a 30 graus por padrão para visualização realista e dinâmica
+    const angleOffset = device.flip ? -Math.PI / 6 : Math.PI / 6;
+    const portalThickness = 0.03;
+    const frameDepth = 0.16; // espessura do batente cobrindo a parede
     return (
       <group position={[device.x, device.y, z]}>
-        {/* Batente/Portal fixo */}
-        <mesh rotation={[0, 0, rotationRad]}>
-          <boxGeometry args={[width, 0.15, 0.05]} />
-          <meshStandardMaterial
-            color="#78350f"
-            wireframe={shadingMode === 'wireframe'}
-            transparent={shadingMode === 'transparent'}
-            opacity={shadingMode === 'transparent' ? 0.35 : 1.0}
-            clippingPlanes={clippingPlanes}
-            clipShadows={true}
-          />
-        </mesh>
-        {/* Folha da porta rotacionada */}
-        <group rotation={[0, 0, rotationRad + angleOffset]} position={[device.flip ? width / 2 : -width / 2, 0, 0]}>
-          <mesh position={[device.flip ? -width / 2 : width / 2, 0, 0]}>
-            <boxGeometry args={[width, depth, height]} />
+        {/* Batente/Portal da porta */}
+        <group rotation={[0, 0, rotationRad]}>
+          {/* Batente Esquerdo */}
+          <mesh position={[-width / 2 + portalThickness / 2, 0, 0]}>
+            <boxGeometry args={[portalThickness, frameDepth, height]} />
+            <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
+          </mesh>
+          {/* Batente Direito */}
+          <mesh position={[width / 2 - portalThickness / 2, 0, 0]}>
+            <boxGeometry args={[portalThickness, frameDepth, height]} />
+            <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
+          </mesh>
+          {/* Batente Superior */}
+          <mesh position={[0, 0, height / 2 - portalThickness / 2]}>
+            <boxGeometry args={[width, frameDepth, portalThickness]} />
+            <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
+          </mesh>
+        </group>
+
+        {/* Folha da porta rotacionada com espessura real e maçaneta */}
+        <group rotation={[0, 0, rotationRad + angleOffset]} position={[device.flip ? width / 2 - portalThickness : -width / 2 + portalThickness, 0, 0]}>
+          {/* Folha de Madeira */}
+          <mesh position={[device.flip ? -width / 2 + portalThickness : width / 2 - portalThickness, 0, 0]}>
+            <boxGeometry args={[width - portalThickness * 2, depth, height - portalThickness]} />
             <meshStandardMaterial
               color={color}
               roughness={0.6}
@@ -121,20 +140,42 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
               clipShadows={true}
             />
           </mesh>
+
+          {/* Maçaneta Metálica */}
+          <group position={[device.flip ? -width + 0.10 : width - 0.10, 0, 0.0]}>
+            {/* Haste interna */}
+            <mesh position={[0, frameDepth / 4, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <cylinderGeometry args={[0.008, 0.008, 0.08, 8]} />
+              <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
+            </mesh>
+            {/* Maçaneta lado 1 */}
+            <mesh position={[0, frameDepth / 4 + 0.04, 0]} rotation={[0, 0, device.flip ? Math.PI : 0]}>
+              <boxGeometry args={[0.02, 0.015, 0.12]} />
+              <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
+            </mesh>
+            {/* Maçaneta lado 2 */}
+            <mesh position={[0, frameDepth / 4 - 0.04, 0]} rotation={[0, 0, device.flip ? Math.PI : 0]}>
+              <boxGeometry args={[0.02, 0.015, 0.12]} />
+              <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
+            </mesh>
+          </group>
         </group>
       </group>
     );
   }
 
-  // Desenhar janelas
+  // Desenhar janelas realistas
   if (device.type === 'window') {
+    const frameThickness = 0.04;
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        {/* Moldura da janela */}
+        {/* Moldura de Alumínio da janela */}
         <mesh>
           <boxGeometry args={[width, 0.15, height]} />
           <meshStandardMaterial
-            color="#475569"
+            color="#334155"
+            metalness={0.8}
+            roughness={0.2}
             wireframe={shadingMode === 'wireframe'}
             transparent={shadingMode === 'transparent'}
             opacity={shadingMode === 'transparent' ? 0.35 : 1.0}
@@ -142,19 +183,110 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
             clipShadows={true}
           />
         </mesh>
-        {/* Vidro semi-transparente */}
-        <mesh>
-          <boxGeometry args={[width - 0.05, 0.02, height - 0.05]} />
+        {/* Montante central */}
+        <mesh position={[0, 0, 0]}>
+          <boxGeometry args={[frameThickness, 0.16, height - frameThickness]} />
+          <meshStandardMaterial color="#1e293b" metalness={0.8} clippingPlanes={clippingPlanes} />
+        </mesh>
+        {/* Vidro translúcido duplo com reflexo real */}
+        <mesh position={[-width / 4, 0.02, 0]}>
+          <boxGeometry args={[width / 2 - frameThickness, 0.02, height - frameThickness * 2]} />
           <meshStandardMaterial
-            color={color}
+            color="#a5f3fc"
             transparent={true}
-            opacity={shadingMode === 'transparent' ? 0.15 : 0.4}
-            roughness={0.1}
-            metalness={0.9}
+            opacity={shadingMode === 'transparent' ? 0.10 : 0.5}
+            roughness={0.05}
+            metalness={0.95}
             clippingPlanes={clippingPlanes}
             clipShadows={true}
           />
         </mesh>
+        <mesh position={[width / 4, -0.02, 0]}>
+          <boxGeometry args={[width / 2 - frameThickness, 0.02, height - frameThickness * 2]} />
+          <meshStandardMaterial
+            color="#a5f3fc"
+            transparent={true}
+            opacity={shadingMode === 'transparent' ? 0.10 : 0.5}
+            roughness={0.05}
+            metalness={0.95}
+            clippingPlanes={clippingPlanes}
+            clipShadows={true}
+          />
+        </mesh>
+      </group>
+    );
+  }
+
+  // Desenhar Poste de Entrada Realista (Padrão de Entrada de Concessionária)
+  if (device.type === 'poste') {
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        {/* Poste de Concreto Cinza Texturizado */}
+        <mesh position={[0, 0, 0]}>
+          <boxGeometry args={[0.14, 0.14, 3.2]} />
+          <meshStandardMaterial
+            color="#64748b"
+            roughness={0.9}
+            wireframe={shadingMode === 'wireframe'}
+            transparent={shadingMode === 'transparent'}
+            opacity={shadingMode === 'transparent' ? 0.35 : 1.0}
+            clippingPlanes={clippingPlanes}
+          />
+        </mesh>
+
+        {/* Bengala (Eletroduto Curvo Metálico de Entrada) */}
+        <group position={[0.09, 0, 0.2]}>
+          {/* Tubo reto que sobe no poste */}
+          <mesh position={[0, 0, 0.4]}>
+            <cylinderGeometry args={[0.02, 0.02, 2.4, 8]} />
+            <meshStandardMaterial color="#cbd5e1" metalness={0.8} roughness={0.2} clippingPlanes={clippingPlanes} />
+          </mesh>
+          {/* Curva da Bengala superior */}
+          <mesh position={[-0.05, 0, 1.6]} rotation={[0, Math.PI / 4, 0]}>
+            <cylinderGeometry args={[0.02, 0.02, 0.2, 8]} />
+            <meshStandardMaterial color="#cbd5e1" metalness={0.8} roughness={0.2} clippingPlanes={clippingPlanes} />
+          </mesh>
+        </group>
+
+        {/* Roldanas de Porcelana (Isoladores da Entrada Aérea) */}
+        <group position={[0.15, 0, 1.4]}>
+          {/* Suporte Metálico */}
+          <mesh position={[-0.05, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+            <cylinderGeometry args={[0.008, 0.008, 0.12, 8]} />
+            <meshStandardMaterial color="#94a3b8" metalness={0.9} clippingPlanes={clippingPlanes} />
+          </mesh>
+          {/* Roldanas */}
+          {[-0.15, 0, 0.15].map((offsetZ, i) => (
+            <mesh key={i} position={[0, 0, offsetZ]} rotation={[Math.PI / 2, 0, 0]}>
+              <cylinderGeometry args={[0.035, 0.035, 0.05, 12]} />
+              <meshStandardMaterial color="#f8fafc" roughness={0.3} clippingPlanes={clippingPlanes} />
+            </mesh>
+          ))}
+        </group>
+
+        {/* Caixa de Medição de Energia (Padrão de Entrada) */}
+        <group position={[0.12, 0, -0.2]}>
+          {/* Caixa de Metal/Vidro */}
+          <mesh>
+            <boxGeometry args={[0.14, 0.32, 0.42]} />
+            <meshStandardMaterial color="#475569" metalness={0.5} roughness={0.3} clippingPlanes={clippingPlanes} />
+          </mesh>
+          {/* Visor de Vidro do Medidor */}
+          <mesh position={[0.075, 0, 0.05]}>
+            <boxGeometry args={[0.005, 0.22, 0.26]} />
+            <meshStandardMaterial color="#a5f3fc" transparent={true} opacity={0.6} clippingPlanes={clippingPlanes} />
+          </mesh>
+          {/* Medidor Interno e Disjuntor Geral */}
+          <mesh position={[0.04, 0, 0.05]}>
+            <boxGeometry args={[0.04, 0.12, 0.12]} />
+            <meshStandardMaterial color="#0f172a" clippingPlanes={clippingPlanes} />
+          </mesh>
+          {/* Disjuntor Geral Din */}
+          <mesh position={[0.04, 0, -0.08]}>
+            <boxGeometry args={[0.03, 0.08, 0.08]} />
+            <meshStandardMaterial color="#2563eb" clippingPlanes={clippingPlanes} />
+          </mesh>
+        </group>
       </group>
     );
   }

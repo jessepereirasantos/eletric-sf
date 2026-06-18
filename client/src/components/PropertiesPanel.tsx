@@ -393,16 +393,40 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
 
       {/* Largura do Vão (apenas para esquadrias) */}
       {isEsquadria && (
-        <div className="props-field">
-          <label>Largura do Vão (cm)</label>
-          <input
-            type="number"
-            className="props-input"
-            min={10} max={500} step={5}
-            value={Math.round((device.width ?? (device.type === 'window' ? 1.2 : device.type === 'open_van' ? 1.0 : 0.8)) * 100)}
-            onChange={e => update({ width: Math.max(10, parseInt(e.target.value) || 80) / 100 })}
-          />
-        </div>
+        <>
+          <div className="props-field">
+            <label>Largura do Vão (cm)</label>
+            <input
+              type="number"
+              className="props-input"
+              min={10} max={500} step={5}
+              value={Math.round((device.width ?? (device.type === 'window' ? 1.2 : device.type === 'open_van' ? 1.0 : 0.8)) * 100)}
+              onChange={e => update({ width: Math.max(10, parseInt(e.target.value) || 80) / 100 })}
+            />
+          </div>
+          {device.type === 'window' && (
+            <div className="props-field">
+              <label>Altura do Peitoril (cm)</label>
+              <input
+                type="number"
+                className="props-input"
+                min={0} max={200} step={5}
+                value={Math.round((device.peitoril ?? 1.00) * 100)}
+                onChange={e => update({ peitoril: Math.max(0, parseInt(e.target.value) || 0) / 100 })}
+              />
+            </div>
+          )}
+          <div className="props-field">
+            <label>Altura da Esquadria (cm)</label>
+            <input
+              type="number"
+              className="props-input"
+              min={10} max={300} step={5}
+              value={Math.round((device.height3d ?? (device.type === 'window' ? 1.10 : 2.10)) * 100)}
+              onChange={e => update({ height3d: Math.max(10, parseInt(e.target.value) || 100) / 100 })}
+            />
+          </div>
+        </>
       )}
 
       {/* Tensão — tomadas, QDC e Cargas */}

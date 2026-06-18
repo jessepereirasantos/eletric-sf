@@ -14,8 +14,8 @@ interface HeaderProps {
   onTrash: () => void;
   onUndo: () => void;
   onRedo: () => void;
-  activeTab: string;
-  onTabChange: (tab: 'cad2d' | 'render3d' | 'unifilar') => void;
+  activeTab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets';
+  onTabChange: (tab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets') => void;
 }
 
 /* ─── Ícones SVG (18×18, traço 1.7) ───────────────────────── */
@@ -311,6 +311,13 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={() => onTabChange('unifilar')}
         >
           Unifilar
+        </button>
+        <button
+          className={`hdr-nav-tab ${activeTab === 'sheets' ? 'active' : ''}`}
+          onClick={() => onTabChange('sheets')}
+          title="Montagem de Pranchas e Impressão"
+        >
+          Pranchas / Folhas
         </button>
 
         <div className="hdr-sep" />

@@ -40,6 +40,8 @@ export interface Device {
   voltage: 127 | 220;
   modules?: string[];
   width?: number; // Largura paramétrica em metros
+  height3d?: number; // Altura paramétrica em metros
+  peitoril?: number; // Altura do peitoril para janelas
   flip?: boolean;  // Sentido de abertura (True = Esquerda, False/undefined = Direita)
   commandLetter?: string; // Letra do comando (acionamento de iluminação)
   phases?: 'mono' | 'bi' | 'tri'; // Fases para motores/cargas
@@ -297,13 +299,13 @@ interface CadState {
   // Estado de Visualizações e Barra MEP (Revit-Like)
   activeViewFilter: 'completa' | 'infraestrutura' | 'fiacao_dispositivos';
   shadingMode: 'shaded' | 'transparent' | 'wireframe';
-  clippingState: { enabled: boolean; axis: 'X' | 'Y' | 'Z'; value: number };
+  clippingState: { enabled: boolean; axis: 'X' | 'Y' | 'Z' | '-X' | '-Y' | '-Z'; value: number };
   projectScale: number; // Ex: 50 para 1:50, 100 para 1:100
   utilityGridType: 'monofasico' | 'bifasico' | 'trifasico';
 
   setViewFilter: (filter: 'completa' | 'infraestrutura' | 'fiacao_dispositivos') => void;
   setShadingMode: (mode: 'shaded' | 'transparent' | 'wireframe') => void;
-  setClippingState: (clipping: Partial<{ enabled: boolean; axis: 'X' | 'Y' | 'Z'; value: number }>) => void;
+  setClippingState: (clipping: Partial<{ enabled: boolean; axis: 'X' | 'Y' | 'Z' | '-X' | '-Y' | '-Z'; value: number }>) => void;
   setProjectScale: (scale: number) => void;
   setUtilityGridType: (type: 'monofasico' | 'bifasico' | 'trifasico') => void;
   updateConduitWaypoints: (id: string, waypoints: Point2D[]) => void;

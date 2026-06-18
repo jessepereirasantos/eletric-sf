@@ -41,8 +41,12 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
   const clippingPlanes = useMemo(() => {
     if (!clippingState.enabled) return [];
     let normal = new THREE.Vector3(0, 0, -1); // Cortar acima de Z
-    if (clippingState.axis === 'X') normal = new THREE.Vector3(-1, 0, 0);
-    if (clippingState.axis === 'Y') normal = new THREE.Vector3(0, -1, 0);
+    if (clippingState.axis === 'X') normal = new THREE.Vector3(-1, 0, 0); // Corta lado X+
+    if (clippingState.axis === '-X') normal = new THREE.Vector3(1, 0, 0); // Corta lado X-
+    if (clippingState.axis === 'Y') normal = new THREE.Vector3(0, -1, 0); // Corta lado Y+
+    if (clippingState.axis === '-Y') normal = new THREE.Vector3(0, 1, 0);  // Corta lado Y-
+    if (clippingState.axis === 'Z') normal = new THREE.Vector3(0, 0, -1);  // Corta topo Z
+    if (clippingState.axis === '-Z') normal = new THREE.Vector3(0, 0, 1);  // Corta base Z
     return [new THREE.Plane(normal, clippingState.value)];
   }, [clippingState]);
 
@@ -85,41 +89,65 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
   });
 
   // 3. Renderizar as partes acima de portas/vãos livres (lintéis/headers) e acima/abaixo de janelas
+  const { devices } = useCadStore();
+
   const cutoutFills = cutouts.map((c, idx) => {
     const cL = c.end - c.start;
     const centerDist = c.start + cL / 2;
     const x = wall.p1.x + centerDist * dx;
     const y = wall.p1.y + centerDist * dy;
 
-    // Assumir alturas padrão em metros
-    const doorHeight = 2.10;
-    const windowStart = 1.00;
-    const windowEnd = 2.10;
+    // Buscar o dispositivo correspondente ao cutout para ler dimensões dinâmicas
+    const dev = devices.find(d => d.id === c.deviceId);
 
-    // Obter o tipo do cutout para fazer o preenchimento correto
-    const isWindow = c.deviceId.includes('window');
+    const isWindow = c.deviceId.includes('window') || (dev && dev.type === 'window');
 
     if (isWindow) {
-      // Para janela, renderiza alvenaria abaixo da janela (Z de 0 a 1.0m) e acima da janela (Z de 2.10m a 2.80m)
-      const belowHeight = windowStart;
-      const aboveHeight = Math.max(0.1, wall.height - windowEnd);
+      // Para janela, lê peitoril e altura paramétrica
+      const peitoril = dev?.peitoril ?? 1.00;
+      const windowH = dev?.height3d ?? 1.10;
+      const belowHeight = peitoril;
+      const aboveHeight = Math.max(0.01, wall.height - (peitoril + windowH));
 
       return (
         <React.Fragment key={`cutout-fill-${idx}`}>
           {/* Parede abaixo da janela */}
-          <mesh position={[x, y, belowHeight / 2]} rotation={[0, 0, angle]}>
-            <boxGeometry args={[cL, wall.thickness, belowHeight]} />
-            <meshStandardMaterial
-              {...matProps}
-              wireframe={shadingMode === 'wireframe'}
-              transparent={shadingMode === 'transparent' || matProps.transparent}
-              opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
-              clippingPlanes={clippingPlanes}
-              clipShadows={true}
-            />
-          </mesh>
+          {belowHeight > 0.01 && (
+            <mesh position={[x, y, belowHeight / 2]} rotation={[0, 0, angle]}>
+              <boxGeometry args={[cL, wall.thickness, belowHeight]} />
+              <meshStandardMaterial
+                {...matProps}
+                wireframe={shadingMode === 'wireframe'}
+                transparent={shadingMode === 'transparent' || matProps.transparent}
+                opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
+                clippingPlanes={clippingPlanes}
+                clipShadows={true}
+              />
+            </mesh>
+          )}
           {/* Parede acima da janela */}
-          <mesh position={[x, y, wall.height - aboveHeight / 2]} rotation={[0, 0, angle]}>
+          {aboveHeight > 0.01 && (
+            <mesh position={[x, y, wall.height - aboveHeight / 2]} rotation={[0, 0, angle]}>
+              <boxGeometry args={[cL, wall.thickness, aboveHeight]} />
+              <meshStandardMaterial
+                {...matProps}
+                wireframe={shadingMode === 'wireframe'}
+                transparent={shadingMode === 'transparent' || matProps.transparent}
+                opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
+                clippingPlanes={clippingPlanes}
+                clipShadows={true}
+              />
+            </mesh>
+          )}
+        </React.Fragment>
+      );
+    } else {
+      // Para portas e vãos livres, lê a altura da porta paramétrica
+      const doorH = dev?.height3d ?? 2.10;
+      const aboveHeight = Math.max(0.01, wall.height - doorH);
+      return (
+        aboveHeight > 0.01 ? (
+          <mesh key={`cutout-fill-${idx}`} position={[x, y, wall.height - aboveHeight / 2]} rotation={[0, 0, angle]}>
             <boxGeometry args={[cL, wall.thickness, aboveHeight]} />
             <meshStandardMaterial
               {...matProps}
@@ -130,23 +158,7 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
               clipShadows={true}
             />
           </mesh>
-        </React.Fragment>
-      );
-    } else {
-      // Para portas e vãos livres, renderiza apenas a parede superior acima da porta (Z de 2.10m a 2.80m)
-      const aboveHeight = Math.max(0.1, wall.height - doorHeight);
-      return (
-        <mesh key={`cutout-fill-${idx}`} position={[x, y, wall.height - aboveHeight / 2]} rotation={[0, 0, angle]}>
-          <boxGeometry args={[cL, wall.thickness, aboveHeight]} />
-          <meshStandardMaterial
-            {...matProps}
-            wireframe={shadingMode === 'wireframe'}
-            transparent={shadingMode === 'transparent' || matProps.transparent}
-            opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
-            clippingPlanes={clippingPlanes}
-            clipShadows={true}
-          />
-        </mesh>
+        ) : null
       );
     }
   });

@@ -8,8 +8,8 @@ import { Conduit3D } from '../components/Render3D/Conduit3D';
 import { BottomBar } from '../components/BottomBar';
 
 interface Render3DViewProps {
-  activeTab: 'cad2d' | 'render3d' | 'unifilar';
-  onTabChange: (tab: 'cad2d' | 'render3d' | 'unifilar') => void;
+  activeTab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets';
+  onTabChange: (tab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets') => void;
 }
 
 export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChange }) => {
@@ -65,6 +65,16 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
             }}
           >
             ⚡ Diagrama Unifilar
+          </button>
+          <button
+            onClick={() => onTabChange('sheets')}
+            className={`tab-btn ${activeTab === 'sheets' ? 'active' : ''}`}
+            style={{
+              padding: '6px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '500', cursor: 'pointer',
+              border: '1px solid #334155', backgroundColor: '#1e293b', color: '#cbd5e1'
+            }}
+          >
+            📋 Pranchas / Folhas
           </button>
         </div>
       </header>

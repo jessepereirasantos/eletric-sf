@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { Cad2DView } from './views/Cad2DView';
 import { UnifilarView } from './views/UnifilarView';
 import { Render3DView } from './views/Render3DView';
+import { SheetsView } from './views/SheetsView';
 import { LoginView } from './views/LoginView';
 import { useCadStore } from './store/useCadStore';
 
 function App() {
-  const [activeTab, setActiveTab] = useState<'cad2d' | 'render3d' | 'unifilar'>('cad2d');
+  const [activeTab, setActiveTab] = useState<'cad2d' | 'render3d' | 'unifilar' | 'sheets'>('cad2d');
   const { isAuthenticated, authLoading, loadUserSession } = useCadStore();
 
   // Verificar se já possui sessão salva no localStorage ao iniciar
@@ -48,7 +49,18 @@ function App() {
             onTabChange={setActiveTab}
           />
         )}
-        {activeTab === 'unifilar' && <UnifilarView />}
+        {activeTab === 'unifilar' && (
+          <UnifilarView
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+        )}
+        {activeTab === 'sheets' && (
+          <SheetsView
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+        )}
       </main>
     </div>
   );

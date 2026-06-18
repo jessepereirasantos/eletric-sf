@@ -45,21 +45,23 @@ export const Conduit3D: React.FC<Conduit3DProps> = ({ fromDevice, toDevice, diam
       pathPoints.push(posB);
     } else {
       // Se um dispositivo estiver no teto e o outro na parede/baixo:
-      // Fazemos o conduíte correr pelo teto (Z=2.8) até a prumada da parede, e descer verticalmente.
+      // A prumada deve seguir exatamente a coordenada (X, Y) do dispositivo na parede,
+      // descendo ortogonalmente de modo a se manter dentro do alinhamento da alvenaria.
       if (zA === 2.80 && zB < 2.80) {
-        const ctrl = new THREE.Vector3(toDevice.x, toDevice.y, 2.80);
-        pathPoints.push(posA, ctrl, posB);
+        // Corre pelo teto (Z=2.8) até a prumada exata do dispositivo de destino (X, Y)
+        const tetoCtrl = new THREE.Vector3(toDevice.x, toDevice.y, 2.80);
+        // Faz uma pequena curva para entrar reto na alvenaria
+        const descidaCtrl = new THREE.Vector3(toDevice.x, toDevice.y, 2.70);
+        pathPoints.push(posA, tetoCtrl, descidaCtrl, posB);
       } else if (zB === 2.80 && zA < 2.80) {
-        const ctrl = new THREE.Vector3(fromDevice.x, fromDevice.y, 2.80);
-        pathPoints.push(posA, ctrl, posB);
+        const descidaCtrl = new THREE.Vector3(fromDevice.x, fromDevice.y, 2.70);
+        const tetoCtrl = new THREE.Vector3(fromDevice.x, fromDevice.y, 2.80);
+        pathPoints.push(posA, descidaCtrl, tetoCtrl, posB);
       } else if (zA < 2.80 && zB < 2.80 && zA !== zB) {
-        // Se forem de alturas diferentes na parede, faz uma descida/subida suave na parede
-        const mid = new THREE.Vector3(
-          (fromDevice.x + toDevice.x) / 2,
-          (fromDevice.y + toDevice.y) / 2,
-          (zA + zB) / 2
-        );
-        pathPoints.push(posA, mid, posB);
+        // Corre verticalmente dentro da mesma parede/prumada de um dispositivo ao outro
+        // Interpola ortogonalmente pelo eixo X/Y do destino ou origem para não desviar no 3D
+        const descidaCtrl = new THREE.Vector3(fromDevice.x, fromDevice.y, zB);
+        pathPoints.push(posA, descidaCtrl, posB);
       } else {
         // Se forem da mesma altura, faz uma curva sutil para baixo (efeito "barriga" de cabo/tubo)
         const mid = new THREE.Vector3(
@@ -92,7 +94,11 @@ export const Conduit3D: React.FC<Conduit3DProps> = ({ fromDevice, toDevice, diam
     if (!clippingState.enabled) return [];
     let normal = new THREE.Vector3(0, 0, -1); // Cortar acima de Z
     if (clippingState.axis === 'X') normal = new THREE.Vector3(-1, 0, 0);
+    if (clippingState.axis === '-X') normal = new THREE.Vector3(1, 0, 0);
     if (clippingState.axis === 'Y') normal = new THREE.Vector3(0, -1, 0);
+    if (clippingState.axis === '-Y') normal = new THREE.Vector3(0, 1, 0);
+    if (clippingState.axis === 'Z') normal = new THREE.Vector3(0, 0, -1);
+    if (clippingState.axis === '-Z') normal = new THREE.Vector3(0, 0, 1);
     return [new THREE.Plane(normal, clippingState.value)];
   }, [clippingState]);
 

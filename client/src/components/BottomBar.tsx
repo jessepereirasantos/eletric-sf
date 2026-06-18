@@ -2,7 +2,7 @@ import React from 'react';
 import { useCadStore } from '../store/useCadStore';
 
 interface BottomBarProps {
-  activeTab: 'cad2d' | 'render3d' | 'unifilar';
+  activeTab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets';
 }
 
 export const BottomBar: React.FC<BottomBarProps> = ({ activeTab }) => {
@@ -132,15 +132,18 @@ export const BottomBar: React.FC<BottomBarProps> = ({ activeTab }) => {
                       borderRadius: '4px', padding: '1px 4px', fontSize: '0.65rem', outline: 'none', cursor: 'pointer'
                     }}
                   >
-                    <option value="X">Eixo X</option>
-                    <option value="Y">Eixo Y</option>
-                    <option value="Z">Eixo Z</option>
+                    <option value="X">Face Leste (X+)</option>
+                    <option value="-X">Face Oeste (X-)</option>
+                    <option value="Y">Face Norte (Y+)</option>
+                    <option value="-Y">Face Sul (Y-)</option>
+                    <option value="Z">Teto (Z+)</option>
+                    <option value="-Z">Piso (Z-)</option>
                   </select>
 
                   <input
                     type="range"
-                    min={clippingState.axis === 'Z' ? 0.0 : -20.0}
-                    max={clippingState.axis === 'Z' ? 3.0 : 20.0}
+                    min={clippingState.axis.includes('Z') ? 0.0 : -30.0}
+                    max={clippingState.axis.includes('Z') ? 4.0 : 30.0}
                     step={0.05}
                     value={clippingState.value}
                     onChange={(e) => setClippingState({ value: parseFloat(e.target.value) })}
