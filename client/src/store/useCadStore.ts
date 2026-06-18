@@ -466,41 +466,67 @@ export const useCadStore = create<CadState>()(
     ]);
     const electricalDevices = devices.filter(d => d && !ARCHITECTURE_TYPES.has(d.type));
 
+    const priceMap: Record<string, number> = {
+      qdc: 85.00,
+      poste: 850.00,
+      medidor: 180.00,
+      interruptor: 15.00,
+      lampada: 18.00,
+      tele_rj45: 22.00,
+      tele_rj11: 18.00,
+      tele_coaxial: 16.00,
+      cftv_camera: 280.00,
+      sensor_presenca: 45.00,
+      central_alarme: 350.00,
+      switch_simple: 15.00,
+      switch_parallel: 20.00,
+      switch_intermediate: 25.00,
+      tug_baixa: 15.00,
+      tug_media: 16.00,
+      tug_alta: 18.00,
+      tue_chuveiro: 35.00,
+      tue_ar: 40.00,
+      ceiling_light: 18.00,
+      sconce: 22.00,
+      fluorescent: 25.00,
+      box_octogonal: 12.00,
+      box_4x2: 10.00,
+      box_4x4: 15.00,
+      motor: 450.00,
+      bomba_agua: 320.00,
+      torneira_eletrica: 150.00,
+      fotocelula: 38.00,
+      campainha: 25.00,
+    };
+
+    // Nomes amigáveis para módulos internos das caixas
+    const moduleNames: Record<string, string> = {
+      tug_baixa: 'Tomada TUG Baixa 10A',
+      tug_media: 'Tomada TUG Média 10A',
+      tug_alta: 'Tomada TUG Alta 10A',
+      tue_chuveiro: 'Tomada TUE Chuveiro',
+      tue_ar: 'Tomada TUE Ar Condicionado',
+      switch_simple: 'Interruptor Simples',
+      switch_parallel: 'Interruptor Paralelo',
+      switch_intermediate: 'Interruptor Intermediário',
+      tele_rj45: 'Tomada RJ45 (Rede)',
+      tele_rj11: 'Tomada RJ11 (Telefone)',
+      tele_coaxial: 'Tomada Coaxial (TV)',
+      ceiling_light: 'Ponto de Luz (Teto)',
+      sconce: 'Arandela (Parede)',
+      fluorescent: 'Lâmpada Fluorescente',
+      sensor_presenca: 'Sensor de Presença',
+      fotocelula: 'Fotocélula',
+      campainha: 'Campainha / Cigarra',
+      cftv_camera: 'Câmera CFTV',
+      central_alarme: 'Central de Alarme',
+    };
+
     const deviceCounts: Record<string, { qty: number; price: number; type: string }> = {};
     electricalDevices.forEach(d => {
-      const priceMap: Record<string, number> = {
-        qdc: 85.00,
-        poste: 850.00,
-        medidor: 180.00,
-        interruptor: 15.00,
-        lampada: 18.00,
-        tele_rj45: 22.00,
-        tele_rj11: 18.00,
-        tele_coaxial: 16.00,
-        cftv_camera: 280.00,
-        sensor_presenca: 45.00,
-        central_alarme: 350.00,
-        switch_simple: 15.00,
-        switch_parallel: 20.00,
-        switch_intermediate: 25.00,
-        tug_baixa: 15.00,
-        tug_media: 16.00,
-        tug_alta: 18.00,
-        tue_chuveiro: 35.00,
-        tue_ar: 40.00,
-        ceiling_light: 18.00,
-        sconce: 22.00,
-        fluorescent: 25.00,
-        box_octogonal: 12.00,
-        box_4x2: 10.00,
-        box_4x4: 15.00,
-        // Preços das novas cargas
-        motor: 450.00,
-        bomba_agua: 320.00,
-        torneira_eletrica: 150.00,
-        fotocelula: 38.00,
-        campainha: 25.00,
-      };
+      const isBox = d.type.startsWith('box_');
+
+      // Conta a caixa em si
       const price = priceMap[d.type] ?? 12.00;
       const deviceName = d.name || 'Dispositivo Elétrico';
       deviceCounts[deviceName] = {
@@ -508,6 +534,19 @@ export const useCadStore = create<CadState>()(
         price,
         type: d.type
       };
+
+      // Se for caixa com módulos internos, conta cada módulo separadamente
+      if (isBox && d.modules && d.modules.length > 0) {
+        d.modules.forEach(mod => {
+          const modName = moduleNames[mod] || mod;
+          const modPrice = priceMap[mod] ?? 12.00;
+          deviceCounts[modName] = {
+            qty: (deviceCounts[modName]?.qty || 0) + 1,
+            price: modPrice,
+            type: mod
+          };
+        });
+      }
     });
 
     Object.entries(deviceCounts).forEach(([name, data]) => {
@@ -892,10 +931,11 @@ export const useCadStore = create<CadState>()(
   addDevice: (dev) => {
     get().pushHistory();
     set((s) => {
+      const isBox = dev.type.startsWith('box_');
       const newDevice: Device = {
         ...dev,
         id: `dev_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modules: [dev.type], // Inicializa o array de módulos com o tipo base
+        modules: isBox ? [] : [dev.type], // Caixas iniciam vazias (containers); demais com o tipo base
       };
       return { devices: [...s.devices, newDevice] };
     });

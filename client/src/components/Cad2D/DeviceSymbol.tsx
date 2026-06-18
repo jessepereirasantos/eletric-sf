@@ -770,72 +770,173 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
         </Group>
       );
 
-    // ─── CAIXA OCTOGONAL (Teto) ───────────────────────────────────
-    case 'box_octogonal':
+    // ─── CAIXA OCTOGONAL (Teto) — Container Modular ──────────────
+    case 'box_octogonal': {
+      const octModules = modules || [];
+      const octR = H;
+      const octPoints = (() => {
+        const pts: number[] = [];
+        for (let i = 0; i < 8; i++) {
+          const angle = (i * Math.PI) / 4 + Math.PI / 8;
+          pts.push(octR * Math.cos(angle), octR * Math.sin(angle));
+        }
+        return pts;
+      })();
+
+      if (octModules.length > 0) {
+        // Caixa com módulos: contorno + símbolos na frente
+        const modSpacing = S * 0.85;
+        return (
+          <Group x={x} y={y} {...commonProps}>
+            {/* Contorno da caixa ao fundo */}
+            <Line points={octPoints} closed fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
+            {/* Módulos na frente */}
+            {octModules.map((modType, idx) => {
+              const offsetX = (idx - (octModules.length - 1) / 2) * modSpacing;
+              return (
+                <DeviceSymbol
+                  key={idx}
+                  id={`${id}_bmod_${idx}`}
+                  type={modType}
+                  x={offsetX}
+                  y={0}
+                  rotation={0}
+                  ppm={ppm}
+                  zoom={zoom}
+                  isSelected={false}
+                  currentTool={currentTool}
+                  wallThickness={wallThickness}
+                  draggable={false}
+                  power={power}
+                  circuitNumber={circuitNumber}
+                  commandLetter={commandLetter}
+                />
+              );
+            })}
+            <SelectionRing r={Math.max(H * 1.25, modSpacing * octModules.length * 0.5)} />
+          </Group>
+        );
+      }
+      // Caixa vazia (sem módulos)
       return (
         <Group x={x} y={y} {...commonProps}>
-          <Line
-            points={(() => {
-              const pts = [];
-              const r = H;
-              for (let i = 0; i < 8; i++) {
-                const angle = (i * Math.PI) / 4 + Math.PI / 8;
-                pts.push(r * Math.cos(angle), r * Math.sin(angle));
-              }
-              return pts;
-            })()}
-            closed
-            fill={FILL_WHITE}
-            stroke={stroke}
-            strokeWidth={sw}
-          />
+          <Line points={octPoints} closed fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
           <Line points={[-H * 0.7, -H * 0.7, H * 0.7, H * 0.7]} stroke={stroke} strokeWidth={sw * 0.7} dash={[3, 3]} />
           <Line points={[-H * 0.7, H * 0.7, H * 0.7, -H * 0.7]} stroke={stroke} strokeWidth={sw * 0.7} dash={[3, 3]} />
+          <Text text="+" x={-H * 0.35} y={-H * 0.45} fontSize={H * 0.9} fill={'#94a3b8'} listening={false} />
           <SelectionRing r={H * 1.25} />
         </Group>
       );
+    }
 
-    // ─── CAIXA 4x2 (Parede) ───────────────────────────────────────
-    case 'box_4x2':
+    // ─── CAIXA 4x2 (Parede) — Container Modular ──────────────────
+    case 'box_4x2': {
+      const box42Modules = modules || [];
+      const box42W = S * 0.8;
+      const box42H = H * 0.8;
+
+      if (box42Modules.length > 0) {
+        const modSpacing = S * 0.85;
+        return (
+          <Group x={x} y={y} rotation={rotation} {...commonProps}>
+            <WallMountGroup>
+              {/* Contorno da caixa ao fundo */}
+              <Rect x={-box42W / 2} y={-box42H / 2} width={box42W} height={box42H} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} opacity={0.4} />
+              {/* Módulos dispostos lado a lado na frente */}
+              {box42Modules.map((modType, idx) => {
+                const offsetX = (idx - (box42Modules.length - 1) / 2) * modSpacing;
+                return (
+                  <DeviceSymbol
+                    key={idx}
+                    id={`${id}_bmod_${idx}`}
+                    type={modType}
+                    x={offsetX}
+                    y={0}
+                    rotation={0}
+                    ppm={ppm}
+                    zoom={zoom}
+                    isSelected={false}
+                    currentTool={currentTool}
+                    wallThickness={0}
+                    draggable={false}
+                    power={power}
+                    circuitNumber={circuitNumber}
+                    commandLetter={commandLetter}
+                  />
+                );
+              })}
+              <SelectionRing cy={-H * 0.3} r={Math.max(S * 0.7, modSpacing * box42Modules.length * 0.5)} />
+            </WallMountGroup>
+          </Group>
+        );
+      }
+      // Caixa vazia
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
           <WallMountGroup>
-            <Rect
-              x={-H * 0.8}
-              y={-H * 0.4}
-              width={S * 0.8}
-              height={H * 0.8}
-              fill={FILL_WHITE}
-              stroke={stroke}
-              strokeWidth={sw}
-            />
+            <Rect x={-H * 0.8} y={-H * 0.4} width={S * 0.8} height={H * 0.8} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
             <Line points={[-H * 0.8, -H * 0.4, H * 0.8, H * 0.4]} stroke={stroke} strokeWidth={sw * 0.7} opacity={0.5} dash={[2, 2]} />
             <Line points={[-H * 0.8, H * 0.4, H * 0.8, -H * 0.4]} stroke={stroke} strokeWidth={sw * 0.7} opacity={0.5} dash={[2, 2]} />
+            <Text text="+" x={-H * 0.35} y={-H * 0.2} fontSize={H * 0.6} fill={'#94a3b8'} listening={false} />
             <SelectionRing cy={0} r={S * 0.7} />
           </WallMountGroup>
         </Group>
       );
+    }
 
-    // ─── CAIXA 4x4 (Parede) ───────────────────────────────────────
-    case 'box_4x4':
+    // ─── CAIXA 4x4 (Parede) — Container Modular ──────────────────
+    case 'box_4x4': {
+      const box44Modules = modules || [];
+      const box44S = S * 0.8;
+
+      if (box44Modules.length > 0) {
+        const modSpacing = S * 0.85;
+        return (
+          <Group x={x} y={y} rotation={rotation} {...commonProps}>
+            <WallMountGroup>
+              {/* Contorno da caixa ao fundo */}
+              <Rect x={-box44S / 2} y={-box44S / 2} width={box44S} height={box44S} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} opacity={0.4} />
+              {/* Módulos dispostos lado a lado na frente */}
+              {box44Modules.map((modType, idx) => {
+                const offsetX = (idx - (box44Modules.length - 1) / 2) * modSpacing;
+                return (
+                  <DeviceSymbol
+                    key={idx}
+                    id={`${id}_bmod_${idx}`}
+                    type={modType}
+                    x={offsetX}
+                    y={0}
+                    rotation={0}
+                    ppm={ppm}
+                    zoom={zoom}
+                    isSelected={false}
+                    currentTool={currentTool}
+                    wallThickness={0}
+                    draggable={false}
+                    power={power}
+                    circuitNumber={circuitNumber}
+                    commandLetter={commandLetter}
+                  />
+                );
+              })}
+              <SelectionRing cy={-H * 0.3} r={Math.max(S * 0.9, modSpacing * box44Modules.length * 0.5)} />
+            </WallMountGroup>
+          </Group>
+        );
+      }
+      // Caixa vazia
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
           <WallMountGroup>
-            <Rect
-              x={-H * 0.8}
-              y={-H * 0.8}
-              width={S * 0.8}
-              height={S * 0.8}
-              fill={FILL_WHITE}
-              stroke={stroke}
-              strokeWidth={sw}
-            />
+            <Rect x={-H * 0.8} y={-H * 0.8} width={S * 0.8} height={S * 0.8} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
             <Line points={[-H * 0.8, -H * 0.8, H * 0.8, H * 0.8]} stroke={stroke} strokeWidth={sw * 0.7} opacity={0.5} dash={[2, 2]} />
             <Line points={[-H * 0.8, H * 0.8, H * 0.8, -H * 0.8]} stroke={stroke} strokeWidth={sw * 0.7} opacity={0.5} dash={[2, 2]} />
+            <Text text="+" x={-H * 0.35} y={-H * 0.35} fontSize={H * 0.7} fill={'#94a3b8'} listening={false} />
             <SelectionRing cy={0} r={S * 0.9} />
           </WallMountGroup>
         </Group>
       );
+    }
 
     case 'motor':
       return (

@@ -338,6 +338,11 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
   const isComandoEspecial = ['sensor_presenca', 'fotocelula'].includes(device.type);
   const isModular = (isTomada || isInterruptor || isTelecom) && !isBox && !isCargaCatalogo && !isComandoEspecial;
 
+  // Limite de módulos por tipo de caixa
+  const boxModuleLimit = device.type === 'box_4x2' ? 3 : device.type === 'box_4x4' ? 6 : device.type === 'box_octogonal' ? 2 : 3;
+  const boxModuleCount = (device.modules || []).length;
+  const showBoxModules = isBox;
+
   return (
     <div className="props-panel-content">
       <div className="props-header">
@@ -598,11 +603,11 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
         </div>
       )}
 
-      {/* Seção de Módulos da Caixa Elétrica (Modularidade) */}
+      {/* Seção de Módulos da Caixa Elétrica (Modularidade) — Dispositivos Soltos */}
       {isModular && (
         <div className="props-field" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '12px' }}>
           <label style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span>🔌</span> Módulos da Caixa (4x2 / 4x4)
+            <span>🔌</span> Módulos Conjugados
           </label>
           
           <div className="props-modules-list" style={{ display: 'flex', flexDirection: 'column', gap: '6px', margin: '8px 0' }}>
@@ -697,6 +702,158 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
               >
                 ＋ Adicionar
               </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Seção de Módulos para Caixas Elétricas (Container Modular) */}
+      {showBoxModules && (
+        <div className="props-field" style={{ borderTop: '1px solid #2563eb', paddingTop: '12px', marginTop: '12px' }}>
+          <label style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', color: '#1e3a8a' }}>
+            <span>📦</span> Módulos da Caixa ({device.type === 'box_4x2' ? '4x2 — Max 3' : device.type === 'box_4x4' ? '4x4 — Max 6' : 'Octogonal — Max 2'})
+          </label>
+          <div className="props-hint" style={{ marginBottom: '8px' }}>
+            Adicione tomadas, interruptores, lâmpadas e sensores dentro desta caixa.
+          </div>
+          
+          {/* Lista dos módulos existentes */}
+          <div className="props-modules-list" style={{ display: 'flex', flexDirection: 'column', gap: '6px', margin: '8px 0' }}>
+            {boxModuleCount === 0 && (
+              <div style={{
+                background: '#f1f5f9',
+                border: '2px dashed #cbd5e1',
+                padding: '12px',
+                borderRadius: '8px',
+                textAlign: 'center',
+                fontSize: '0.75rem',
+                color: '#94a3b8'
+              }}>
+                Caixa vazia — adicione módulos abaixo
+              </div>
+            )}
+            {(device.modules || []).map((mod, idx) => {
+              const friendlyNames: Record<string, string> = {
+                tug_baixa: '▽ Tomada Baixa 10A',
+                tug_media: '◁ Tomada Média 10A',
+                tug_alta: '△ Tomada Alta 10A',
+                tue_chuveiro: '♨ TUE Chuveiro',
+                tue_ar: '❄ TUE Ar Condicionado',
+                switch_simple: '▣ Interruptor Simples',
+                switch_parallel: '⬛ Interruptor Paralelo',
+                switch_intermediate: '◪ Interruptor Intermediário',
+                tele_rj45: '▲ Tomada RJ45 (Rede)',
+                tele_rj11: '▲ Tomada RJ11 (Telefone)',
+                tele_coaxial: '▲ Tomada Coaxial (TV)',
+                ceiling_light: '⚪ Ponto de Luz (Teto)',
+                sconce: '🌙 Arandela (Parede)',
+                fluorescent: '▭ Lâmpada Fluorescente',
+                sensor_presenca: '🚨 Sensor de Presença',
+                fotocelula: '👁️ Fotocélula',
+                campainha: '🔔 Campainha / Cigarra',
+                cftv_camera: '📹 Câmera CFTV',
+                central_alarme: '📟 Central de Alarme',
+              };
+              const name = friendlyNames[mod] || mod;
+              return (
+                <div key={idx} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: '#eff6ff',
+                  border: '1px solid #93c5fd',
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  color: '#1e3a8a'
+                }}>
+                  <span><strong>Módulo {idx + 1}:</strong> {name}</span>
+                  <button
+                    onClick={() => removeDeviceModule(device.id, idx)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#ef4444',
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                      fontSize: '0.8rem',
+                      padding: '2px 6px'
+                    }}
+                    title="Remover módulo"
+                  >
+                    ✕
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Adicionar Módulo à Caixa */}
+          {boxModuleCount < boxModuleLimit && (
+            <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
+              <select
+                id={`add-boxmod-select-${device.id}`}
+                className="props-select"
+                style={{ fontSize: '0.75rem', padding: '4px 8px', height: '28px', flex: 1 }}
+                defaultValue="tug_baixa"
+              >
+                <optgroup label="Tomadas">
+                  <option value="tug_baixa">Tomada Baixa 10A</option>
+                  <option value="tug_media">Tomada Média 10A</option>
+                  <option value="tug_alta">Tomada Alta 10A</option>
+                  <option value="tue_chuveiro">TUE Chuveiro</option>
+                  <option value="tue_ar">TUE Ar Condicionado</option>
+                </optgroup>
+                <optgroup label="Interruptores">
+                  <option value="switch_simple">Interruptor Simples</option>
+                  <option value="switch_parallel">Interruptor Paralelo (3-Way)</option>
+                  <option value="switch_intermediate">Interruptor Intermediário (4-Way)</option>
+                </optgroup>
+                <optgroup label="Iluminação">
+                  <option value="ceiling_light">Ponto de Luz (Teto)</option>
+                  <option value="sconce">Arandela (Parede)</option>
+                  <option value="fluorescent">Lâmpada Fluorescente</option>
+                </optgroup>
+                <optgroup label="Telecom">
+                  <option value="tele_rj45">Tomada RJ45 (Rede)</option>
+                  <option value="tele_rj11">Tomada RJ11 (Telefone)</option>
+                  <option value="tele_coaxial">Tomada Coaxial (TV)</option>
+                </optgroup>
+                <optgroup label="Sensores / Segurança">
+                  <option value="sensor_presenca">Sensor de Presença</option>
+                  <option value="fotocelula">Fotocélula</option>
+                  <option value="campainha">Campainha / Cigarra</option>
+                  <option value="cftv_camera">Câmera CFTV</option>
+                  <option value="central_alarme">Central de Alarme</option>
+                </optgroup>
+              </select>
+              <button
+                className="props-btn"
+                style={{
+                  background: '#1e3a8a',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '0 10px',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  height: '28px'
+                }}
+                onClick={() => {
+                  const sel = document.getElementById(`add-boxmod-select-${device.id}`) as HTMLSelectElement;
+                  if (sel) {
+                    addDeviceModule(device.id, sel.value);
+                  }
+                }}
+              >
+                ＋ Adicionar
+              </button>
+            </div>
+          )}
+          {boxModuleCount >= boxModuleLimit && (
+            <div className="props-hint" style={{ color: '#dc2626', fontWeight: 'bold', marginTop: '8px' }}>
+              ⚠ Limite de {boxModuleLimit} módulos atingido para {device.type === 'box_4x2' ? 'caixa 4x2' : device.type === 'box_4x4' ? 'caixa 4x4' : 'caixa octogonal'}.
             </div>
           )}
         </div>
