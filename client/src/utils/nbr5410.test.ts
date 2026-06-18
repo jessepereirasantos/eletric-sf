@@ -40,9 +40,9 @@ describe('dimensionateCircuit', () => {
       expect(result.fatorAgrupamento).toBe(0.50);
     });
 
-    it('clamps groupedCircuits to max 9', () => {
-      const result = dimensionateCircuit('iluminacao', 500, 127, 10, 15);
-      expect(result.fatorAgrupamento).toBe(0.50);
+    it('clamps groupedCircuits to max 20', () => {
+      const result = dimensionateCircuit('iluminacao', 500, 127, 10, 25);
+      expect(result.fatorAgrupamento).toBe(0.38);
     });
 
     it('clamps groupedCircuits to min 1', () => {

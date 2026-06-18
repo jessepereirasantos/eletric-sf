@@ -529,8 +529,11 @@ export const useCadStore = create<CadState>()(
 
     // Helper para categorização de dispositivos
     const getDeviceCategory = (type: string): 'fiacao_cabos' | 'protecao' | 'infraestrutura' | 'dispositivos' => {
-      if (type.startsWith('box_') || type === 'qdc' || type === 'poste' || type === 'medidor') {
+      if (type.startsWith('box_') || type === 'qdc' || type === 'qgbt' || type === 'poste' || type === 'medidor' || type === 'caixa_passagem') {
         return 'infraestrutura';
+      }
+      if (type === 'disjuntor' || type === 'dr' || type === 'idr' || type === 'dps' || type === 'aterramento' || type === 'spda') {
+        return 'protecao';
       }
       return 'dispositivos';
     };
@@ -599,6 +602,22 @@ export const useCadStore = create<CadState>()(
       torneira_eletrica: 150.00,
       fotocelula: 38.00,
       campainha: 25.00,
+      // Novos dispositivos NBR 5410
+      disjuntor: 18.00,
+      dr: 120.00,
+      idr: 135.00,
+      dps: 55.00,
+      aterramento: 45.00,
+      spda: 350.00,
+      caixa_passagem: 8.00,
+      qgbt: 250.00,
+      luminaria_emergencia: 65.00,
+      dimmer: 35.00,
+      sensor_fumaca: 55.00,
+      gerador: 3500.00,
+      nobreak: 800.00,
+      tomada_20a: 22.00,
+      tomada_10a_nbr: 16.00,
     };
 
     // Nomes amigáveis para módulos internos das caixas
@@ -622,6 +641,22 @@ export const useCadStore = create<CadState>()(
       campainha: 'Campainha / Cigarra',
       cftv_camera: 'Câmera CFTV',
       central_alarme: 'Central de Alarme',
+      // Novos módulos NBR 5410
+      disjuntor: 'Disjuntor Termomagnético',
+      dr: 'Interruptor Diferencial Residual (DR)',
+      idr: 'IDR (DR + Disjuntor Combinado)',
+      dps: 'DPS Proteção Surtos Class II',
+      aterramento: 'Haste de Aterramento',
+      spda: 'SPDA (Para-Raios)',
+      caixa_passagem: 'Caixa de Passagem',
+      qgbt: 'Quadro Geral de Baixa Tensão (QGBT)',
+      luminaria_emergencia: 'Luminária de Emergência',
+      dimmer: 'Interruptor Dimmer',
+      sensor_fumaca: 'Sensor de Fumaça',
+      gerador: 'Gerador Elétrico',
+      nobreak: 'Nobreak / UPS',
+      tomada_20a: 'Tomada 20A NBR 14136',
+      tomada_10a_nbr: 'Tomada 10A NBR 14136',
     };
 
     const deviceCounts: Record<string, { qty: number; price: number; type: string }> = {};
@@ -1027,7 +1062,7 @@ export const useCadStore = create<CadState>()(
     get().recomputeDerivedState();
   },
 
-  updateWallCutouts: (wallId) => {
+  updateWallCutouts: (_wallId) => {
     get().recomputeDerivedState();
   },
 

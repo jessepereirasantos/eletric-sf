@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Cad2DView } from './views/Cad2DView';
 import { UnifilarView } from './views/UnifilarView';
+import { Render3DView } from './views/Render3DView';
 import { LoginView } from './views/LoginView';
 import { useCadStore } from './store/useCadStore';
 
@@ -42,13 +43,10 @@ function App() {
           />
         )}
         {activeTab === 'render3d' && (
-          <div className="placeholder-view">
-            <h3>Visualizador Tridimensional (Three.js)</h3>
-            <p>Renderizador WebGL em preparação.</p>
-            <button className="btn btn-secondary" onClick={() => setActiveTab('cad2d')}>
-              ← Voltar ao Editor CAD 2D
-            </button>
-          </div>
+          <Render3DView
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
         )}
         {activeTab === 'unifilar' && <UnifilarView />}
       </main>

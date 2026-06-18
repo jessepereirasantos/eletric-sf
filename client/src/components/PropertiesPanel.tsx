@@ -281,6 +281,12 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
       // Ícones das novas cargas
       motor: 'Ⓜ️', bomba_agua: '⛲', torneira_eletrica: '🚰',
       fotocelula: '👁️', campainha: '🔔',
+      // Novos dispositivos NBR 5410
+      disjuntor: '🛡️', dr: '🔴', idr: '🔴', dps: '⚡',
+      aterramento: '⏚', spda: '⚡', caixa_passagem: '⊞', qgbt: '◪',
+      luminaria_emergencia: '🚨', dimmer: '◐', sensor_fumaca: '🔥',
+      gerador: '⚙️', nobreak: '🔋',
+      tomada_20a: '△', tomada_10a_nbr: '▽',
     };
     return icons[type] || '●';
   };
@@ -322,21 +328,39 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
       torneira_eletrica: 'Torneira Elétrica (Força)',
       fotocelula: 'Fotocélula (Sensor)',
       campainha: 'Campainha / Cigarra',
+      // Novos dispositivos NBR 5410
+      disjuntor: 'Disjuntor Termomagnético',
+      dr: 'Interruptor DR (Diferencial Residual)',
+      idr: 'IDR (Disjuntor + DR Combinado)',
+      dps: 'DPS (Proteção contra Surtos)',
+      aterramento: 'Aterramento (Haste Terra)',
+      spda: 'SPDA (Para-Raios)',
+      caixa_passagem: 'Caixa de Passagem',
+      qgbt: 'Quadro Geral de Baixa Tensão',
+      luminaria_emergencia: 'Luminária de Emergência',
+      dimmer: 'Interruptor Dimmer',
+      sensor_fumaca: 'Sensor de Fumaça',
+      gerador: 'Gerador Elétrico',
+      nobreak: 'Nobreak / UPS',
+      tomada_20a: 'Tomada 20A (NBR 14136)',
+      tomada_10a_nbr: 'Tomada 10A (NBR 14136)',
     };
     return titles[type] || device.name;
   };
 
-  const isTomada = device.type.startsWith('tug_') || device.type.startsWith('tue_') || device.type === 'tomada_220';
-  const isLampada = device.type === 'ceiling_light' || device.type === 'sconce' || device.type === 'fluorescent' || device.type === 'lampada';
-  const isInterruptor = device.type.startsWith('switch_') || device.type.startsWith('interruptor') || device.type.includes('switch');
+  const isTomada = device.type.startsWith('tug_') || device.type.startsWith('tue_') || device.type === 'tomada_220' || device.type === 'tomada_20a' || device.type === 'tomada_10a_nbr';
+  const isLampada = device.type === 'ceiling_light' || device.type === 'sconce' || device.type === 'fluorescent' || device.type === 'lampada' || device.type === 'luminaria_emergencia';
+  const isInterruptor = device.type.startsWith('switch_') || device.type.startsWith('interruptor') || device.type.includes('switch') || device.type === 'dimmer';
   const isQDC = device.type === 'qdc';
   const isEsquadria = device.type.startsWith('door') || device.type === 'window' || device.type === 'open_van';
   const isTelecom = device.type.startsWith('tele_');
-  const isSeguranca = device.type === 'cftv_camera' || device.type === 'sensor_presenca' || device.type === 'central_alarme' || device.type === 'fotocelula' || device.type === 'campainha';
+  const isSeguranca = device.type === 'cftv_camera' || device.type === 'sensor_presenca' || device.type === 'central_alarme' || device.type === 'fotocelula' || device.type === 'campainha' || device.type === 'sensor_fumaca';
   const isBox = device.type.startsWith('box_');
   const isCargaCatalogo = ['motor', 'bomba_agua', 'torneira_eletrica'].includes(device.type);
+  const isCargaEspecial = ['gerador', 'nobreak'].includes(device.type);
+  const isProtecao = ['disjuntor', 'dr', 'idr', 'dps', 'aterramento', 'spda'].includes(device.type);
   const isComandoEspecial = ['sensor_presenca', 'fotocelula'].includes(device.type);
-  const isModular = (isTomada || isInterruptor || isTelecom) && !isBox && !isCargaCatalogo && !isComandoEspecial;
+  const isModular = (isTomada || isInterruptor || isTelecom) && !isBox && !isCargaCatalogo && !isComandoEspecial && !isProtecao && !isCargaEspecial;
 
   // Limite de módulos por tipo de caixa
   const boxModuleLimit = device.type === 'box_4x2' ? 3 : device.type === 'box_4x4' ? 6 : device.type === 'box_octogonal' ? 2 : 3;

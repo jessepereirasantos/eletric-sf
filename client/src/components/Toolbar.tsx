@@ -271,6 +271,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         { type: 'ceiling_light', label: 'Ponto de Luz no Teto', isDevice: true, symbolDesc: '⚪' },
         { type: 'sconce', label: 'Arandela (Parede)', isDevice: true, symbolDesc: '🌙' },
         { type: 'fluorescent', label: 'Luz Fluorescente', isDevice: true, symbolDesc: '▭' },
+        { type: 'luminaria_emergencia', label: 'Luminária de Emergência', isDevice: true, symbolDesc: '🚨' },
       ],
     },
     {
@@ -285,6 +286,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         { type: 'tug_baixa', label: 'TUG Baixa (10A)', isDevice: true, symbolDesc: '▽' },
         { type: 'tug_media', label: 'TUG Média (10A)', isDevice: true, symbolDesc: '◁' },
         { type: 'tug_alta', label: 'TUG Alta (10A)', isDevice: true, symbolDesc: '△' },
+        { type: 'tomada_10a_nbr', label: 'Tomada 10A NBR 14136', isDevice: true, symbolDesc: '▽' },
+        { type: 'tomada_20a', label: 'Tomada 20A NBR 14136', isDevice: true, symbolDesc: '△' },
         { type: 'tue_chuveiro', label: 'TUE Chuveiro', isDevice: true, symbolDesc: '♨' },
         { type: 'tue_ar', label: 'TUE Ar Condic.', isDevice: true, symbolDesc: '❄' },
       ],
@@ -318,6 +321,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         { type: 'switch_simple', label: 'Simples', isDevice: true, symbolDesc: '▣' },
         { type: 'switch_parallel', label: 'Paralelo (3-Way)', isDevice: true, symbolDesc: '⬛' },
         { type: 'switch_intermediate', label: 'Intermediário (4-Way)', isDevice: true, symbolDesc: '◪' },
+        { type: 'dimmer', label: 'Dimmer (Intensidade)', isDevice: true, symbolDesc: '◐' },
       ],
     },
     {
@@ -343,6 +347,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       items: [
         { type: 'cftv_camera', label: 'Câmera CFTV', isDevice: true, symbolDesc: '📹' },
         { type: 'sensor_presenca', label: 'Sensor de Presença', isDevice: true, symbolDesc: '🚨' },
+        { type: 'sensor_fumaca', label: 'Sensor de Fumaça', isDevice: true, symbolDesc: '🔥' },
         { type: 'fotocelula', label: 'Fotocélula (Sensor)', isDevice: true, symbolDesc: '👁️' },
         { type: 'campainha', label: 'Campainha / Cigarra', isDevice: true, symbolDesc: '🔔' },
         { type: 'central_alarme', label: 'Central de Alarme', isDevice: true, symbolDesc: '📟' },
@@ -358,8 +363,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       defaultDevice: 'qdc',
       items: [
         { type: 'qdc', label: 'Quadro de Distribuição (QDC)', isDevice: true, symbolDesc: '◪' },
+        { type: 'qgbt', label: 'Quadro Geral BT (QGBT)', isDevice: true, symbolDesc: '◪' },
         { type: 'meter', label: 'Medidor de Entrada', isDevice: true, symbolDesc: '⚡' },
         { type: 'poste', label: 'Poste de Entrada', isDevice: true, symbolDesc: '⚡' },
+        { type: 'caixa_passagem', label: 'Caixa de Passagem', isDevice: true, symbolDesc: '⊞' },
       ],
     },
     {
@@ -373,6 +380,46 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         { type: 'box_octogonal', label: 'Caixa Octogonal (Teto)', isDevice: true, symbolDesc: '⬡' },
         { type: 'box_4x2', label: 'Caixa 4x2 (Parede)', isDevice: true, symbolDesc: '▭' },
         { type: 'box_4x4', label: 'Caixa 4x4 (Parede)', isDevice: true, symbolDesc: '□' },
+      ],
+    },
+    {
+      key: 'protecao',
+      label: 'Proteção Elétrica',
+      badge: 'NBR',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          <path d="M9 12l2 2 4-4" />
+        </svg>
+      ),
+      hasDropdown: true,
+      defaultTool: 'device',
+      defaultDevice: 'disjuntor',
+      items: [
+        { type: 'disjuntor', label: 'Disjuntor Termomagnético', isDevice: true, symbolDesc: '🛡️' },
+        { type: 'dr', label: 'DR (Dif. Residual 30mA)', isDevice: true, symbolDesc: '🔴' },
+        { type: 'idr', label: 'IDR (DR + Disjuntor)', isDevice: true, symbolDesc: '🔴' },
+        { type: 'dps', label: 'DPS (Proteção Surtos)', isDevice: true, symbolDesc: '⚡' },
+        { type: 'aterramento', label: 'Aterramento (Haste Terra)', isDevice: true, symbolDesc: '⏚' },
+        { type: 'spda', label: 'SPDA (Para-Raios)', isDevice: true, symbolDesc: '⚡' },
+      ],
+    },
+    {
+      key: 'cargas_especiais',
+      label: 'Cargas Especiais',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="3" y="6" width="18" height="12" rx="2" />
+          <path d="M7 6V4M17 6V4M7 18v2M17 18v2" />
+          <path d="M10 12h4M12 10v4" />
+        </svg>
+      ),
+      hasDropdown: true,
+      defaultTool: 'device',
+      defaultDevice: 'gerador',
+      items: [
+        { type: 'gerador', label: 'Gerador Elétrico', isDevice: true, symbolDesc: '⚙️' },
+        { type: 'nobreak', label: 'Nobreak / UPS', isDevice: true, symbolDesc: '🔋' },
       ],
     },
     {
