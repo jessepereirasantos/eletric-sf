@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useCadStore } from '../store/useCadStore';
 import { BottomBar } from '../components/BottomBar';
 import { dimensionateCircuit } from '../utils/nbr5410';
@@ -50,6 +50,23 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
   ]);
 
   const [activeSheetId, setActiveSheetId] = useState<string>('sheet_1');
+  const [containerSize, setContainerSize] = useState({ w: 800, h: 600 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Observador de tamanho do contêiner para aplicar transform: scale automática
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        setContainerSize({
+          w: entry.contentRect.width - 60, // margem de segurança de 30px nas laterais
+          h: entry.contentRect.height - 60
+        });
+      }
+    });
+    resizeObserver.observe(containerRef.current);
+    return () => resizeObserver.disconnect();
+  }, []);
 
   // Adicionar uma nova folha técnica
   const handleAddSheet = () => {
@@ -79,8 +96,8 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
 
   const activeSheet = sheets.find(s => s.id === activeSheetId) || sheets[0];
 
-  // Configurações de tamanho real de folha ABNT (em pixels aproximados para exibição 96dpi)
-  const getSheetDimensions = (size: 'A0' | 'A1' | 'A2' | 'A3' | 'A4', orientation: 'landscape' | 'portrait') => {
+  // Configurações de tamanho real de folha ABNT (em milímetros)
+  const getSheetDimensionsMM = (size: 'A0' | 'A1' | 'A2' | 'A3' | 'A4', orientation: 'landscape' | 'portrait') => {
     const sizes = {
       A0: { w: 1189, h: 841 },
       A1: { w: 841, h: 594 },
@@ -92,7 +109,15 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
     return orientation === 'landscape' ? { w: dim.w, h: dim.h } : { w: dim.h, h: dim.w };
   };
 
-  const dim = getSheetDimensions(activeSheet.size, activeSheet.orientation);
+  const dimMM = getSheetDimensionsMM(activeSheet.size, activeSheet.orientation);
+  
+  // Fator de escala de pixels técnicos (escala real interna)
+  const scaleMultiplier = 3.5;
+  const sheetPixelW = dimMM.w * scaleMultiplier;
+  const sheetPixelH = dimMM.h * scaleMultiplier;
+
+  // Escala final de exibição para caber no contêiner do monitor
+  const fitScale = Math.min(containerSize.w / sheetPixelW, containerSize.h / sheetPixelH);
 
   // Alterar tipos de conteúdo alocados na folha técnica
   const toggleContent = (type: 'planta' | 'cargas' | 'materiais' | 'unifilar') => {
@@ -147,25 +172,23 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
             position: absolute;
             bottom: 0;
             right: 0;
-            width: 320px;
-            height: 140px;
+            width: 280px;
+            height: 110px;
             border-top: 1.5px solid #000;
             border-left: 1.5px solid #000;
             background: #fafafa;
-            padding: 12px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            font-size: 10px;
+            font-size: 8.5px;
             line-height: 1.4;
           }
-          .stamp-title { font-weight: bold; font-size: 11px; margin-bottom: 4px; text-transform: uppercase; }
+          .stamp-title { font-weight: bold; font-size: 9.5px; margin-bottom: 2px; text-transform: uppercase; }
           .grid-container {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            gap: 16px;
             height: 100%;
-            padding-bottom: 150px;
           }
           .block {
             border: 1px dashed #cbd5e1;
@@ -174,9 +197,9 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
             background: #fdfdfd;
             overflow: auto;
           }
-          h3 { font-size: 14px; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 10px; }
-          table { width: 100%; border-collapse: collapse; font-size: 9px; }
-          th, td { border: 1px solid #000; padding: 6px; text-align: left; }
+          h3 { font-size: 11px; border-bottom: 2.0px solid #000; padding-bottom: 4px; margin-bottom: 10px; text-transform: uppercase; color: #334155; }
+          table { width: 100%; border-collapse: collapse; font-size: 8.5px; }
+          th, td { border: 1px solid #000; padding: 5px; text-align: left; }
           th { background: #f1f5f9; }
           .mono { font-family: monospace; font-weight: bold; }
           @media print {
@@ -187,38 +210,42 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
       </head>
       <body>
         ${sheets.map(s => {
-          const sDim = getSheetDimensions(s.size, s.orientation);
-          // Geramos HTML estático para cada bloco ativado na prancha
+          const sDim = getSheetDimensionsMM(s.size, s.orientation);
+          const isPrintSmall = s.size === 'A3' || s.size === 'A4';
+          const printGridCols = isPrintSmall || s.contentTypes.length === 1 ? '1fr' : '1fr 1fr';
+          const printPaddingBot = isPrintSmall ? '140px' : '120px';
+
           return `
             <div class="sheet-print-page" style="width: ${sDim.w}mm; height: ${sDim.h}mm;">
-              <div class="inner-border">
-                <div style="font-size: 14px; font-weight: bold; margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 6px;">
-                  ${s.code} — ${s.title}
+              <div class="inner-border" style="padding-bottom: ${printPaddingBot};">
+                <div style="font-size: 13px; font-weight: bold; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 5px; display: flex; justify-content: space-between;">
+                  <span>${s.code} — ${s.title}</span>
+                  <span style="font-size: 9px; font-weight: normal; color: #64748b;">Escala de Impressão (${s.size})</span>
                 </div>
 
-                <div class="grid-container" style="grid-template-columns: ${s.contentTypes.length > 1 ? '1fr 1fr' : '1fr'}">
+                <div class="grid-container" style="grid-template-columns: ${printGridCols}; flex: 1;">
                   ${s.contentTypes.includes('planta') ? `
-                    <div class="block">
+                    <div class="block" style="display: flex; flex-direction: column;">
                       <h3>Planta de Distribuição Elétrica</h3>
-                      <div style="text-align: center; color: #64748b; font-size: 12px; padding: 40px 0;">
-                        [ Planta Baixa 2D Renderizada em Escala 1:${useCadStore.getState().projectScale} ]
-                        <div style="margin-top: 10px; font-size: 10px;">Paredes e Eletrodutos Conforme NBR 5410</div>
+                      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #64748b; font-size: 11px; padding: 25px 0;">
+                        <strong>[ Planta Baixa 2D Renderizada em Escala 1:${useCadStore.getState().projectScale} ]</strong>
+                        <div style="margin-top: 6px; font-size: 9px;">Paredes e Eletrodutos Conforme NBR 5410</div>
                       </div>
                     </div>
                   ` : ''}
 
                   ${s.contentTypes.includes('unifilar') ? `
-                    <div class="block">
+                    <div class="block" style="display: flex; flex-direction: column;">
                       <h3>Esquema Unifilar do Quadro</h3>
-                      <div style="text-align: center; color: #64748b; font-size: 12px; padding: 40px 0;">
-                        [ Diagrama Unifilar de Circuitos ]
+                      <div style="flex: 1; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 11px; padding: 25px 0;">
+                        <strong>[ Diagrama Unifilar de Circuitos ]</strong>
                       </div>
                     </div>
                   ` : ''}
 
                   ${s.contentTypes.includes('cargas') ? `
                     <div class="block">
-                      <h3>Quadro de Dimensionamento de Circuitos</h3>
+                      <h3>Quadro de Cargas (NBR 5410)</h3>
                       <table>
                         <thead>
                           <tr>
@@ -272,13 +299,13 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
                 </div>
 
                 <!-- Carimbo Selo Técnico ABNT NBR 6492 -->
-                <div class="stamp-box" style="margin-left: 25px;">
+                <div class="stamp-box">
                   <div>
                     <div class="stamp-title">PROJETO: ${projectName}</div>
                     <div>Proprietário: ${paperOwner}</div>
                     <div>Desenhista/Responsável: ${paperDesigner}</div>
                   </div>
-                  <div style="display: flex; justify-content: space-between; border-top: 1px solid #ddd; paddingTop: 6px; font-size: 8.5px; color: #475569;">
+                  <div style="display: flex; justify-content: space-between; border-top: 1px solid #ddd; padding-top: 4px; font-size: 7.5px; color: #475569;">
                     <span>Escala: 1:${useCadStore.getState().projectScale}</span>
                     <span>Data: ${paperDate}</span>
                     <strong style="color: #000;">Folha: ${s.code}</strong>
@@ -296,6 +323,10 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
     pw.document.close();
     pw.onload = () => setTimeout(() => pw.print(), 500);
   };
+
+  const isSmallSheet = activeSheet.size === 'A3' || activeSheet.size === 'A4';
+  const gridColumns = isSmallSheet || activeSheet.contentTypes.length === 1 ? '1fr' : '1fr 1fr';
+  const paddingBottom = isSmallSheet ? '140px' : '120px';
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#090d16', color: '#f8fafc', overflow: 'hidden' }}>
@@ -421,22 +452,38 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
           </button>
         </div>
 
-        {/* Simulador da Folha ABNT (Paper Space) */}
-        <div style={{ flex: 1, backgroundColor: '#0b0f19', border: '1px solid #1e293b', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'auto', padding: '40px' }}>
+        {/* Simulador da Folha ABNT (Paper Space) com Redimensionamento e Escalonamento Dinâmico */}
+        <div
+          ref={containerRef}
+          style={{
+            flex: 1,
+            backgroundColor: '#0b0f19',
+            border: '1px solid #1e293b',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            position: 'relative',
+          }}
+        >
           
           {/* Folha Física Simulada (W3C ABNT) */}
           <div style={{
-            width: `${dim.w * 0.9}px`,
-            height: `${dim.h * 0.9}px`,
+            width: `${sheetPixelW}px`,
+            height: `${sheetPixelH}px`,
+            transform: `scale(${fitScale})`,
+            transformOrigin: 'center center',
             backgroundColor: '#ffffff',
-            border: '2px solid #0f172a',
+            border: '2.5px solid #0f172a',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
             color: '#0f172a',
             padding: '25px',
             display: 'flex',
             flexDirection: 'column',
             position: 'relative',
-            transition: 'all 0.2s ease'
+            transition: 'all 0.2s ease',
+            flexShrink: 0
           }}>
             {/* Margens de Borda da Folha */}
             <div style={{
@@ -445,7 +492,8 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
               display: 'flex',
               flexDirection: 'column',
               padding: '20px',
-              position: 'relative'
+              position: 'relative',
+              paddingBottom: paddingBottom
             }}>
               
               {/* Título de Prancha */}
@@ -457,10 +505,10 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
               {/* Elementos Ativos no Layout */}
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: activeSheet.contentTypes.length > 1 ? '1fr 1fr' : '1fr',
+                gridTemplateColumns: gridColumns,
                 gap: '16px',
                 height: '100%',
-                paddingBottom: '130px'
+                overflow: 'auto'
               }}>
                 {activeSheet.contentTypes.map((type) => {
                   if (type === 'planta') {
@@ -532,7 +580,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
                             </tr>
                           </thead>
                           <tbody>
-                            {materialsList.slice(0, 6).map((item, i) => (
+                            {materialsList.slice(0, 8).map((item, i) => (
                               <tr key={i}>
                                 <td>{item.name}</td>
                                 <td className="mono">{item.qty}</td>

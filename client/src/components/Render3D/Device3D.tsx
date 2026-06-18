@@ -100,33 +100,29 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
 
   // Desenhar portas com painéis pivotados se  // Desenhar portas realistas
   if (device.type.startsWith('door')) {
-    // Porta aberta a 30 graus por padrão para visualização realista e dinâmica
-    const angleOffset = device.flip ? -Math.PI / 6 : Math.PI / 6;
     const portalThickness = 0.03;
     const frameDepth = 0.16; // espessura do batente cobrindo a parede
     return (
-      <group position={[device.x, device.y, z]}>
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
         {/* Batente/Portal da porta */}
-        <group rotation={[0, 0, rotationRad]}>
-          {/* Batente Esquerdo */}
-          <mesh position={[-width / 2 + portalThickness / 2, 0, 0]}>
-            <boxGeometry args={[portalThickness, frameDepth, height]} />
-            <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
-          </mesh>
-          {/* Batente Direito */}
-          <mesh position={[width / 2 - portalThickness / 2, 0, 0]}>
-            <boxGeometry args={[portalThickness, frameDepth, height]} />
-            <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
-          </mesh>
-          {/* Batente Superior */}
-          <mesh position={[0, 0, height / 2 - portalThickness / 2]}>
-            <boxGeometry args={[width, frameDepth, portalThickness]} />
-            <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
-          </mesh>
-        </group>
+        {/* Batente Esquerdo */}
+        <mesh position={[-width / 2 + portalThickness / 2, 0, 0]}>
+          <boxGeometry args={[portalThickness, frameDepth, height]} />
+          <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
+        </mesh>
+        {/* Batente Direito */}
+        <mesh position={[width / 2 - portalThickness / 2, 0, 0]}>
+          <boxGeometry args={[portalThickness, frameDepth, height]} />
+          <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
+        </mesh>
+        {/* Batente Superior */}
+        <mesh position={[0, 0, height / 2 - portalThickness / 2]}>
+          <boxGeometry args={[width, frameDepth, portalThickness]} />
+          <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
+        </mesh>
 
-        {/* Folha da porta rotacionada com espessura real e maçaneta */}
-        <group rotation={[0, 0, rotationRad + angleOffset]} position={[device.flip ? width / 2 - portalThickness : -width / 2 + portalThickness, 0, 0]}>
+        {/* Folha da porta - FECHADA e alinhada localmente */}
+        <group position={[device.flip ? width / 2 - portalThickness : -width / 2 + portalThickness, 0, 0]}>
           {/* Folha de Madeira */}
           <mesh position={[device.flip ? -width / 2 + portalThickness : width / 2 - portalThickness, 0, 0]}>
             <boxGeometry args={[width - portalThickness * 2, depth, height - portalThickness]} />
@@ -142,19 +138,19 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
           </mesh>
 
           {/* Maçaneta Metálica */}
-          <group position={[device.flip ? -width + 0.10 : width - 0.10, 0, 0.0]}>
+          <group position={[device.flip ? -width + 0.10 + portalThickness * 2 : width - 0.10 - portalThickness * 2, 0, 0.0]}>
             {/* Haste interna */}
-            <mesh position={[0, frameDepth / 4, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
               <cylinderGeometry args={[0.008, 0.008, 0.08, 8]} />
               <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
             </mesh>
             {/* Maçaneta lado 1 */}
-            <mesh position={[0, frameDepth / 4 + 0.04, 0]} rotation={[0, 0, device.flip ? Math.PI : 0]}>
+            <mesh position={[0, 0.04, 0]} rotation={[0, 0, device.flip ? Math.PI : 0]}>
               <boxGeometry args={[0.02, 0.015, 0.12]} />
               <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
             </mesh>
             {/* Maçaneta lado 2 */}
-            <mesh position={[0, frameDepth / 4 - 0.04, 0]} rotation={[0, 0, device.flip ? Math.PI : 0]}>
+            <mesh position={[0, -0.04, 0]} rotation={[0, 0, device.flip ? Math.PI : 0]}>
               <boxGeometry args={[0.02, 0.015, 0.12]} />
               <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
             </mesh>
@@ -167,46 +163,56 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
   // Desenhar janelas realistas
   if (device.type === 'window') {
     const frameThickness = 0.04;
+    const frameDepth = 0.16; // espessura cobrindo a parede
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        {/* Moldura de Alumínio da janela */}
-        <mesh>
-          <boxGeometry args={[width, 0.15, height]} />
-          <meshStandardMaterial
-            color="#334155"
-            metalness={0.8}
-            roughness={0.2}
-            wireframe={shadingMode === 'wireframe'}
-            transparent={shadingMode === 'transparent'}
-            opacity={shadingMode === 'transparent' ? 0.35 : 1.0}
-            clippingPlanes={clippingPlanes}
-            clipShadows={true}
-          />
+        {/* Moldura Vazada Branca de Alumínio */}
+        {/* Superior */}
+        <mesh position={[0, 0, height / 2 - frameThickness / 2]}>
+          <boxGeometry args={[width, frameDepth, frameThickness]} />
+          <meshStandardMaterial color="#f8fafc" metalness={0.5} roughness={0.3} clippingPlanes={clippingPlanes} />
         </mesh>
-        {/* Montante central */}
+        {/* Inferior */}
+        <mesh position={[0, 0, -height / 2 + frameThickness / 2]}>
+          <boxGeometry args={[width, frameDepth, frameThickness]} />
+          <meshStandardMaterial color="#f8fafc" metalness={0.5} roughness={0.3} clippingPlanes={clippingPlanes} />
+        </mesh>
+        {/* Esquerda */}
+        <mesh position={[-width / 2 + frameThickness / 2, 0, 0]}>
+          <boxGeometry args={[frameThickness, frameDepth, height - frameThickness * 2]} />
+          <meshStandardMaterial color="#f8fafc" metalness={0.5} roughness={0.3} clippingPlanes={clippingPlanes} />
+        </mesh>
+        {/* Direita */}
+        <mesh position={[width / 2 - frameThickness / 2, 0, 0]}>
+          <boxGeometry args={[frameThickness, frameDepth, height - frameThickness * 2]} />
+          <meshStandardMaterial color="#f8fafc" metalness={0.5} roughness={0.3} clippingPlanes={clippingPlanes} />
+        </mesh>
+
+        {/* Montante central vertical branco */}
         <mesh position={[0, 0, 0]}>
-          <boxGeometry args={[frameThickness, 0.16, height - frameThickness]} />
-          <meshStandardMaterial color="#1e293b" metalness={0.8} clippingPlanes={clippingPlanes} />
+          <boxGeometry args={[frameThickness, frameDepth, height - frameThickness * 2]} />
+          <meshStandardMaterial color="#f8fafc" metalness={0.5} roughness={0.3} clippingPlanes={clippingPlanes} />
         </mesh>
+
         {/* Vidro translúcido duplo com reflexo real */}
-        <mesh position={[-width / 4, 0.02, 0]}>
+        <mesh position={[-width / 4, 0, 0]}>
           <boxGeometry args={[width / 2 - frameThickness, 0.02, height - frameThickness * 2]} />
           <meshStandardMaterial
             color="#a5f3fc"
             transparent={true}
-            opacity={shadingMode === 'transparent' ? 0.10 : 0.5}
+            opacity={shadingMode === 'transparent' ? 0.10 : 0.4}
             roughness={0.05}
             metalness={0.95}
             clippingPlanes={clippingPlanes}
             clipShadows={true}
           />
         </mesh>
-        <mesh position={[width / 4, -0.02, 0]}>
+        <mesh position={[width / 4, 0, 0]}>
           <boxGeometry args={[width / 2 - frameThickness, 0.02, height - frameThickness * 2]} />
           <meshStandardMaterial
             color="#a5f3fc"
             transparent={true}
-            opacity={shadingMode === 'transparent' ? 0.10 : 0.5}
+            opacity={shadingMode === 'transparent' ? 0.10 : 0.4}
             roughness={0.05}
             metalness={0.95}
             clippingPlanes={clippingPlanes}

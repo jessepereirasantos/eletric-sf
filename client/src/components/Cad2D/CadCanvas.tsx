@@ -11,14 +11,112 @@ interface CadCanvasProps {
   height: number;
 }
 
-const getConduitPoints = (p1: Point2D, p2: Point2D, inWall: boolean, waypoints?: Point2D[], ppm: number = 100) => {
-  const midX = (p1.x + p2.x) / 2;
-  const midY = (p1.y + p2.y) / 2;
+const getWallRoute = (ptA: Point2D, ptB: Point2D, walls: Wall[]): Point2D[] | null => {
+  const findClosestWall = (pt: Point2D) => {
+    let closestWall: Wall | null = null;
+    let minDist = 0.5; // tolerância de 50cm
+    for (const w of walls) {
+      const res = getClosestPointOnSegment(pt, w.p1, w.p2);
+      if (res.distance < minDist) {
+        minDist = res.distance;
+        closestWall = w;
+      }
+    }
+    return closestWall;
+  };
+
+  const wallA = findClosestWall(ptA);
+  const wallB = findClosestWall(ptB);
+
+  if (!wallA || !wallB) return null;
+  if (wallA.id === wallB.id) {
+    return [ptA, ptB];
+  }
+
+  // Grafo de paredes conectadas pelas quinas
+  const adj: Record<string, string[]> = {};
+  walls.forEach(w => { adj[w.id] = []; });
+
+  const shareVertex = (w1: Wall, w2: Wall) => {
+    const dist = (pA: Point2D, pB: Point2D) => Math.sqrt((pA.x - pB.x) ** 2 + (pA.y - pB.y) ** 2);
+    const tol = 0.15; // tolerância para quinas
+    return dist(w1.p1, w2.p1) < tol || dist(w1.p1, w2.p2) < tol ||
+           dist(w1.p2, w2.p1) < tol || dist(w1.p2, w2.p2) < tol;
+  };
+
+  for (let i = 0; i < walls.length; i++) {
+    for (let j = i + 1; j < walls.length; j++) {
+      if (shareVertex(walls[i], walls[j])) {
+        adj[walls[i].id].push(walls[j].id);
+        adj[walls[j].id].push(walls[i].id);
+      }
+    }
+  }
+
+  // BFS para encontrar o menor caminho de paredes
+  const queue: string[] = [wallA.id];
+  const visited = new Set<string>([wallA.id]);
+  const parent: Record<string, string> = {};
+  let found = false;
+
+  while (queue.length > 0) {
+    const curr = queue.shift()!;
+    if (curr === wallB.id) {
+      found = true;
+      break;
+    }
+    const neighbors = adj[curr] || [];
+    for (const n of neighbors) {
+      if (!visited.has(n)) {
+        visited.add(n);
+        parent[n] = curr;
+        queue.push(n);
+      }
+    }
+  }
+
+  if (!found) return null;
+
+  const wallPath: string[] = [];
+  let temp = wallB.id;
+  while (temp !== wallA.id) {
+    wallPath.push(temp);
+    temp = parent[temp];
+  }
+  wallPath.push(wallA.id);
+  wallPath.reverse();
+
+  const routePoints: Point2D[] = [ptA];
+  for (let i = 0; i < wallPath.length - 1; i++) {
+    const w1 = walls.find(w => w.id === wallPath[i])!;
+    const w2 = walls.find(w => w.id === wallPath[i + 1])!;
+    
+    const dist = (pA: Point2D, pB: Point2D) => Math.sqrt((pA.x - pB.x) ** 2 + (pA.y - pB.y) ** 2);
+    let bestPt = w1.p2;
+    let minDist = Infinity;
+    [w1.p1, w1.p2].forEach(pX => {
+      [w2.p1, w2.p2].forEach(pY => {
+        const d = dist(pX, pY);
+        if (d < minDist) {
+          minDist = d;
+          bestPt = pX;
+        }
+      });
+    });
+    routePoints.push(bestPt);
+  }
+  routePoints.push(ptB);
+  return routePoints;
+};
+
+const getConduitPoints = (fromDev: Device, toDev: Device, walls: Wall[], waypoints?: Point2D[], ppm: number = 100) => {
+  const p1 = { x: fromDev.x * ppm, y: fromDev.y * ppm };
+  const p2 = { x: toDev.x * ppm, y: toDev.y * ppm };
   const dx = p2.x - p1.x;
   const dy = p2.y - p1.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
 
-  if (dist === 0) return { points: [p1.x, p1.y, p2.x, p2.y], midPoint: p1, angle: 0 };
+  if (dist === 0) return { points: [p1.x, p1.y, p2.x, p2.y], midPoint: p1, angle: 0, inWall: false };
 
   // Se houver waypoints customizados (em metros), traçar o caminho passando por eles
   if (waypoints && waypoints.length > 0) {
@@ -28,12 +126,10 @@ const getConduitPoints = (p1: Point2D, p2: Point2D, inWall: boolean, waypoints?:
     });
     pts.push(p2.x, p2.y);
 
-    // Calcular o ponto do meio do caminho para renderizar a fiação
     const midIdx = Math.floor(pts.length / 4) * 2;
     const midSegmentX = pts[midIdx];
     const midSegmentY = pts[midIdx + 1];
 
-    // Calcular ângulo aproximado do meio
     let ang = 0;
     if (pts.length >= 4) {
       const idx = Math.max(0, midIdx - 2);
@@ -46,17 +142,33 @@ const getConduitPoints = (p1: Point2D, p2: Point2D, inWall: boolean, waypoints?:
       points: pts,
       midPoint: { x: midSegmentX, y: midSegmentY },
       angle: ang,
+      inWall: false
     };
   }
 
-  if (inWall) {
-    return {
-      points: [p1.x, p1.y, p2.x, p2.y],
-      midPoint: { x: midX, y: midY },
-      angle: Math.atan2(dy, dx) * (180 / Math.PI),
-    };
+  // Tentar encontrar rota automática por dentro das paredes
+  const isCeilingA = fromDev.type === 'ceiling_light' || fromDev.type === 'lampada' || fromDev.type === 'box_octogonal' || fromDev.type === 'fluorescent';
+  const isCeilingB = toDev.type === 'ceiling_light' || toDev.type === 'lampada' || toDev.type === 'box_octogonal' || toDev.type === 'fluorescent';
+  
+  if (!isCeilingA && !isCeilingB) {
+    const wallRoute = getWallRoute({ x: fromDev.x, y: fromDev.y }, { x: toDev.x, y: toDev.y }, walls);
+    if (wallRoute && wallRoute.length > 0) {
+      const pts: number[] = [];
+      wallRoute.forEach(pt => {
+        pts.push(pt.x * ppm, pt.y * ppm);
+      });
+      const midIdx = Math.floor(pts.length / 4) * 2;
+      return {
+        points: pts,
+        midPoint: { x: pts[midIdx], y: pts[midIdx + 1] },
+        angle: Math.atan2(dy, dx) * (180 / Math.PI),
+        inWall: true
+      };
+    }
   }
 
+  const midX = (p1.x + p2.x) / 2;
+  const midY = (p1.y + p2.y) / 2;
   const offset = Math.min(dist * 0.12, 40);
   const nx = -dy / dist;
   const ny = dx / dist;
@@ -67,28 +179,12 @@ const getConduitPoints = (p1: Point2D, p2: Point2D, inWall: boolean, waypoints?:
     points: [p1.x, p1.y, ctrlX, ctrlY, p2.x, p2.y],
     midPoint: { x: ctrlX, y: ctrlY },
     angle: Math.atan2(dy, dx) * (180 / Math.PI),
+    inWall: false
   };
 };
 
 const isEsquadria = (type: string) => {
   return type.startsWith('door') || type === 'window' || type === 'open_van';
-};
-
-const isConduitInWall = (devA: Device, devB: Device, walls: Wall[]): boolean => {
-  const isCeilingA = devA.type === 'ceiling_light' || devA.type === 'lampada' || devA.type === 'box_octogonal' || devA.type === 'fluorescent';
-  const isCeilingB = devB.type === 'ceiling_light' || devB.type === 'lampada' || devB.type === 'box_octogonal' || devB.type === 'fluorescent';
-  if (isCeilingA || isCeilingB) return false;
-
-  for (const wall of walls) {
-    const resA = getClosestPointOnSegment({ x: devA.x, y: devA.y }, wall.p1, wall.p2);
-    const resB = getClosestPointOnSegment({ x: devB.x, y: devB.y }, wall.p1, wall.p2);
-
-    const maxDist = wall.thickness / 2 + 0.05; // 5cm de tolerância além da face da parede
-    if (resA.distance <= maxDist && resB.distance <= maxDist) {
-      return true;
-    }
-  }
-  return false;
 };
 
 
@@ -1964,10 +2060,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
           const fromDev = devices.find(d => d.id === conduit.fromDeviceId);
           const toDev = devices.find(d => d.id === conduit.toDeviceId);
           if (!fromDev || !toDev) return null;
-          const p1 = { x: fromDev.x * ppm, y: fromDev.y * ppm };
-          const p2 = { x: toDev.x * ppm, y: toDev.y * ppm };
-          const inWall = isConduitInWall(fromDev, toDev, walls);
-          const curve = getConduitPoints(p1, p2, inWall, conduit.waypoints, ppm);
+          const curve = getConduitPoints(fromDev, toDev, walls, conduit.waypoints, ppm);
           const wires = wiringRouting[conduit.id] || [];
           const isConduitSelected = selectedConduitId === conduit.id;
           const conduitColor = isConduitSelected ? "#0078d7" : "#6b7280";
@@ -1980,7 +2073,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                    points={curve.points}
                    stroke="rgba(0, 120, 215, 0.25)"
                    strokeWidth={14}
-                   tension={inWall ? undefined : 0.4}
+                   tension={curve.inWall ? undefined : 0.4}
                    listening={false}
                  />
                )}
@@ -1988,7 +2081,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                  points={curve.points}
                  stroke={conduitColor}
                  strokeWidth={conduitWidth}
-                 tension={inWall ? undefined : 0.4}
+                 tension={curve.inWall ? undefined : 0.4}
                  opacity={0.85}
                  hitStrokeWidth={18}
                  dash={isConduitSelected ? [8, 4] : undefined}
@@ -2085,7 +2178,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                   points={curve.points}
                   stroke="transparent"
                   strokeWidth={20}
-                  tension={inWall ? undefined : 0.4}
+                  tension={curve.inWall ? undefined : 0.4}
                   onDblClick={(e) => {
                     e.cancelBubble = true;
                     const stage = stageRef.current;

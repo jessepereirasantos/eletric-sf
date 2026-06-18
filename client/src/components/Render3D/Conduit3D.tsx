@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { useCadStore } from '../../store/useCadStore';
-import type { Device, Point2D } from '../../store/useCadStore';
+import type { Device, Point2D, Wall } from '../../store/useCadStore';
 
 interface Conduit3DProps {
   id: string;
@@ -12,18 +12,128 @@ interface Conduit3DProps {
 }
 
 export const Conduit3D: React.FC<Conduit3DProps> = ({ fromDevice, toDevice, diameter, waypoints }) => {
-  const { shadingMode, clippingState } = useCadStore();
+  const { shadingMode, clippingState, walls } = useCadStore();
 
   const points = useMemo(() => {
-    // 1. Obter alturas Z normatizadas de cada dispositivo
+    const getClosestPointOnSegmentLocal = (pt: Point2D, p1: Point2D, p2: Point2D) => {
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const t2 = dx * dx + dy * dy;
+      if (t2 === 0) {
+        const dist = Math.sqrt((pt.x - p1.x) ** 2 + (pt.y - p1.y) ** 2);
+        return { point: p1, distance: dist };
+      }
+      let t = ((pt.x - p1.x) * dx + (pt.y - p1.y) * dy) / t2;
+      t = Math.max(0, Math.min(1, t));
+      const proj = { x: p1.x + t * dx, y: p1.y + t * dy };
+      const dist = Math.sqrt((pt.x - proj.x) ** 2 + (pt.y - proj.y) ** 2);
+      return { point: proj, distance: dist };
+    };
+
+    const getWallRouteLocal = (ptA: Point2D, ptB: Point2D, wList: Wall[]): Point2D[] | null => {
+      const findClosestWall = (pt: Point2D) => {
+        let closestWall: Wall | null = null;
+        let minDist = 0.5;
+        for (const w of wList) {
+          const res = getClosestPointOnSegmentLocal(pt, w.p1, w.p2);
+          if (res.distance < minDist) {
+            minDist = res.distance;
+            closestWall = w;
+          }
+        }
+        return closestWall;
+      };
+
+      const wallA = findClosestWall(ptA);
+      const wallB = findClosestWall(ptB);
+
+      if (!wallA || !wallB) return null;
+      if (wallA.id === wallB.id) {
+        return [ptA, ptB];
+      }
+
+      const adj: Record<string, string[]> = {};
+      wList.forEach(w => { adj[w.id] = []; });
+
+      const shareVertex = (w1: Wall, w2: Wall) => {
+        const dist = (pA: Point2D, pB: Point2D) => Math.sqrt((pA.x - pB.x) ** 2 + (pA.y - pB.y) ** 2);
+        const tol = 0.15;
+        return dist(w1.p1, w2.p1) < tol || dist(w1.p1, w2.p2) < tol ||
+               dist(w1.p2, w2.p1) < tol || dist(w1.p2, w2.p2) < tol;
+      };
+
+      for (let i = 0; i < wList.length; i++) {
+        for (let j = i + 1; j < wList.length; j++) {
+          if (shareVertex(wList[i], wList[j])) {
+            adj[wList[i].id].push(wList[j].id);
+            adj[wList[j].id].push(wList[i].id);
+          }
+        }
+      }
+
+      const queue: string[] = [wallA.id];
+      const visited = new Set<string>([wallA.id]);
+      const parent: Record<string, string> = {};
+      let found = false;
+
+      while (queue.length > 0) {
+        const curr = queue.shift()!;
+        if (curr === wallB.id) {
+          found = true;
+          break;
+        }
+        const neighbors = adj[curr] || [];
+        for (const n of neighbors) {
+          if (!visited.has(n)) {
+            visited.add(n);
+            parent[n] = curr;
+            queue.push(n);
+          }
+        }
+      }
+
+      if (!found) return null;
+
+      const wallPath: string[] = [];
+      let temp = wallB.id;
+      while (temp !== wallA.id) {
+        wallPath.push(temp);
+        temp = parent[temp];
+      }
+      wallPath.push(wallA.id);
+      wallPath.reverse();
+
+      const routePoints: Point2D[] = [ptA];
+      for (let i = 0; i < wallPath.length - 1; i++) {
+        const w1 = wList.find(w => w.id === wallPath[i])!;
+        const w2 = wList.find(w => w.id === wallPath[i + 1])!;
+        
+        const dist = (pA: Point2D, pB: Point2D) => Math.sqrt((pA.x - pB.x) ** 2 + (pA.y - pB.y) ** 2);
+        let bestPt = w1.p2;
+        let minDist = Infinity;
+        [w1.p1, w1.p2].forEach(pX => {
+          [w2.p1, w2.p2].forEach(pY => {
+            const d = dist(pX, pY);
+            if (d < minDist) {
+              minDist = d;
+              bestPt = pX;
+            }
+          });
+        });
+        routePoints.push(bestPt);
+      }
+      routePoints.push(ptB);
+      return routePoints;
+    };
+
     const getZ = (d: Device) => {
       const type = d.type;
       if (type.includes('baixa') || type === 'tomada_10a_nbr') return 0.30;
       if (type.includes('alta') || type.includes('tue_') || type === 'sconce') return 2.20;
-      if (type === 'ceiling_light' || type === 'lampada' || type === 'fluorescent' || type === 'box_octogonal') return 2.80; // teto
+      if (type === 'ceiling_light' || type === 'lampada' || type === 'fluorescent' || type === 'box_octogonal') return 2.80;
       if (type === 'qdc' || type === 'qgbt') return 1.50;
       if (type === 'poste') return 1.60;
-      return 1.10; // padrão médio
+      return 1.10;
     };
 
     const zA = getZ(fromDevice);
@@ -34,47 +144,41 @@ export const Conduit3D: React.FC<Conduit3DProps> = ({ fromDevice, toDevice, diam
 
     const pathPoints: THREE.Vector3[] = [];
 
-    // Se houver waypoints customizados (2D), traçar a prumada e o caminho interpolado por eles
     if (waypoints && waypoints.length > 0) {
       pathPoints.push(posA);
       waypoints.forEach(wp => {
-        // Assume altura média Z (ou interpola entre zA e zB) para os waypoints no espaço 3D
         const wpZ = zA === 2.80 || zB === 2.80 ? 2.80 : (zA + zB) / 2;
         pathPoints.push(new THREE.Vector3(wp.x, wp.y, wpZ));
       });
       pathPoints.push(posB);
     } else {
-      // Se um dispositivo estiver no teto e o outro na parede/baixo:
-      // A prumada deve seguir exatamente a coordenada (X, Y) do dispositivo na parede,
-      // descendo ortogonalmente de modo a se manter dentro do alinhamento da alvenaria.
-      if (zA === 2.80 && zB < 2.80) {
-        // Corre pelo teto (Z=2.8) até a prumada exata do dispositivo de destino (X, Y)
-        const tetoCtrl = new THREE.Vector3(toDevice.x, toDevice.y, 2.80);
-        // Faz uma pequena curva para entrar reto na alvenaria
-        const descidaCtrl = new THREE.Vector3(toDevice.x, toDevice.y, 2.70);
-        pathPoints.push(posA, tetoCtrl, descidaCtrl, posB);
-      } else if (zB === 2.80 && zA < 2.80) {
-        const descidaCtrl = new THREE.Vector3(fromDevice.x, fromDevice.y, 2.70);
-        const tetoCtrl = new THREE.Vector3(fromDevice.x, fromDevice.y, 2.80);
-        pathPoints.push(posA, descidaCtrl, tetoCtrl, posB);
-      } else if (zA < 2.80 && zB < 2.80 && zA !== zB) {
-        // Corre verticalmente dentro da mesma parede/prumada de um dispositivo ao outro
-        // Interpola ortogonalmente pelo eixo X/Y do destino ou origem para não desviar no 3D
-        const descidaCtrl = new THREE.Vector3(fromDevice.x, fromDevice.y, zB);
-        pathPoints.push(posA, descidaCtrl, posB);
+      const isCeilingA = fromDevice.type === 'ceiling_light' || fromDevice.type === 'lampada' || fromDevice.type === 'box_octogonal' || fromDevice.type === 'fluorescent';
+      const isCeilingB = toDevice.type === 'ceiling_light' || toDevice.type === 'lampada' || toDevice.type === 'box_octogonal' || toDevice.type === 'fluorescent';
+
+      if (!isCeilingA && !isCeilingB) {
+        const wallRoute = getWallRouteLocal({ x: fromDevice.x, y: fromDevice.y }, { x: toDevice.x, y: toDevice.y }, walls);
+        if (wallRoute && wallRoute.length > 0) {
+          pathPoints.push(posA);
+          pathPoints.push(new THREE.Vector3(fromDevice.x, fromDevice.y, 2.80));
+          for (let i = 1; i < wallRoute.length - 1; i++) {
+            pathPoints.push(new THREE.Vector3(wallRoute[i].x, wallRoute[i].y, 2.80));
+          }
+          pathPoints.push(new THREE.Vector3(toDevice.x, toDevice.y, 2.80));
+          pathPoints.push(posB);
+        } else {
+          pathPoints.push(posA, new THREE.Vector3(fromDevice.x, fromDevice.y, 2.80), new THREE.Vector3(toDevice.x, toDevice.y, 2.80), posB);
+        }
+      } else if (isCeilingA && !isCeilingB) {
+        pathPoints.push(posA, new THREE.Vector3(toDevice.x, toDevice.y, 2.80), posB);
+      } else if (!isCeilingA && isCeilingB) {
+        pathPoints.push(posA, new THREE.Vector3(fromDevice.x, fromDevice.y, 2.80), posB);
       } else {
-        // Se forem da mesma altura, faz uma curva sutil para baixo (efeito "barriga" de cabo/tubo)
-        const mid = new THREE.Vector3(
-          (fromDevice.x + toDevice.x) / 2,
-          (fromDevice.y + toDevice.y) / 2,
-          zA - 0.08 // curva 8cm para baixo
-        );
-        pathPoints.push(posA, mid, posB);
+        pathPoints.push(posA, posB);
       }
     }
 
     return pathPoints;
-  }, [fromDevice, toDevice, waypoints]);
+  }, [fromDevice, toDevice, waypoints, walls]);
 
   // Criar curva CatmullRom a partir dos pontos calculados
   const curve = useMemo(() => {
