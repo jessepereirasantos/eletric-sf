@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import * as THREE from 'three';
+import { useCadStore } from '../../store/useCadStore';
 import type { Wall } from '../../store/useCadStore';
 
 interface Wall3DProps {
@@ -6,6 +8,8 @@ interface Wall3DProps {
 }
 
 export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
+  const { shadingMode, clippingState } = useCadStore();
+
   const L = Math.sqrt(Math.pow(wall.p2.x - wall.p1.x, 2) + Math.pow(wall.p2.y - wall.p1.y, 2));
   if (L === 0) return null;
 
@@ -33,6 +37,15 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
 
   const matProps = getMaterialProperties();
 
+  // Planos de corte dinâmicos (Clipping Planes)
+  const clippingPlanes = useMemo(() => {
+    if (!clippingState.enabled) return [];
+    let normal = new THREE.Vector3(0, 0, -1); // Cortar acima de Z
+    if (clippingState.axis === 'X') normal = new THREE.Vector3(-1, 0, 0);
+    if (clippingState.axis === 'Y') normal = new THREE.Vector3(0, -1, 0);
+    return [new THREE.Plane(normal, clippingState.value)];
+  }, [clippingState]);
+
   // 1. Calcular os segmentos cheios da parede (onde não há vãos)
   const segments: { start: number; end: number }[] = [];
   let lastPos = 0;
@@ -59,7 +72,14 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
     return (
       <mesh key={`full-${idx}`} position={[x, y, wall.height / 2]} rotation={[0, 0, angle]}>
         <boxGeometry args={[segL, wall.thickness, wall.height]} />
-        <meshStandardMaterial {...matProps} />
+        <meshStandardMaterial
+          {...matProps}
+          wireframe={shadingMode === 'wireframe'}
+          transparent={shadingMode === 'transparent' || matProps.transparent}
+          opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
+          clippingPlanes={clippingPlanes}
+          clipShadows={true}
+        />
       </mesh>
     );
   });
@@ -89,12 +109,26 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
           {/* Parede abaixo da janela */}
           <mesh position={[x, y, belowHeight / 2]} rotation={[0, 0, angle]}>
             <boxGeometry args={[cL, wall.thickness, belowHeight]} />
-            <meshStandardMaterial {...matProps} />
+            <meshStandardMaterial
+              {...matProps}
+              wireframe={shadingMode === 'wireframe'}
+              transparent={shadingMode === 'transparent' || matProps.transparent}
+              opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
+              clippingPlanes={clippingPlanes}
+              clipShadows={true}
+            />
           </mesh>
           {/* Parede acima da janela */}
           <mesh position={[x, y, wall.height - aboveHeight / 2]} rotation={[0, 0, angle]}>
             <boxGeometry args={[cL, wall.thickness, aboveHeight]} />
-            <meshStandardMaterial {...matProps} />
+            <meshStandardMaterial
+              {...matProps}
+              wireframe={shadingMode === 'wireframe'}
+              transparent={shadingMode === 'transparent' || matProps.transparent}
+              opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
+              clippingPlanes={clippingPlanes}
+              clipShadows={true}
+            />
           </mesh>
         </React.Fragment>
       );
@@ -104,7 +138,14 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
       return (
         <mesh key={`cutout-fill-${idx}`} position={[x, y, wall.height - aboveHeight / 2]} rotation={[0, 0, angle]}>
           <boxGeometry args={[cL, wall.thickness, aboveHeight]} />
-          <meshStandardMaterial {...matProps} />
+          <meshStandardMaterial
+            {...matProps}
+            wireframe={shadingMode === 'wireframe'}
+            transparent={shadingMode === 'transparent' || matProps.transparent}
+            opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
+            clippingPlanes={clippingPlanes}
+            clipShadows={true}
+          />
         </mesh>
       );
     }

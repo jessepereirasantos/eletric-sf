@@ -74,6 +74,7 @@ export interface Conduit {
   type: 'flexivel' | 'rigido';
   isManualWiring?: boolean;
   manualWires?: ConduitWireManual[];
+  waypoints?: Point2D[];
 }
 
 export interface MaterialItem {
@@ -293,6 +294,20 @@ interface CadState {
   setPaperPos: (pos: Point2D) => void;
   updatePaperStamp: (fields: Partial<{ title: string; owner: string; designer: string; date: string; sheetNum: string }>) => void;
 
+  // Estado de Visualizações e Barra MEP (Revit-Like)
+  activeViewFilter: 'completa' | 'infraestrutura' | 'fiacao_dispositivos';
+  shadingMode: 'shaded' | 'transparent' | 'wireframe';
+  clippingState: { enabled: boolean; axis: 'X' | 'Y' | 'Z'; value: number };
+  projectScale: number; // Ex: 50 para 1:50, 100 para 1:100
+  utilityGridType: 'monofasico' | 'bifasico' | 'trifasico';
+
+  setViewFilter: (filter: 'completa' | 'infraestrutura' | 'fiacao_dispositivos') => void;
+  setShadingMode: (mode: 'shaded' | 'transparent' | 'wireframe') => void;
+  setClippingState: (clipping: Partial<{ enabled: boolean; axis: 'X' | 'Y' | 'Z'; value: number }>) => void;
+  setProjectScale: (scale: number) => void;
+  setUtilityGridType: (type: 'monofasico' | 'bifasico' | 'trifasico') => void;
+  updateConduitWaypoints: (id: string, waypoints: Point2D[]) => void;
+
   resetWorkspace: () => void;
 
   // Autenticação
@@ -339,6 +354,11 @@ export const useCadStore = create<CadState>()(
   persist(
     (set, get) => ({
       ppm: 100,
+      activeViewFilter: 'completa',
+      shadingMode: 'shaded',
+      clippingState: { enabled: false, axis: 'Z', value: 1.5 },
+      projectScale: 50,
+      utilityGridType: 'trifasico',
       bgImageSrc: null,
       paperSpaceActive: false,
       paperSize: 'A3',
@@ -354,6 +374,29 @@ export const useCadStore = create<CadState>()(
       setPaperSize: (size) => set({ paperSize: size }),
       setPaperScale: (scale) => set({ paperScale: scale }),
       setPaperPos: (pos) => set({ paperPos: pos }),
+      setViewFilter: (filter) => {
+        set({ activeViewFilter: filter });
+        get().recomputeDerivedState();
+      },
+      setShadingMode: (mode) => set({ shadingMode: mode }),
+      setClippingState: (clipping) => set((s) => ({
+        clippingState: { ...s.clippingState, ...clipping }
+      })),
+      setProjectScale: (scale) => {
+        set({ projectScale: scale });
+        get().recomputeDerivedState();
+      },
+      setUtilityGridType: (type) => {
+        set({ utilityGridType: type });
+        get().recomputeDerivedState();
+      },
+      updateConduitWaypoints: (id, waypoints) => {
+        get().pushHistory();
+        set((s) => ({
+          conduits: s.conduits.map(c => c.id === id ? { ...c, waypoints } : c)
+        }));
+        get().recomputeDerivedState();
+      },
       updatePaperStamp: (fields) => set((s) => ({
         paperTitle: fields.title !== undefined ? fields.title : s.paperTitle,
         paperOwner: fields.owner !== undefined ? fields.owner : s.paperOwner,

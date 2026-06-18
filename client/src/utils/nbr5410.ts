@@ -279,20 +279,50 @@ export const dimensionateCircuit = (
 export const calculateDemand = (
   totalInstalledPower: number,
   voltage: 127 | 220 | 380,
-  phases: 'mono' | 'bi' | 'tri' = 'mono'
+  phases: 'mono' | 'bi' | 'tri' = 'mono',
+  circuitsList?: { type: 'iluminacao' | 'tug' | 'tue'; totalPower: number }[]
 ): DemandResult => {
   const warnings: string[] = [];
 
-  // Fator de demanda residencial (Tabela 54)
-  let demandFactor = 1.0;
+  let powerIlumTug = 0;
+  let powerTues: number[] = [];
+
+  if (circuitsList && circuitsList.length > 0) {
+    circuitsList.forEach(c => {
+      if (c.type === 'tue') {
+        powerTues.push(c.totalPower);
+      } else {
+        powerIlumTug += c.totalPower;
+      }
+    });
+  } else {
+    powerIlumTug = totalInstalledPower;
+  }
+
+  // Fator de demanda residencial para iluminação e TUGs (Tabela 54 NBR 5410)
+  let demandFactorIlumTug = 1.0;
   for (const entry of DEMAND_FACTOR_RESIDENTIAL) {
-    if (totalInstalledPower <= entry.upTo) {
-      demandFactor = entry.factor;
+    if (powerIlumTug <= entry.upTo) {
+      demandFactorIlumTug = entry.factor;
       break;
     }
   }
+  const demandIlumTug = powerIlumTug * demandFactorIlumTug;
 
-  const demandPower = totalInstalledPower * demandFactor;
+  // Fator de demanda para TUEs (quantidade de aparelhos)
+  // Tabela clássica ABNT de simultaneidade para TUEs
+  // 1 aparelho: 1.0, 2 aparelhos: 1.0, 3 aparelhos: 0.84, 4 aparelhos: 0.76, 5+ aparelhos: 0.70
+  let demandFactorTues = 1.0;
+  const tueCount = powerTues.length;
+  if (tueCount >= 5) demandFactorTues = 0.70;
+  else if (tueCount === 4) demandFactorTues = 0.76;
+  else if (tueCount === 3) demandFactorTues = 0.84;
+  else demandFactorTues = 1.0;
+
+  const demandTues = powerTues.reduce((sum, p) => sum + p, 0) * demandFactorTues;
+  const demandPower = demandIlumTug + demandTues;
+
+  const demandFactor = totalInstalledPower > 0 ? demandPower / totalInstalledPower : 1.0;
 
   // Corrente de demanda
   let demandCurrent: number;
@@ -547,5 +577,90 @@ export const dimensionateEntryService = (
     meterType,
     warnings,
   };
+};
+
+// ═══════════════════════════════════════════════════════════════
+// Algoritmo de Balanço Automático de Fases e Corrente de Neutro
+// ═══════════════════════════════════════════════════════════════
+
+export interface PhaseBalanceResult {
+  circuits: { circuitId: string; phaseAssigned: 'R' | 'S' | 'T' }[];
+  phaseLoads: { R: number; S: number; T: number };
+  unbalancePercent: number; // Grau de desequilíbrio entre fases (%)
+  neutralCurrent: number;   // Corrente no condutor neutro (A)
+}
+
+export const autoPhaseBalance = (
+  circuits: { id: string; totalPower: number; voltage: number }[],
+  connectionType: 'monofasico' | 'bifasico' | 'trifasico'
+): PhaseBalanceResult => {
+  const sorted = [...circuits].sort((a, b) => b.totalPower - a.totalPower);
+  const phaseLoads = { R: 0, S: 0, T: 0 };
+  const assignments: { circuitId: string; phaseAssigned: 'R' | 'S' | 'T' }[] = [];
+
+  if (connectionType === 'monofasico') {
+    // Tudo na fase R
+    circuits.forEach(c => {
+      assignments.push({ circuitId: c.id, phaseAssigned: 'R' });
+      phaseLoads.R += c.totalPower;
+    });
+  } else if (connectionType === 'bifasico') {
+    // Distribuir entre R e S
+    sorted.forEach(c => {
+      const targetPhase = phaseLoads.R <= phaseLoads.S ? 'R' : 'S';
+      assignments.push({ circuitId: c.id, phaseAssigned: targetPhase });
+      phaseLoads[targetPhase] += c.totalPower;
+    });
+  } else {
+    // Trifásico: Distribuir equilibradamente entre R, S, T
+    sorted.forEach(c => {
+      let targetPhase: 'R' | 'S' | 'T' = 'R';
+      if (phaseLoads.S <= phaseLoads.R && phaseLoads.S <= phaseLoads.T) {
+        targetPhase = 'S';
+      } else if (phaseLoads.T <= phaseLoads.R && phaseLoads.T <= phaseLoads.S) {
+        targetPhase = 'T';
+      }
+      assignments.push({ circuitId: c.id, phaseAssigned: targetPhase });
+      phaseLoads[targetPhase] += c.totalPower;
+    });
+  }
+
+  // Grau de desequilíbrio: (MaxLoad - MinLoad) / MaxLoad * 100
+  const loads = Object.values(phaseLoads).filter(l => l > 0);
+  const maxLoad = Math.max(...loads, 1);
+  const minLoad = Math.min(...loads, 0);
+  const unbalancePercent = loads.length > 1 ? ((maxLoad - minLoad) / maxLoad) * 100 : 0;
+
+  // Corrente de neutro estimada vetorialmente (In = √(Ir² + Is² + It² - Ir*Is - Is*It - It*Ir))
+  const ir = phaseLoads.R / 127;
+  const is = phaseLoads.S / 127;
+  const it = phaseLoads.T / 127;
+  const insideSqrt = (ir * ir) + (is * is) + (it * it) - (ir * is) - (is * it) - (it * ir);
+  const neutralCurrent = insideSqrt > 0 ? Math.sqrt(insideSqrt) : 0;
+
+  return {
+    circuits: assignments,
+    phaseLoads,
+    unbalancePercent,
+    neutralCurrent,
+  };
+};
+
+// ═══════════════════════════════════════════════════════════════
+// Taxa de ocupação percentual real de cabos no eletroduto (%)
+// ═══════════════════════════════════════════════════════════════
+
+export const calculateConduitFillPercentage = (
+  conduitDiameter: '1/2' | '3/4' | '1' | '1 1/4' | string,
+  cables: { section: number; quantity: number }[]
+): number => {
+  const conduitArea = CONDUIT_INTERNAL_AREA[conduitDiameter] || 132.7; // Default 3/4"
+  const totalCableArea = cables.reduce((sum, cable) => {
+    const area = CABLE_SECTION_AREA[cable.section] || 12.6; // Default 1.5mm²
+    return sum + area * cable.quantity;
+  }, 0);
+
+  if (conduitArea === 0) return 0;
+  return (totalCableArea / conduitArea) * 100;
 };
 

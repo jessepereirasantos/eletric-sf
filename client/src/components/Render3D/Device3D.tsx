@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import * as THREE from 'three';
+import { useCadStore } from '../../store/useCadStore';
 import type { Device } from '../../store/useCadStore';
 
 interface Device3DProps {
@@ -6,7 +8,38 @@ interface Device3DProps {
 }
 
 export const Device3D: React.FC<Device3DProps> = ({ device }) => {
+  const { shadingMode, activeViewFilter, clippingState } = useCadStore();
   const rotationRad = (device.rotation * Math.PI) / 180;
+
+  // Planos de corte dinâmicos (Clipping Planes)
+  const clippingPlanes = useMemo(() => {
+    if (!clippingState.enabled) return [];
+    let normal = new THREE.Vector3(0, 0, -1); // Cortar acima de Z
+    if (clippingState.axis === 'X') normal = new THREE.Vector3(-1, 0, 0);
+    if (clippingState.axis === 'Y') normal = new THREE.Vector3(0, -1, 0);
+    return [new THREE.Plane(normal, clippingState.value)];
+  }, [clippingState]);
+
+  // Filtros de Visibilidade de Planta 3D
+  const isVisible = useMemo(() => {
+    const isInfra = device.type === 'qdc' || device.type === 'qgbt' || device.type === 'meter' || device.type === 'medidor' || device.type === 'poste' || device.type === 'caixa_passagem' || device.type.startsWith('box_');
+    const isArch = device.type.startsWith('door') || device.type === 'window' || device.type === 'open_van' || device.type === 'stairs';
+
+    if (activeViewFilter === 'infraestrutura') {
+      return isInfra || isArch;
+    }
+
+    if (activeViewFilter === 'fiacao_dispositivos') {
+      // Oculta caixas de passagem vazias (sem módulos)
+      const isEmptyBox = (device.type === 'caixa_passagem' || device.type.startsWith('box_')) && (!device.modules || device.modules.length === 0);
+      if (isEmptyBox) return false;
+      return true;
+    }
+
+    return true;
+  }, [device.type, device.modules, activeViewFilter]);
+
+  if (!isVisible) return null;
 
   // Determinar a altura Z de fixação com base na norma e tipo de dispositivo
   const getZCoordAndHeight = (): { z: number; width: number; depth: number; height: number; color: string; isEsquadria: boolean } => {
@@ -65,13 +98,28 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
         {/* Batente/Portal fixo */}
         <mesh rotation={[0, 0, rotationRad]}>
           <boxGeometry args={[width, 0.15, 0.05]} />
-          <meshStandardMaterial color="#78350f" />
+          <meshStandardMaterial
+            color="#78350f"
+            wireframe={shadingMode === 'wireframe'}
+            transparent={shadingMode === 'transparent'}
+            opacity={shadingMode === 'transparent' ? 0.35 : 1.0}
+            clippingPlanes={clippingPlanes}
+            clipShadows={true}
+          />
         </mesh>
         {/* Folha da porta rotacionada */}
         <group rotation={[0, 0, rotationRad + angleOffset]} position={[device.flip ? width / 2 : -width / 2, 0, 0]}>
           <mesh position={[device.flip ? -width / 2 : width / 2, 0, 0]}>
             <boxGeometry args={[width, depth, height]} />
-            <meshStandardMaterial color={color} roughness={0.6} />
+            <meshStandardMaterial
+              color={color}
+              roughness={0.6}
+              wireframe={shadingMode === 'wireframe'}
+              transparent={shadingMode === 'transparent'}
+              opacity={shadingMode === 'transparent' ? 0.35 : 1.0}
+              clippingPlanes={clippingPlanes}
+              clipShadows={true}
+            />
           </mesh>
         </group>
       </group>
@@ -85,12 +133,27 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
         {/* Moldura da janela */}
         <mesh>
           <boxGeometry args={[width, 0.15, height]} />
-          <meshStandardMaterial color="#475569" wireframe />
+          <meshStandardMaterial
+            color="#475569"
+            wireframe={shadingMode === 'wireframe'}
+            transparent={shadingMode === 'transparent'}
+            opacity={shadingMode === 'transparent' ? 0.35 : 1.0}
+            clippingPlanes={clippingPlanes}
+            clipShadows={true}
+          />
         </mesh>
         {/* Vidro semi-transparente */}
         <mesh>
           <boxGeometry args={[width - 0.05, 0.02, height - 0.05]} />
-          <meshStandardMaterial color={color} transparent opacity={0.4} roughness={0.1} metalness={0.9} />
+          <meshStandardMaterial
+            color={color}
+            transparent={true}
+            opacity={shadingMode === 'transparent' ? 0.15 : 0.4}
+            roughness={0.1}
+            metalness={0.9}
+            clippingPlanes={clippingPlanes}
+            clipShadows={true}
+          />
         </mesh>
       </group>
     );
@@ -103,12 +166,25 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
         {/* Base da luminária */}
         <mesh>
           <boxGeometry args={[width, depth, height]} />
-          <meshStandardMaterial color="#ffffff" roughness={0.5} />
+          <meshStandardMaterial
+            color="#ffffff"
+            roughness={0.5}
+            wireframe={shadingMode === 'wireframe'}
+            transparent={shadingMode === 'transparent'}
+            opacity={shadingMode === 'transparent' ? 0.35 : 1.0}
+            clippingPlanes={clippingPlanes}
+            clipShadows={true}
+          />
         </mesh>
         {/* Brilho da lâmpada */}
         <mesh position={[0, 0, -0.01]}>
           <sphereGeometry args={[0.06, 16, 16]} />
-          <meshBasicMaterial color="#fef08a" />
+          <meshBasicMaterial
+            color="#fef08a"
+            transparent={shadingMode === 'transparent'}
+            opacity={shadingMode === 'transparent' ? 0.35 : 1.0}
+            clippingPlanes={clippingPlanes}
+          />
         </mesh>
       </group>
     );
@@ -118,7 +194,16 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
   return (
     <mesh position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
       <boxGeometry args={[width, depth, height]} />
-      <meshStandardMaterial color={color} roughness={0.4} metalness={device.type === 'qdc' ? 0.6 : 0.1} />
+      <meshStandardMaterial
+        color={color}
+        roughness={0.4}
+        metalness={device.type === 'qdc' ? 0.6 : 0.1}
+        wireframe={shadingMode === 'wireframe'}
+        transparent={shadingMode === 'transparent'}
+        opacity={shadingMode === 'transparent' ? 0.35 : 1.0}
+        clippingPlanes={clippingPlanes}
+        clipShadows={true}
+      />
     </mesh>
   );
 };

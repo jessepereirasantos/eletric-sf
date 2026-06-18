@@ -1,6 +1,8 @@
 import React from 'react';
 import { useCadStore } from '../store/useCadStore';
 import type { Device, Wall, CadText, Conduit } from '../store/useCadStore';
+import { calculateConduitFillPercentage, dimensionateCircuit } from '../utils/nbr5410';
+import { calculateWiringRouting } from '../utils/pathfinding';
 
 // ─── Painel de Propriedades da Parede ────────────────────────
 
@@ -1250,6 +1252,71 @@ const ConduitProperties: React.FC<{ conduit: Conduit }> = ({ conduit }) => {
           </div>
         </div>
       )}
+
+      {/* Taxa de Ocupação MEP (NBR 5410) */}
+      {(() => {
+        const { devices } = useCadStore.getState();
+        const wiringRouting = calculateWiringRouting(devices, [conduit], circuits) || {};
+        const wires = conduit.isManualWiring
+          ? (conduit.manualWires || []).map(mw => {
+              const circ = circuits.find(c => c.id === mw.circuitId);
+              return {
+                circuitNumber: circ ? circ.number : 0,
+                phase: mw.phase,
+                neutral: mw.neutral,
+                ground: mw.ground,
+                ret: mw.ret,
+                circuitId: mw.circuitId
+              };
+            })
+          : (wiringRouting[conduit.id] || []);
+
+        // Agrupar cabos por bitola para calcular a ocupação física real
+        const cables: { section: number; quantity: number }[] = [];
+        wires.forEach(w => {
+          const circ = circuits.find(c => c.number === w.circuitNumber || c.id === (w as any).circuitId);
+          if (!circ) return;
+          const circDevices = devices.filter(d => d.circuitId === circ.id);
+          const totalPower = circDevices.reduce((sum, d) => sum + (d.power || 0), 0);
+          const qdc = devices.find(d => d.type === 'qdc');
+          let maxDist = 10.0;
+          if (qdc && circDevices.length > 0) {
+            maxDist = Math.max(...circDevices.map(d => Math.sqrt(Math.pow(d.x - qdc.x, 2) + Math.pow(d.y - qdc.y, 2)) + 2.0));
+          }
+          const res = dimensionateCircuit(circ.type, totalPower || 100, circ.voltage, maxDist, circ.groupedCircuits);
+          const qty = (w.phase || 0) + (w.neutral || 0) + (w.ground || 0) + (w.ret || 0);
+          cables.push({ section: res.selectedSection, quantity: qty });
+        });
+
+        const fillPercent = calculateConduitFillPercentage(conduit.diameter, cables);
+        const limitExceeded = fillPercent > 40;
+        const color = limitExceeded ? '#ef4444' : '#16a34a';
+
+        return (
+          <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '6px', border: `1.5px solid ${limitExceeded ? '#fca5a5' : '#cbd5e1'}`, marginTop: '12px', fontSize: '11px' }}>
+            <div style={{ fontWeight: 'bold', color: '#1e3a8a', marginBottom: '6px', textTransform: 'uppercase', fontSize: '10px' }}>
+              📊 MEP: Contabilidade de Eletroduto
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span>Total de Cabos:</span>
+              <strong>{cables.reduce((s, c) => s + c.quantity, 0)} condutores</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span>Taxa de Ocupação:</span>
+              <strong style={{ color }}>{fillPercent.toFixed(1)}%</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span>Limite NBR 5410:</span>
+              <strong style={{ color: '#64748b' }}>40.0% max</strong>
+            </div>
+            {limitExceeded && (
+              <div style={{ marginTop: '6px', color: '#ef4444', fontWeight: 'bold', fontSize: '9.5px', lineHeight: '1.3' }}>
+                ⚠️ AVISO: Eletroduto sobredimensionado em cabos! Aumente o diâmetro nominal ou divida circuitos.
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Ações */}
       <div className="props-actions" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '16px' }}>

@@ -5,6 +5,7 @@ import { useCadStore } from '../store/useCadStore';
 import { Wall3D } from '../components/Render3D/Wall3D';
 import { Device3D } from '../components/Render3D/Device3D';
 import { Conduit3D } from '../components/Render3D/Conduit3D';
+import { BottomBar } from '../components/BottomBar';
 
 interface Render3DViewProps {
   activeTab: 'cad2d' | 'render3d' | 'unifilar';
@@ -118,6 +119,7 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
         <Canvas
           camera={{ position: [8, -8, 8], fov: 45, up: [0, 0, 1] }}
           shadows
+          gl={{ localClippingEnabled: true }}
           style={{ width: '100%', height: '100%', outline: 'none' }}
         >
           {/* Fundo do Espaço 3D */}
@@ -167,9 +169,11 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
               return (
                 <Conduit3D
                   key={conduit.id}
+                  id={conduit.id}
                   fromDevice={fromDev}
                   toDevice={toDev}
                   diameter={conduit.diameter}
+                  waypoints={conduit.waypoints}
                 />
               );
             })}
@@ -185,6 +189,7 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
           />
         </Canvas>
       </div>
+      <BottomBar activeTab={activeTab} />
     </div>
   );
 };

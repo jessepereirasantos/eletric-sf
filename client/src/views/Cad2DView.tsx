@@ -3,6 +3,7 @@ import { CadCanvas } from '../components/Cad2D/CadCanvas';
 import { PropertiesPanel } from '../components/PropertiesPanel';
 import { Header } from '../components/Header';
 import { Toolbar } from '../components/Toolbar';
+import { BottomBar } from '../components/BottomBar';
 import { useCadStore } from '../store/useCadStore';
 import { dimensionateCircuit } from '../utils/nbr5410';
 import type { ToolType, DeviceType } from '../types';
@@ -1036,6 +1037,7 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
           </div>
         </div>
       )}
+      <BottomBar activeTab={activeTab} />
     </div>
   );
 };

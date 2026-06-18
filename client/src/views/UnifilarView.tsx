@@ -2,12 +2,12 @@ import React, { useMemo } from 'react';
 import ReactFlow, { Background, Controls } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useCadStore } from '../store/useCadStore';
-import { dimensionateCircuit, calculateDemand, validateCircuits } from '../utils/nbr5410';
+import { dimensionateCircuit, calculateDemand, validateCircuits, autoPhaseBalance } from '../utils/nbr5410';
 
 export const UnifilarView: React.FC = () => {
   const { circuits, devices } = useCadStore();
 
-  const { nodes, edges, demandInfo, validations } = useMemo(() => {
+  const { nodes, edges, demandInfo, validations, phaseBalance } = useMemo(() => {
     const listNodes: Array<{
       id: string;
       data: { label: React.ReactNode };
@@ -45,7 +45,24 @@ export const UnifilarView: React.FC = () => {
 
     // Potência total e demanda
     const totalInstalledPower = circuitData.reduce((sum, cd) => sum + cd.totalPower, 0);
-    const demandInfo = calculateDemand(totalInstalledPower, 220);
+    const demandInfo = calculateDemand(
+      totalInstalledPower,
+      220,
+      qdc?.qdcBusbarType === 'trifasico' ? 'tri' : qdc?.qdcBusbarType === 'bifasico' ? 'bi' : 'mono',
+      circuits.map(c => {
+        const cd = devices.filter(d => d.circuitId === c.id);
+        return { type: c.type, totalPower: cd.reduce((s, d) => s + (d.power || 0), 0) };
+      })
+    );
+
+    // Balanceamento de Fases
+    const phaseBalance = autoPhaseBalance(
+      circuits.map(c => {
+        const cd = devices.filter(d => d.circuitId === c.id);
+        return { id: c.id, totalPower: cd.reduce((s, d) => s + (d.power || 0), 0), voltage: c.voltage };
+      }),
+      qdc?.qdcBusbarType === 'trifasico' ? 'trifasico' : qdc?.qdcBusbarType === 'bifasico' ? 'bifasico' : 'monofasico'
+    );
 
     // Validações NBR 5410
     const validations = validateCircuits(circuitData.map(cd => ({
@@ -291,7 +308,7 @@ export const UnifilarView: React.FC = () => {
                 </div>
                 <div style={{ color: '#f8fafc', fontWeight: '600', marginBottom: '2px' }}>{c.name}</div>
                 <div>⚡ {c.voltage}V | 🔌 {totalPower}W | 📐 {maxDistance.toFixed(1)}m</div>
-                <div>👤 {deviceCount} ponto{deviceCount !== 1 ? 's' : ''}</div>
+                <div>👤 {deviceCount} ponto{deviceCount !== 1 ? 's' : ''} | 🧭 Fase: <strong style={{ color: '#eab308' }}>{phaseBalance.circuits.find((pc: any) => pc.circuitId === c.id)?.phaseAssigned || 'R'}</strong></div>
                 <div style={{ borderTop: '1px dashed #475569', marginTop: '3px', paddingTop: '3px' }}>
                   <strong>Cabo: </strong>
                   <span style={{ color: '#22c55e', fontWeight: 'bold', fontFamily: 'monospace' }}>
@@ -337,7 +354,7 @@ export const UnifilarView: React.FC = () => {
       });
     }
 
-    return { nodes: listNodes, edges: listEdges, demandInfo, validations };
+    return { nodes: listNodes, edges: listEdges, demandInfo, validations, phaseBalance };
   }, [circuits, devices]);
 
   return (
@@ -391,9 +408,30 @@ export const UnifilarView: React.FC = () => {
             <span>DJ Geral:</span>
             <strong>{demandInfo.suggestedBreakerGeneral}A</strong>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
             <span>Ramal Entrada:</span>
             <strong>{demandInfo.suggestedEntrySection}mm²</strong>
+          </div>
+          <div style={{ borderTop: '1px dashed #334155', margin: '6px 0', paddingTop: '6px' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+            <span>Fase R:</span>
+            <strong>{(phaseBalance.phaseLoads.R / 1000).toFixed(2)} kW</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+            <span>Fase S:</span>
+            <strong>{(phaseBalance.phaseLoads.S / 1000).toFixed(2)} kW</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+            <span>Fase T:</span>
+            <strong>{(phaseBalance.phaseLoads.T / 1000).toFixed(2)} kW</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+            <span>Desequilíbrio:</span>
+            <strong style={{ color: phaseBalance.unbalancePercent > 10 ? '#ef4444' : '#22c55e' }}>{phaseBalance.unbalancePercent.toFixed(1)}%</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Corr. Neutro:</span>
+            <strong style={{ color: phaseBalance.neutralCurrent > 15 ? '#ef4444' : '#22c55e' }}>{phaseBalance.neutralCurrent.toFixed(1)} A</strong>
           </div>
         </div>
 

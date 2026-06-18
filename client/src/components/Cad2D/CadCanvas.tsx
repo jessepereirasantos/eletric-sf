@@ -11,7 +11,7 @@ interface CadCanvasProps {
   height: number;
 }
 
-const getConduitPoints = (p1: Point2D, p2: Point2D, inWall: boolean) => {
+const getConduitPoints = (p1: Point2D, p2: Point2D, inWall: boolean, waypoints?: Point2D[], ppm: number = 100) => {
   const midX = (p1.x + p2.x) / 2;
   const midY = (p1.y + p2.y) / 2;
   const dx = p2.x - p1.x;
@@ -19,6 +19,35 @@ const getConduitPoints = (p1: Point2D, p2: Point2D, inWall: boolean) => {
   const dist = Math.sqrt(dx * dx + dy * dy);
 
   if (dist === 0) return { points: [p1.x, p1.y, p2.x, p2.y], midPoint: p1, angle: 0 };
+
+  // Se houver waypoints customizados (em metros), traçar o caminho passando por eles
+  if (waypoints && waypoints.length > 0) {
+    const pts: number[] = [p1.x, p1.y];
+    waypoints.forEach(wp => {
+      pts.push(wp.x * ppm, wp.y * ppm);
+    });
+    pts.push(p2.x, p2.y);
+
+    // Calcular o ponto do meio do caminho para renderizar a fiação
+    const midIdx = Math.floor(pts.length / 4) * 2;
+    const midSegmentX = pts[midIdx];
+    const midSegmentY = pts[midIdx + 1];
+
+    // Calcular ângulo aproximado do meio
+    let ang = 0;
+    if (pts.length >= 4) {
+      const idx = Math.max(0, midIdx - 2);
+      const adx = pts[idx + 2] - pts[idx];
+      const ady = pts[idx + 3] - pts[idx];
+      ang = Math.atan2(ady, adx) * (180 / Math.PI);
+    }
+
+    return {
+      points: pts,
+      midPoint: { x: midSegmentX, y: midSegmentY },
+      angle: ang,
+    };
+  }
 
   if (inWall) {
     return {
@@ -85,6 +114,8 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     addDimension, addActiveDimensionPoint, clearActiveDimensionPoints, setSelectedDimensionId,
     updateDimensionPoints,
     updateWall,
+    activeViewFilter,
+    updateConduitWaypoints,
   } = useCadStore();
 
   const stageRef = useRef<any>(null);
@@ -1936,7 +1967,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
           const p1 = { x: fromDev.x * ppm, y: fromDev.y * ppm };
           const p2 = { x: toDev.x * ppm, y: toDev.y * ppm };
           const inWall = isConduitInWall(fromDev, toDev, walls);
-          const curve = getConduitPoints(p1, p2, inWall);
+          const curve = getConduitPoints(p1, p2, inWall, conduit.waypoints, ppm);
           const wires = wiringRouting[conduit.id] || [];
           const isConduitSelected = selectedConduitId === conduit.id;
           const conduitColor = isConduitSelected ? "#0078d7" : "#6b7280";
@@ -1976,7 +2007,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                  onMouseEnter={(e) => { e.target.getStage()!.container().style.cursor = 'pointer'; }}
                  onMouseLeave={(e) => { e.target.getStage()!.container().style.cursor = cursorStyle; }}
                />
-              {wires.length > 0 && (
+              {activeViewFilter !== 'infraestrutura' && wires.length > 0 && (
                 <Group x={curve.midPoint.x} y={curve.midPoint.y} rotation={curve.angle}>
                   <Circle radius={10 * Math.max(1, wires.length)} fill="rgba(240,240,240,0.9)" opacity={0.9} listening={false} />
                   {wires.map((wire, wIdx) => {
@@ -2003,6 +2034,74 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                     return elements;
                   })}
                 </Group>
+              )}
+
+              {/* Âncoras/alças para manipulação interativa de waypoints do conduíte selecionado */}
+              {isConduitSelected && currentTool === 'select' && (conduit.waypoints || []).map((wp, wpIdx) => {
+                return (
+                  <Circle
+                    key={`wp-${conduit.id}-${wpIdx}`}
+                    x={wp.x * ppm}
+                    y={wp.y * ppm}
+                    radius={6 / zoom}
+                    fill="#3b82f6"
+                    stroke="#ffffff"
+                    strokeWidth={1.5 / zoom}
+                    draggable
+                    onMouseEnter={(e) => {
+                      const stage = e.target.getStage();
+                      if (stage) stage.container().style.cursor = 'move';
+                    }}
+                    onMouseLeave={(e) => {
+                      const stage = e.target.getStage();
+                      if (stage) stage.container().style.cursor = cursorStyle;
+                    }}
+                    onDragMove={(e) => {
+                      const node = e.target;
+                      const newWpX = Math.round((node.x() / ppm) / 0.01) * 0.01;
+                      const newWpY = Math.round((node.y() / ppm) / 0.01) * 0.01;
+                      const newWps = [...(conduit.waypoints || [])];
+                      newWps[wpIdx] = { x: newWpX, y: newWpY };
+                      // Atualiza a store sem criar histórico em lote contínuo
+                      useCadStore.setState((s) => ({
+                        conduits: s.conduits.map(c => c.id === conduit.id ? { ...c, waypoints: newWps } : c)
+                      }));
+                    }}
+                    onDragEnd={(e) => {
+                      const node = e.target;
+                      const newWpX = Math.round((node.x() / ppm) / 0.01) * 0.01;
+                      const newWpY = Math.round((node.y() / ppm) / 0.01) * 0.01;
+                      const newWps = [...(conduit.waypoints || [])];
+                      newWps[wpIdx] = { x: newWpX, y: newWpY };
+                      updateConduitWaypoints(conduit.id, newWps);
+                    }}
+                  />
+                );
+              })}
+
+              {/* Adicionar waypoint ao dar double click no conduíte */}
+              {isConduitSelected && currentTool === 'select' && (
+                <Line
+                  points={curve.points}
+                  stroke="transparent"
+                  strokeWidth={20}
+                  tension={inWall ? undefined : 0.4}
+                  onDblClick={(e) => {
+                    e.cancelBubble = true;
+                    const stage = stageRef.current;
+                    if (!stage) return;
+                    const pointer = stage.getPointerPosition();
+                    if (!pointer) return;
+                    const clickMetres = {
+                      x: Math.round(((pointer.x - stage.x()) / stage.scaleX() / ppm) / 0.01) * 0.01,
+                      y: Math.round(((pointer.y - stage.y()) / stage.scaleY() / ppm) / 0.01) * 0.01,
+                    };
+                    // Insere o novo waypoint no array
+                    const currentWps = conduit.waypoints || [];
+                    const newWps = [...currentWps, clickMetres];
+                    updateConduitWaypoints(conduit.id, newWps);
+                  }}
+                />
               )}
             </Group>
           );
@@ -2036,7 +2135,27 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
           />
         )}
 
-        {devices.map((dev) => (
+        {devices
+          .filter((dev) => {
+            const isInfra = dev.type === 'qdc' || dev.type === 'qgbt' || dev.type === 'meter' || dev.type === 'medidor' || dev.type === 'poste' || dev.type === 'caixa_passagem' || dev.type.startsWith('box_');
+            const isArch = isEsquadria(dev.type) || dev.type === 'stairs';
+
+            if (activeViewFilter === 'infraestrutura') {
+              // Apenas quadros, medidores, caixas de passagem/octogonais, postes e portas/janelas/escadas (arquitetura)
+              return isInfra || isArch;
+            }
+
+            if (activeViewFilter === 'fiacao_dispositivos') {
+              // Oculta caixas de passagem secas/vazias (sem módulos)
+              const isEmptyBox = (dev.type === 'caixa_passagem' || dev.type.startsWith('box_')) && (!dev.modules || dev.modules.length === 0);
+              if (isEmptyBox) return false;
+              // Mostra todo o resto
+              return true;
+            }
+
+            return true;
+          })
+          .map((dev) => (
           <DeviceSymbol
             key={dev.id}
             id={dev.id}
