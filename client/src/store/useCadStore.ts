@@ -25,6 +25,7 @@ export interface Wall {
   thickness: number;
   height: number;
   material: 'alvenaria' | 'drywall' | 'concreto' | 'vidro';
+  cutouts?: { deviceId: string; start: number; end: number }[];
 }
 
 export interface Device {
@@ -228,6 +229,7 @@ interface CadState {
   addWall: (p1: Point2D, p2: Point2D, thickness?: number) => void;
   removeWall: (id: string) => void;
   updateWall: (id: string, props: Partial<Omit<Wall, 'id'>>) => void;
+  updateWallCutouts: (wallId: string) => void;
   addActiveWallPoint: (pt: Point2D) => void;
   clearActiveWallPoints: () => void;
 
@@ -431,6 +433,100 @@ export const useCadStore = create<CadState>()(
     const { walls, devices, circuits, conduits } = get();
     const materialsList: MaterialItem[] = [];
 
+    // 0. Recalcular os cutouts de todas as paredes com base nas esquadrias
+    const updatedWalls = walls.map(wall => {
+      const vans: { deviceId: string; start: number; end: number }[] = [];
+      const L = Math.sqrt(Math.pow(wall.p2.x - wall.p1.x, 2) + Math.pow(wall.p2.y - wall.p1.y, 2));
+      if (L === 0) return { ...wall, cutouts: [] };
+      const dx = (wall.p2.x - wall.p1.x) / L;
+      const dy = (wall.p2.y - wall.p1.y) / L;
+      const wallAngle = Math.atan2(wall.p2.y - wall.p1.y, wall.p2.x - wall.p1.x) * (180 / Math.PI);
+
+      devices.forEach(dev => {
+        if (!dev.type.startsWith('door') && dev.type !== 'window' && dev.type !== 'open_van') return;
+
+        // Filtro de alinhamento angular: esquadrias só recortam a parede se forem paralelas a ela (diferença < 25°)
+        let angleDiff = Math.abs((dev.rotation - wallAngle) % 180);
+        if (angleDiff > 90) angleDiff = 180 - angleDiff;
+        if (angleDiff > 25) return; // Se for perpendicular, ignora o recorte nesta parede
+
+        const toDevX = dev.x - wall.p1.x;
+        const toDevY = dev.y - wall.p1.y;
+        const t = toDevX * dx + toDevY * dy;
+        const projX = wall.p1.x + t * dx;
+        const projY = wall.p1.y + t * dy;
+        const dist = Math.sqrt(Math.pow(dev.x - projX, 2) + Math.pow(dev.y - projY, 2));
+
+        if (dist < wall.thickness * 1.5 && t >= -0.1 && t <= L + 0.1) {
+          let width = dev.width;
+          if (width === undefined) {
+            width = 0.8;
+            if (dev.type === 'window') width = 1.2;
+            else if (dev.type === 'open_van') width = 1.0;
+          }
+
+          let start = t;
+          let end = t + width;
+
+          if (dev.type === 'window' || dev.type === 'open_van' || dev.type === 'door_correr') {
+            start = t - width / 2;
+            end = t + width / 2;
+          } else if (dev.type === 'door' || dev.type === 'door_pivotante') {
+            if (dev.flip) {
+              start = t - width;
+              end = t;
+            } else {
+              start = t;
+              end = t + width;
+            }
+          }
+
+          start = Math.max(0, start);
+          end = Math.min(L, end);
+
+          if (start < end) {
+            vans.push({ deviceId: dev.id, start, end });
+          }
+        }
+      });
+
+      // Ordenar e mesclar os recortes que se sobrepõem
+      vans.sort((a, b) => a.start - b.start);
+      const mergedVans: { deviceId: string; start: number; end: number }[] = [];
+      vans.forEach(v => {
+        if (mergedVans.length === 0) {
+          mergedVans.push(v);
+        } else {
+          const last = mergedVans[mergedVans.length - 1];
+          if (v.start <= last.end) {
+            last.end = Math.max(last.end, v.end);
+          } else {
+            mergedVans.push(v);
+          }
+        }
+      });
+
+      return {
+        ...wall,
+        cutouts: mergedVans
+      };
+    });
+
+    // Se as paredes mudaram em termos de cutouts, atualiza na store
+    let hasChanges = false;
+    for (let i = 0; i < walls.length; i++) {
+      const wOld = walls[i];
+      const wNew = updatedWalls[i];
+      if (!wOld.cutouts || wOld.cutouts.length !== wNew.cutouts.length || 
+          JSON.stringify(wOld.cutouts) !== JSON.stringify(wNew.cutouts)) {
+        hasChanges = true;
+        break;
+      }
+    }
+    if (hasChanges) {
+      set({ walls: updatedWalls });
+    }
+
     // Helper para categorização de dispositivos
     const getDeviceCategory = (type: string): 'fiacao_cabos' | 'protecao' | 'infraestrutura' | 'dispositivos' => {
       if (type.startsWith('box_') || type === 'qdc' || type === 'poste' || type === 'medidor') {
@@ -442,9 +538,15 @@ export const useCadStore = create<CadState>()(
     // 1. Paredes
     let totalWallLength = 0;
     try {
-      walls.forEach(w => {
+      updatedWalls.forEach(w => {
         if (w && w.p1 && w.p2) {
-          totalWallLength += Math.sqrt(Math.pow(w.p2.x - w.p1.x, 2) + Math.pow(w.p2.y - w.p1.y, 2));
+          let length = Math.sqrt(Math.pow(w.p2.x - w.p1.x, 2) + Math.pow(w.p2.y - w.p1.y, 2));
+          if (w.cutouts && w.cutouts.length > 0) {
+            w.cutouts.forEach(c => {
+              length -= (c.end - c.start);
+            });
+          }
+          totalWallLength += Math.max(0, length);
         }
       });
     } catch (e) {
@@ -922,6 +1024,10 @@ export const useCadStore = create<CadState>()(
     set((s) => ({
       walls: s.walls.map(w => w.id === id ? { ...w, ...props } : w),
     }));
+    get().recomputeDerivedState();
+  },
+
+  updateWallCutouts: (wallId) => {
     get().recomputeDerivedState();
   },
 

@@ -62,79 +62,6 @@ const isConduitInWall = (devA: Device, devB: Device, walls: Wall[]): boolean => 
   return false;
 };
 
-const getWallVans = (wall: Wall, devs: Device[]) => {
-  const vans: { start: number; end: number }[] = [];
-  const L = Math.sqrt(Math.pow(wall.p2.x - wall.p1.x, 2) + Math.pow(wall.p2.y - wall.p1.y, 2));
-  if (L === 0) return [];
-  const dx = (wall.p2.x - wall.p1.x) / L;
-  const dy = (wall.p2.y - wall.p1.y) / L;
-  const wallAngle = Math.atan2(wall.p2.y - wall.p1.y, wall.p2.x - wall.p1.x) * (180 / Math.PI);
-
-  devs.forEach(dev => {
-    if (!isEsquadria(dev.type)) return;
-
-    // Filtro de alinhamento angular: esquadrias só recortam a parede se forem paralelas a ela (diferença < 25°)
-    let angleDiff = Math.abs((dev.rotation - wallAngle) % 180);
-    if (angleDiff > 90) angleDiff = 180 - angleDiff;
-    if (angleDiff > 25) return; // Se for perpendicular, ignora o recorte nesta parede
-
-    const toDevX = dev.x - wall.p1.x;
-    const toDevY = dev.y - wall.p1.y;
-    const t = toDevX * dx + toDevY * dy;
-    const projX = wall.p1.x + t * dx;
-    const projY = wall.p1.y + t * dy;
-    const dist = Math.sqrt(Math.pow(dev.x - projX, 2) + Math.pow(dev.y - projY, 2));
-
-    if (dist < wall.thickness * 1.5 && t >= -0.1 && t <= L + 0.1) {
-      let width = dev.width;
-      if (width === undefined) {
-        width = 0.8;
-        if (dev.type === 'window') width = 1.2;
-        else if (dev.type === 'open_van') width = 1.0;
-      }
-
-      let start = t;
-      let end = t + width;
-
-      if (dev.type === 'window' || dev.type === 'open_van' || dev.type === 'door_correr') {
-        start = t - width / 2;
-        end = t + width / 2;
-      } else if (dev.type === 'door' || dev.type === 'door_pivotante') {
-        if (dev.flip) {
-          start = t - width;
-          end = t;
-        } else {
-          start = t;
-          end = t + width;
-        }
-      }
-
-      start = Math.max(0, start);
-      end = Math.min(L, end);
-
-      if (start < end) {
-        vans.push({ start, end });
-      }
-    }
-  });
-
-  vans.sort((a, b) => a.start - b.start);
-  const mergedVans: { start: number; end: number }[] = [];
-  vans.forEach(v => {
-    if (mergedVans.length === 0) {
-      mergedVans.push(v);
-    } else {
-      const last = mergedVans[mergedVans.length - 1];
-      if (v.start <= last.end) {
-        last.end = Math.max(last.end, v.end);
-      } else {
-        mergedVans.push(v);
-      }
-    }
-  });
-
-  return mergedVans;
-};
 
 export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
   const {
@@ -182,6 +109,19 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
   } | null>(null);
 
   const { updateDeviceProperties, setBgImageScaleX, setBgImageScaleY } = useCadStore();
+
+  const getEnabledAnchors = () => {
+    if (bgImageSelected) {
+      return ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+    }
+    if (selectedDeviceId) {
+      const dev = devices.find(d => d.id === selectedDeviceId);
+      if (dev && isEsquadria(dev.type)) {
+        return ['middle-left', 'middle-right'];
+      }
+    }
+    return [];
+  };
 
   const getWallDragSnap = (pt: Point2D, excludeWallId?: string): Point2D => {
     let snapPt = { ...pt };
@@ -1050,7 +990,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     const dx = (wall.p2.x - wall.p1.x) / L;
     const dy = (wall.p2.y - wall.p1.y) / L;
 
-    const vans = getWallVans(wall, devices);
+    const vans = wall.cutouts || [];
 
     const segments: { s1: number; s2: number }[] = [];
     let lastPos = 0;
@@ -1194,166 +1134,9 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
             />
           </>
         )}
-
-        {imageObj && (
-          <Image
-            id="bg-image-node"
-            image={imageObj}
-            x={bgImagePos.x}
-            y={bgImagePos.y}
-            scaleX={bgImageScaleX}
-            scaleY={bgImageScaleY}
-            rotation={bgImageRotation}
-            opacity={0.45}
-            listening={!bgImageLock && currentTool === 'select'}
-            draggable={!bgImageLock && currentTool === 'select'}
-            onDragEnd={(e) => setBgImagePos({ x: e.target.x(), y: e.target.y() })}
-            onClick={(e) => {
-              e.cancelBubble = true;
-              if (currentTool === 'select' && !bgImageLock) {
-                setBgImageSelected(true);
-              }
-            }}
-          />
-        )}
       </Layer>
 
       <Layer>
-        {paperSpaceActive && (() => {
-          const dims = {
-            A0: { w: 1189, h: 841 },
-            A1: { w: 841, h: 594 },
-            A2: { w: 594, h: 420 },
-            A3: { w: 420, h: 297 },
-            A4: { w: 297, h: 210 },
-          };
-          const paperDim = dims[paperSize] || dims.A3;
-          const paperW = (paperDim.w * paperScale) / 1000;
-          const paperH = (paperDim.h * paperScale) / 1000;
-          const mLeft = (25 * paperScale) / 1000;
-          const mOther = ((paperSize === 'A4' ? 5 : 10) * paperScale) / 1000;
-          const stampW = (paperSize === 'A4' ? (paperDim.w - 25 - 5) : 175) * paperScale / 1000;
-          const stampH = 60 * paperScale / 1000;
-
-          return (
-            <Group
-              x={paperPos.x * ppm}
-              y={paperPos.y * ppm}
-              draggable={currentTool === 'select'}
-              onDragEnd={(e) => {
-                setPaperPos({ x: e.target.x() / ppm, y: e.target.y() / ppm });
-              }}
-            >
-              {/* Folha física branca com borda escura e sombra */}
-              <Rect
-                x={0}
-                y={0}
-                width={paperW * ppm}
-                height={paperH * ppm}
-                fill="#ffffff"
-                stroke="#cbd5e1"
-                strokeWidth={1.5 / zoom}
-                shadowColor="#000000"
-                shadowBlur={12}
-                shadowOpacity={0.12}
-                shadowOffset={{ x: 3, y: 3 }}
-              />
-              {/* Linha vermelha tracejada para representar área de corte física */}
-              <Rect
-                x={0}
-                y={0}
-                width={paperW * ppm}
-                height={paperH * ppm}
-                stroke="#ef4444"
-                strokeWidth={0.7 / zoom}
-                dash={[5, 5]}
-                listening={false}
-              />
-              {/* Margens internas regulamentadas pela ABNT */}
-              <Rect
-                x={mLeft * ppm}
-                y={mOther * ppm}
-                width={(paperW - mLeft - mOther) * ppm}
-                height={(paperH - 2 * mOther) * ppm}
-                stroke="#0f172a"
-                strokeWidth={1.8 / zoom}
-                listening={false}
-              />
-              {/* Carimbo / Selo ABNT no canto inferior direito */}
-              <Group x={(paperW - mOther - stampW) * ppm} y={(paperH - mOther - stampH) * ppm}>
-                <Rect
-                  x={0}
-                  y={0}
-                  width={stampW * ppm}
-                  height={stampH * ppm}
-                  fill="#f8fafc"
-                  stroke="#0f172a"
-                  strokeWidth={1.5 / zoom}
-                  listening={false}
-                />
-                {/* Linhas horizontais do selo */}
-                <Line points={[0, stampH * 0.35 * ppm, stampW * ppm, stampH * 0.35 * ppm]} stroke="#0f172a" strokeWidth={0.8 / zoom} listening={false} />
-                <Line points={[0, stampH * 0.7 * ppm, stampW * ppm, stampH * 0.7 * ppm]} stroke="#0f172a" strokeWidth={0.8 / zoom} listening={false} />
-                
-                {/* Linhas verticais da base do selo */}
-                <Line points={[stampW * 0.35 * ppm, stampH * 0.7 * ppm, stampW * 0.35 * ppm, stampH * ppm]} stroke="#0f172a" strokeWidth={0.8 / zoom} listening={false} />
-                <Line points={[stampW * 0.7 * ppm, stampH * 0.7 * ppm, stampW * 0.7 * ppm, stampH * ppm]} stroke="#0f172a" strokeWidth={0.8 / zoom} listening={false} />
-
-                {/* Textos Informativos */}
-                <Text
-                  text={`PROJETO: ${paperTitle}`}
-                  x={8}
-                  y={8}
-                  fontSize={Math.max(9, stampH * 0.08 * ppm)}
-                  fontStyle="bold"
-                  fill="#0f172a"
-                  listening={false}
-                />
-                <Text
-                  text={`PROPRIETÁRIO: ${paperOwner}`}
-                  x={8}
-                  y={stampH * 0.38 * ppm}
-                  fontSize={Math.max(7.5, stampH * 0.065 * ppm)}
-                  fill="#334155"
-                  listening={false}
-                />
-                <Text
-                  text={`RESP. TÉCNICO: ${paperDesigner}`}
-                  x={8}
-                  y={stampH * 0.54 * ppm}
-                  fontSize={Math.max(7.5, stampH * 0.065 * ppm)}
-                  fill="#334155"
-                  listening={false}
-                />
-                <Text
-                  text={`ESCALA: 1:${paperScale}`}
-                  x={8}
-                  y={stampH * 0.75 * ppm}
-                  fontSize={Math.max(7, stampH * 0.06 * ppm)}
-                  fill="#475569"
-                  listening={false}
-                />
-                <Text
-                  text={`DATA: ${paperDate}`}
-                  x={stampW * 0.38 * ppm}
-                  y={stampH * 0.75 * ppm}
-                  fontSize={Math.max(7, stampH * 0.06 * ppm)}
-                  fill="#475569"
-                  listening={false}
-                />
-                <Text
-                  text={`FOLHA: ${paperSheetNum}`}
-                  x={stampW * 0.73 * ppm}
-                  y={stampH * 0.75 * ppm}
-                  fontSize={Math.max(7, stampH * 0.06 * ppm)}
-                  fontStyle="bold"
-                  fill="#0f172a"
-                  listening={false}
-                />
-              </Group>
-            </Group>
-          );
-        })()}
 
         {/* Renderização das Linhas de Guia (Construction Lines) */}
         {guideLines && guideLines.map((g) => {
@@ -1599,7 +1382,33 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
         )}
 
 
-        {/* Renderização das Cotas Técnicas (Medidas) */}
+        {(() => {
+          const plantaContent = (
+            <>
+              {/* Imagem de Fundo (Planta Base Escaneada/Importada) */}
+              {imageObj && bgImageSrc && (
+                <Image
+                  id="bg-image-node"
+                  image={imageObj}
+                  x={bgImagePos.x}
+                  y={bgImagePos.y}
+                  scaleX={bgImageScaleX}
+                  scaleY={bgImageScaleY}
+                  rotation={bgImageRotation}
+                  opacity={0.45}
+                  listening={!bgImageLock && currentTool === 'select'}
+                  draggable={!bgImageLock && currentTool === 'select'}
+                  onDragEnd={(e) => setBgImagePos({ x: e.target.x(), y: e.target.y() })}
+                  onClick={(e) => {
+                    e.cancelBubble = true;
+                    if (currentTool === 'select' && !bgImageLock) {
+                      setBgImageSelected(true);
+                    }
+                  }}
+                />
+              )}
+
+              {/* Renderização das Cotas Técnicas (Medidas) */}
         {dimensions && dimensions.map((d) => {
           const isSelected = selectedDimensionId === d.id;
           const strokeColor = isSelected ? '#0078d7' : '#475569';
@@ -2330,8 +2139,9 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
         <Transformer
           ref={transformerRef}
           rotateEnabled={true}
-          resizeEnabled={bgImageSelected}
-          keepRatio={true}
+          resizeEnabled={bgImageSelected || (!!selectedDeviceId && devices.some(d => d.id === selectedDeviceId && isEsquadria(d.type)))}
+          keepRatio={bgImageSelected}
+          enabledAnchors={getEnabledAnchors()}
           borderDash={[3, 3]}
           anchorStroke="#0078d7"
           anchorFill="#ffffff"
@@ -2340,9 +2150,25 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
           onTransformEnd={(e) => {
             const node = e.target;
             if (selectedDeviceId) {
-              updateDeviceProperties(selectedDeviceId, {
-                rotation: node.rotation(),
-              });
+              const dev = devices.find(d => d.id === selectedDeviceId);
+              if (dev) {
+                const scaleX = node.scaleX();
+                const newRotation = node.rotation();
+                const newProps: Partial<Device> = {
+                  rotation: newRotation,
+                  x: node.x() / ppm,
+                  y: node.y() / ppm,
+                };
+
+                if (isEsquadria(dev.type)) {
+                  const currentWidth = dev.width ?? (dev.type === 'window' ? 1.2 : dev.type === 'open_van' ? 1.0 : 0.8);
+                  newProps.width = Math.max(0.1, currentWidth * scaleX);
+                }
+
+                updateDeviceProperties(selectedDeviceId, newProps);
+                node.scaleX(1);
+                node.scaleY(1);
+              }
             } else if (bgImageSelected && node.id() === 'bg-image-node') {
               setBgImageScaleX(node.scaleX());
               setBgImageScaleY(node.scaleY());
@@ -2420,6 +2246,162 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
             )}
           </React.Fragment>
         ))}
+            </>
+          );
+
+          if (paperSpaceActive) {
+            const dims = {
+              A0: { w: 1189, h: 841 },
+              A1: { w: 841, h: 594 },
+              A2: { w: 594, h: 420 },
+              A3: { w: 420, h: 297 },
+              A4: { w: 297, h: 210 },
+            };
+            const paperDim = dims[paperSize] || dims.A3;
+            const paperW = (paperDim.w * paperScale) / 1000;
+            const paperH = (paperDim.h * paperScale) / 1000;
+            const mLeft = (25 * paperScale) / 1000;
+            const mOther = ((paperSize === 'A4' ? 5 : 10) * paperScale) / 1000;
+            const stampW = (paperSize === 'A4' ? (paperDim.w - 25 - 5) : 175) * paperScale / 1000;
+            const stampH = 60 * paperScale / 1000;
+
+            return (
+              <Group
+                x={paperPos.x * ppm}
+                y={paperPos.y * ppm}
+                draggable={currentTool === 'select'}
+                onDragEnd={(e) => {
+                  setPaperPos({ x: e.target.x() / ppm, y: e.target.y() / ppm });
+                }}
+              >
+                {/* 1. Folha física branca com borda escura e sombra */}
+                <Rect
+                  x={0}
+                  y={0}
+                  width={paperW * ppm}
+                  height={paperH * ppm}
+                  fill="#ffffff"
+                  stroke="#cbd5e1"
+                  strokeWidth={1.5 / zoom}
+                  shadowColor="#000000"
+                  shadowBlur={12}
+                  shadowOpacity={0.12}
+                  shadowOffset={{ x: 3, y: 3 }}
+                />
+
+                {/* 2. Área útil de desenho clipada com a planta */}
+                <Group
+                  clipX={mLeft * ppm}
+                  clipY={mOther * ppm}
+                  clipWidth={(paperW - mLeft - mOther) * ppm}
+                  clipHeight={(paperH - 2 * mOther) * ppm}
+                >
+                  <Group x={-paperPos.x * ppm} y={-paperPos.y * ppm}>
+                    {plantaContent}
+                  </Group>
+                </Group>
+
+                {/* 3. Margens internas regulamentadas pela ABNT */}
+                <Rect
+                  x={mLeft * ppm}
+                  y={mOther * ppm}
+                  width={(paperW - mLeft - mOther) * ppm}
+                  height={(paperH - 2 * mOther) * ppm}
+                  stroke="#0f172a"
+                  strokeWidth={1.8 / zoom}
+                  listening={false}
+                />
+
+                {/* 4. Carimbo / Selo ABNT no canto inferior direito */}
+                <Group x={(paperW - mOther - stampW) * ppm} y={(paperH - mOther - stampH) * ppm}>
+                  <Rect
+                    x={0}
+                    y={0}
+                    width={stampW * ppm}
+                    height={stampH * ppm}
+                    fill="#f8fafc"
+                    stroke="#0f172a"
+                    strokeWidth={1.5 / zoom}
+                    listening={false}
+                  />
+                  {/* Linhas horizontais do selo */}
+                  <Line points={[0, stampH * 0.35 * ppm, stampW * ppm, stampH * 0.35 * ppm]} stroke="#0f172a" strokeWidth={0.8 / zoom} listening={false} />
+                  <Line points={[0, stampH * 0.7 * ppm, stampW * ppm, stampH * 0.7 * ppm]} stroke="#0f172a" strokeWidth={0.8 / zoom} listening={false} />
+                  
+                  {/* Linhas verticais da base do selo */}
+                  <Line points={[stampW * 0.35 * ppm, stampH * 0.7 * ppm, stampW * 0.35 * ppm, stampH * ppm]} stroke="#0f172a" strokeWidth={0.8 / zoom} listening={false} />
+                  <Line points={[stampW * 0.7 * ppm, stampH * 0.7 * ppm, stampW * 0.7 * ppm, stampH * ppm]} stroke="#0f172a" strokeWidth={0.8 / zoom} listening={false} />
+
+                  {/* Textos Informativos */}
+                  <Text
+                    text={`PROJETO: ${paperTitle}`}
+                    x={8}
+                    y={8}
+                    fontSize={Math.max(9, stampH * 0.08 * ppm)}
+                    fontStyle="bold"
+                    fill="#0f172a"
+                    listening={false}
+                  />
+                  <Text
+                    text={`PROPRIETÁRIO: ${paperOwner}`}
+                    x={8}
+                    y={stampH * 0.38 * ppm}
+                    fontSize={Math.max(7.5, stampH * 0.065 * ppm)}
+                    fill="#334155"
+                    listening={false}
+                  />
+                  <Text
+                    text={`RESP. TÉCNICO: ${paperDesigner}`}
+                    x={8}
+                    y={stampH * 0.54 * ppm}
+                    fontSize={Math.max(7.5, stampH * 0.065 * ppm)}
+                    fill="#334155"
+                    listening={false}
+                  />
+                  <Text
+                    text={`ESCALA: 1:${paperScale}`}
+                    x={8}
+                    y={stampH * 0.75 * ppm}
+                    fontSize={Math.max(7, stampH * 0.06 * ppm)}
+                    fill="#475569"
+                    listening={false}
+                  />
+                  <Text
+                    text={`DATA: ${paperDate}`}
+                    x={stampW * 0.38 * ppm}
+                    y={stampH * 0.75 * ppm}
+                    fontSize={Math.max(7, stampH * 0.06 * ppm)}
+                    fill="#475569"
+                    listening={false}
+                  />
+                  <Text
+                    text={`FOLHA: ${paperSheetNum}`}
+                    x={stampW * 0.73 * ppm}
+                    y={stampH * 0.75 * ppm}
+                    fontSize={Math.max(7, stampH * 0.06 * ppm)}
+                    fontStyle="bold"
+                    fill="#0f172a"
+                    listening={false}
+                  />
+                </Group>
+
+                {/* 5. Linha vermelha de corte física */}
+                <Rect
+                  x={0}
+                  y={0}
+                  width={paperW * ppm}
+                  height={paperH * ppm}
+                  stroke="#ef4444"
+                  strokeWidth={0.7 / zoom}
+                  dash={[5, 5]}
+                  listening={false}
+                />
+              </Group>
+            );
+          }
+
+          return plantaContent;
+        })()}
       </Layer>
     </Stage>
   );
