@@ -1283,6 +1283,85 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
         </Group>
       );
 
+    case 'sofa': {
+      const sofaW = (width ?? 2.0) * ppm;
+      const sofaH = 0.9 * ppm;
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <Rect x={-sofaW/2} y={-sofaH/2} width={sofaW} height={sofaH} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={5} />
+          <Rect x={-sofaW/2} y={-sofaH/2} width={sofaW*0.1} height={sofaH} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={2} />
+          <Rect x={sofaW/2 - sofaW*0.1} y={-sofaH/2} width={sofaW*0.1} height={sofaH} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={2} />
+          <Rect x={-sofaW/2 + sofaW*0.1} y={sofaH/2 - sofaH*0.25} width={sofaW*0.8} height={sofaH*0.2} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={2} />
+          <Text text="SOFÁ" x={-sofaW/2} y={-sofaH*0.1} width={sofaW} align="center" fontSize={Math.min(12, sofaH*0.25)} fill={stroke} fontStyle="bold" />
+          <SelectionRing r={sofaW * 0.6} />
+        </Group>
+      );
+    }
+
+    case 'geladeira': {
+      const gelW = (width ?? 0.7) * ppm;
+      const gelH = 0.7 * ppm;
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <Rect x={-gelW/2} y={-gelH/2} width={gelW} height={gelH} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
+          <Line points={[-gelW/2, -gelH/2 + gelH*0.1, gelW/2, -gelH/2 + gelH*0.1]} stroke={stroke} strokeWidth={sw} />
+          <Rect x={-gelW/2 + 5} y={-gelH/2 + gelH*0.15} width={gelW - 10} height={gelH*0.75} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw*0.7} />
+          <Text text="REF" x={-gelW/2} y={-gelH*0.15} width={gelW} align="center" fontSize={Math.min(12, gelH*0.3)} fill={stroke} fontStyle="bold" />
+          <SelectionRing r={gelW * 0.75} />
+        </Group>
+      );
+    }
+
+    case 'fogao': {
+      const fogW = (width ?? 0.7) * ppm;
+      const fogH = 0.6 * ppm;
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <Rect x={-fogW/2} y={-fogH/2} width={fogW} height={fogH} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
+          {[-fogW*0.25, fogW*0.25].map((bx) => (
+            <React.Fragment key={bx}>
+              <Circle x={bx} y={-fogH*0.2} radius={fogH*0.15} stroke={stroke} strokeWidth={sw} />
+              <Circle x={bx} y={fogH*0.2} radius={fogH*0.15} stroke={stroke} strokeWidth={sw} />
+            </React.Fragment>
+          ))}
+          <Text text="FOGÃO" x={-fogW/2} y={-fogH*0.08} width={fogW} align="center" fontSize={Math.min(10, fogH*0.2)} fill={stroke} fontStyle="bold" />
+          <SelectionRing r={fogW * 0.7} />
+        </Group>
+      );
+    }
+
+    case 'cama': {
+      const camaW = (width ?? 1.6) * ppm;
+      const camaH = 2.0 * ppm;
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <Rect x={-camaW/2} y={-camaH/2} width={camaW} height={camaH} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={8} />
+          <Rect x={-camaW/2} y={-camaH/2} width={camaW} height={camaH*0.1} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
+          <Rect x={-camaW*0.4} y={-camaH/2 + camaH*0.15} width={camaW*0.35} height={camaH*0.15} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={3} />
+          <Rect x={camaW*0.05} y={-camaH/2 + camaH*0.15} width={camaW*0.35} height={camaH*0.15} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={3} />
+          <Line points={[-camaW/2, -camaH/2 + camaH*0.4, camaW/2, -camaH/2 + camaH*0.4]} stroke={stroke} strokeWidth={sw} />
+          <Text text="CAMA" x={-camaW/2} y={camaH*0.1} width={camaW} align="center" fontSize={12} fill={stroke} fontStyle="bold" />
+          <SelectionRing r={camaH * 0.55} />
+        </Group>
+      );
+    }
+
+    case 'mesa_jantar': {
+      const mesaW = (width ?? 1.2) * ppm;
+      const mesaH = 0.8 * ppm;
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <Rect x={-mesaW/2} y={-mesaH/2} width={mesaW} height={mesaH} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={4} />
+          <Rect x={-mesaW*0.25} y={-mesaH/2 - mesaH*0.2} width={mesaW*0.5} height={mesaH*0.15} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={2} />
+          <Rect x={-mesaW*0.25} y={mesaH/2 + mesaH*0.05} width={mesaW*0.5} height={mesaH*0.15} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={2} />
+          <Rect x={-mesaW/2 - mesaW*0.15} y={-mesaH*0.25} width={mesaW*0.1} height={mesaH*0.5} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={2} />
+          <Rect x={mesaW/2 + mesaW*0.05} y={-mesaH*0.25} width={mesaW*0.1} height={mesaH*0.5} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={2} />
+          <Text text="MESA" x={-mesaW/2} y={-mesaH*0.1} width={mesaW} align="center" fontSize={10} fill={stroke} fontStyle="bold" />
+          <SelectionRing r={mesaW * 0.75} />
+        </Group>
+      );
+    }
+
     default:
       return (
         <Group x={x} y={y} {...commonProps}>

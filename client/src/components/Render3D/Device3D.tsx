@@ -1,18 +1,20 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
+import { TransformControls } from '@react-three/drei';
 import { useCadStore } from '../../store/useCadStore';
 import type { Device } from '../../store/useCadStore';
 
 interface Device3DProps {
   device: Device;
+  isInner?: boolean;
 }
 
-export const Device3D: React.FC<Device3DProps> = ({ device }) => {
-  const { shadingMode, clippingState } = useCadStore();
+export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner = false }) => {
+  const { shadingMode, clippingState, doorColor, windowColor, selectedDeviceId, updateDeviceProperties } = useCadStore();
   
   // Rotação invertida: o Three.js rotaciona em torno de Z no sentido anti-horário,
   // enquanto o Konva (2D) e o SVG rotacionam no sentido horário.
-  const rotationRad = (-device.rotation * Math.PI) / 180;
+  const computedRotationRad = (-deviceProp.rotation * Math.PI) / 180;
 
   // Planos de corte dinâmicos (Clipping Planes)
   const clippingPlanes = useMemo(() => {
@@ -31,7 +33,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
   const isVisible = true;
   if (!isVisible) return null;
 
-  const type = device.type;
+  const type = deviceProp.type;
 
   // Determinar a altura Z de fixação com base no peitoril ou norma e tipo de dispositivo
   const getZCoordAndHeight = (): { z: number; width: number; depth: number; height: number; color: string; isEsquadria: boolean } => {
@@ -39,18 +41,29 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
     if (type.startsWith('door')) {
       const doorW = device.width ?? 0.8;
       const doorH = device.height3d ?? 2.10;
-      return { z: doorH / 2, width: doorW, depth: 0.04, height: doorH, color: '#78350f', isEsquadria: true };
+      return { z: doorH / 2, width: doorW, depth: 0.04, height: doorH, color: doorColor || '#78350f', isEsquadria: true };
     }
     if (type === 'window') {
       const winW = device.width ?? 1.2;
       const winH = device.height3d ?? 1.10;
       const peitoril = device.peitoril ?? 1.00;
-      return { z: peitoril + winH / 2, width: winW, depth: 0.05, height: winH, color: '#38bdf8', isEsquadria: true };
+      return { z: peitoril + winH / 2, width: winW, depth: 0.05, height: winH, color: windowColor || '#38bdf8', isEsquadria: true };
     }
     if (type === 'open_van') {
       const vanW = device.width ?? 1.0;
       const vanH = device.height3d ?? 2.10;
       return { z: vanH / 2, width: vanW, depth: 0.15, height: vanH, color: '#cbd5e1', isEsquadria: true };
+    }
+
+    // Mobiliários residenciais (altura do peitoril padrão = 0m, no chão)
+    if (type === 'sofa' || type === 'geladeira' || type === 'fogao' || type === 'cama' || type === 'mesa_jantar') {
+      let size = { width: 1.0, depth: 1.0, height: 1.0, color: '#94a3b8' };
+      if (type === 'sofa') size = { width: device.width ?? 2.0, depth: 0.9, height: 0.85, color: '#475569' };
+      else if (type === 'geladeira') size = { width: device.width ?? 0.7, depth: 0.7, height: device.height3d ?? 1.85, color: '#cbd5e1' };
+      else if (type === 'fogao') size = { width: device.width ?? 0.7, depth: 0.6, height: 0.85, color: '#334155' };
+      else if (type === 'cama') size = { width: device.width ?? 1.6, depth: 2.0, height: 0.55, color: '#f8fafc' };
+      else if (type === 'mesa_jantar') size = { width: device.width ?? 1.2, depth: 0.8, height: 0.75, color: '#a16207' };
+      return { z: size.height / 2, ...size, isEsquadria: false };
     }
 
     // Altura inteligente Z de fixação (prioriza peitoril/altura do usuário)
@@ -93,10 +106,82 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
       size = { width: 0.60, depth: 0.60, height: 0.85, color: '#f8fafc' };
     }
 
-    return { z, ...size, isEsquadria: false };
+    return { z: z + size.height / 2, ...size, isEsquadria: false };
   };
 
-  const { z, width, depth, height, color } = getZCoordAndHeight();
+  const { z: computedZ, width, depth, height, color } = getZCoordAndHeight();
+
+  // Sombreado de constantes para que o switch/ifs original rode na origem se isInner for true
+  const z = isInner ? 0 : computedZ;
+  const rotationRad = isInner ? 0 : computedRotationRad;
+  const device = isInner ? { ...deviceProp, x: 0, y: 0, rotation: 0 } : deviceProp;
+
+  // Lógica do Wrapper Pai (isInner === false)
+  if (!isInner) {
+    const isSelected = selectedDeviceId === deviceProp.id;
+    const groupRef = useRef<THREE.Group>(null);
+
+    const handleTransform = () => {
+      if (!groupRef.current) return;
+      const { x, y, z: curZ } = groupRef.current.position;
+      const newPeitoril = curZ - height / 2;
+
+      updateDeviceProperties(deviceProp.id, {
+        x: Number(x.toFixed(3)),
+        y: Number(y.toFixed(3)),
+        peitoril: Number(newPeitoril.toFixed(3))
+      });
+    };
+
+    const transformRef = useRef<any>(null);
+
+    useEffect(() => {
+      if (!transformRef.current) return;
+      const controls = transformRef.current;
+      const callback = (e: any) => {
+        useCadStore.getState().setOrbitControlsEnabled(!e.value);
+      };
+      controls.addEventListener('dragging-changed', callback);
+      return () => controls.removeEventListener('dragging-changed', callback);
+    }, [isSelected]);
+
+    const handleSelect = (e: any) => {
+      e.stopPropagation();
+      useCadStore.getState().setSelectedDeviceId(deviceProp.id);
+    };
+
+    if (isSelected && shadingMode !== 'wireframe') {
+      return (
+        <TransformControls
+          ref={transformRef}
+          mode="translate"
+          onObjectChange={handleTransform}
+        >
+          <group
+            ref={groupRef}
+            name={deviceProp.id}
+            position={[deviceProp.x, deviceProp.y, computedZ]}
+            rotation={[0, 0, computedRotationRad]}
+            onClick={handleSelect}
+          >
+            <Device3D device={deviceProp} isInner={true} />
+          </group>
+        </TransformControls>
+      );
+    }
+
+    return (
+      <group
+        ref={groupRef}
+        name={deviceProp.id}
+        position={[deviceProp.x, deviceProp.y, computedZ]}
+        rotation={[0, 0, computedRotationRad]}
+        onClick={handleSelect}
+      >
+        <Device3D device={deviceProp} isInner={true} />
+      </group>
+    );
+  }
 
   // Propriedades comuns de material para os dispositivos de acabamento (sólidos e opacos)
   // Conforme solicitação, aparecem sólidos tanto em modo "sólido" quanto em "raio-X" (transparente).
@@ -785,6 +870,181 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
             </mesh>
           </group>
         </group>
+      </group>
+    );
+  }
+
+  // 14. Mobiliário: Sofá Residencial
+  if (type === 'sofa') {
+    const sofaW = width;
+    const sofaH = height;
+    const sofaD = depth;
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        {/* Assento Principal */}
+        <mesh position={[0, 0, -sofaH * 0.15]}>
+          <boxGeometry args={[sofaW * 0.8, sofaD * 0.8, sofaH * 0.4]} />
+          <meshStandardMaterial color="#475569" roughness={0.9} {...matProps} />
+        </mesh>
+        {/* Encosto Traseiro */}
+        <mesh position={[0, sofaD * 0.35, sofaH * 0.15]}>
+          <boxGeometry args={[sofaW * 0.8, sofaD * 0.2, sofaH * 0.7]} />
+          <meshStandardMaterial color="#475569" roughness={0.9} {...matProps} />
+        </mesh>
+        {/* Braço Esquerdo */}
+        <mesh position={[-sofaW * 0.45, 0, 0]}>
+          <boxGeometry args={[sofaW * 0.1, sofaD * 0.9, sofaH * 0.7]} />
+          <meshStandardMaterial color="#334155" roughness={0.9} {...matProps} />
+        </mesh>
+        {/* Braço Direito */}
+        <mesh position={[sofaW * 0.45, 0, 0]}>
+          <boxGeometry args={[sofaW * 0.1, sofaD * 0.9, sofaH * 0.7]} />
+          <meshStandardMaterial color="#334155" roughness={0.9} {...matProps} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // 15. Mobiliário: Geladeira
+  if (type === 'geladeira') {
+    const gelW = width;
+    const gelD = depth;
+    const gelH = height;
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        {/* Corpo principal */}
+        <mesh>
+          <boxGeometry args={[gelW, gelD, gelH]} />
+          <meshStandardMaterial color="#94a3b8" metalness={0.8} roughness={0.2} {...matProps} />
+        </mesh>
+        {/* Porta superior (freezer) */}
+        <mesh position={[0, -gelD * 0.505, gelH * 0.25]}>
+          <boxGeometry args={[gelW * 0.98, 0.01, gelH * 0.4]} />
+          <meshStandardMaterial color="#cbd5e1" metalness={0.85} roughness={0.15} {...matProps} />
+        </mesh>
+        {/* Porta inferior (refrigerador) */}
+        <mesh position={[0, -gelD * 0.505, -gelH * 0.2]}>
+          <boxGeometry args={[gelW * 0.98, 0.01, gelH * 0.5]} />
+          <meshStandardMaterial color="#cbd5e1" metalness={0.85} roughness={0.15} {...matProps} />
+        </mesh>
+        {/* Puxador */}
+        <mesh position={[-gelW * 0.4, -gelD * 0.52, gelH * 0.05]}>
+          <boxGeometry args={[0.02, 0.02, 0.3]} />
+          <meshStandardMaterial color="#f8fafc" metalness={0.9} roughness={0.1} />
+        </mesh>
+        {/* Painel Display */}
+        <mesh position={[0, -gelD * 0.51, gelH * 0.28]}>
+          <boxGeometry args={[0.15, 0.005, 0.12]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.1} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // 16. Mobiliário: Fogão
+  if (type === 'fogao') {
+    const fogW = width;
+    const fogD = depth;
+    const fogH = height;
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        {/* Corpo */}
+        <mesh>
+          <boxGeometry args={[fogW, fogD, fogH]} />
+          <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.3} {...matProps} />
+        </mesh>
+        {/* Mesa de Vidro */}
+        <mesh position={[0, 0, fogH * 0.505]}>
+          <boxGeometry args={[fogW * 0.98, fogD * 0.98, 0.01]} />
+          <meshStandardMaterial color="#0f172a" metalness={0.9} roughness={0.1} {...matProps} />
+        </mesh>
+        {/* Bocas do fogão */}
+        {[-fogW * 0.22, fogW * 0.22].map((bx, i) => (
+          <group key={i}>
+            <mesh position={[bx, -fogD * 0.2, fogH * 0.51]}>
+              <cylinderGeometry args={[0.04, 0.04, 0.01, 12]} />
+              <meshStandardMaterial color="#1e293b" roughness={0.9} />
+            </mesh>
+            <mesh position={[bx, fogD * 0.2, fogH * 0.51]}>
+              <cylinderGeometry args={[0.04, 0.04, 0.01, 12]} />
+              <meshStandardMaterial color="#1e293b" roughness={0.9} />
+            </mesh>
+          </group>
+        ))}
+        {/* Porta do forno */}
+        <mesh position={[0, -fogD * 0.505, -fogH * 0.1]}>
+          <boxGeometry args={[fogW * 0.88, 0.01, fogH * 0.5]} />
+          <meshStandardMaterial color="#1e293b" metalness={0.9} roughness={0.1} {...matProps} />
+        </mesh>
+        {/* Puxador do Forno */}
+        <mesh position={[0, -fogD * 0.53, fogH * 0.12]}>
+          <boxGeometry args={[fogW * 0.7, 0.02, 0.02]} />
+          <meshStandardMaterial color="#cbd5e1" metalness={0.9} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // 17. Mobiliário: Cama de Casal
+  if (type === 'cama') {
+    const camaW = width;
+    const camaD = depth;
+    const camaH = height;
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        {/* Colchão */}
+        <mesh position={[0, 0, camaH * 0.1]}>
+          <boxGeometry args={[camaW, camaD, camaH * 0.6]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.9} {...matProps} />
+        </mesh>
+        {/* Base de madeira */}
+        <mesh position={[0, 0, -camaH * 0.3]}>
+          <boxGeometry args={[camaW * 0.98, camaD * 0.98, camaH * 0.4]} />
+          <meshStandardMaterial color="#7c2d12" roughness={0.8} {...matProps} />
+        </mesh>
+        {/* Cabeceira */}
+        <mesh position={[0, camaD * 0.48, camaH * 0.6]}>
+          <boxGeometry args={[camaW * 1.02, 0.06, camaH * 1.4]} />
+          <meshStandardMaterial color="#7c2d12" roughness={0.8} {...matProps} />
+        </mesh>
+        {/* Travesseiros */}
+        <mesh position={[-camaW * 0.22, camaD * 0.35, camaH * 0.45]} rotation={[-0.1, 0, 0]}>
+          <boxGeometry args={[camaW * 0.35, 0.4, 0.1]} />
+          <meshStandardMaterial color="#e2e8f0" roughness={0.9} />
+        </mesh>
+        <mesh position={[camaW * 0.22, camaD * 0.35, camaH * 0.45]} rotation={[-0.1, 0, 0]}>
+          <boxGeometry args={[camaW * 0.35, 0.4, 0.1]} />
+          <meshStandardMaterial color="#e2e8f0" roughness={0.9} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // 18. Mobiliário: Mesa de Jantar
+  if (type === 'mesa_jantar') {
+    const mesaW = width;
+    const mesaD = depth;
+    const mesaH = height;
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        {/* Tampo */}
+        <mesh position={[0, 0, mesaH * 0.48]}>
+          <boxGeometry args={[mesaW, mesaD, 0.04]} />
+          <meshStandardMaterial color="#a16207" roughness={0.6} {...matProps} />
+        </mesh>
+        {/* Pernas */}
+        {[-mesaW * 0.45, mesaW * 0.45].map((px) => (
+          <group key={px}>
+            <mesh position={[px, -mesaD * 0.42, 0]}>
+              <cylinderGeometry args={[0.02, 0.02, mesaH - 0.04, 8]} />
+              <meshStandardMaterial color="#1e293b" metalness={0.9} roughness={0.2} />
+            </mesh>
+            <mesh position={[px, mesaD * 0.42, 0]}>
+              <cylinderGeometry args={[0.02, 0.02, mesaH - 0.04, 8]} />
+              <meshStandardMaterial color="#1e293b" metalness={0.9} roughness={0.2} />
+            </mesh>
+          </group>
+        ))}
       </group>
     );
   }

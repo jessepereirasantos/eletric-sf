@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
 import { useCadStore } from '../store/useCadStore';
+import { TextureGenerator } from '../utils/textureGenerator';
 import { Wall3D } from '../components/Render3D/Wall3D';
 import { Device3D } from '../components/Render3D/Device3D';
 import { Conduit3D } from '../components/Render3D/Conduit3D';
@@ -48,7 +49,7 @@ const Laje3D: React.FC = () => {
   if (!geometry) return null;
 
   return (
-    <mesh position={[geometry.cx, geometry.cy, 2.80 + 0.05]}>
+    <mesh position={[geometry.cx, geometry.cy, 2.80 + 0.05]} raycast={() => null}>
       <boxGeometry args={[geometry.w, geometry.h, 0.10]} />
       <meshStandardMaterial
         color="#475569"
@@ -63,7 +64,7 @@ const Laje3D: React.FC = () => {
 };
 
 const Piso3D: React.FC = () => {
-  const { walls } = useCadStore();
+  const { walls, floorTextureType, shadingMode } = useCadStore();
 
   const geometry = useMemo(() => {
     if (walls.length === 0) return null;
@@ -87,15 +88,27 @@ const Piso3D: React.FC = () => {
     return { cx, cy, w, h };
   }, [walls]);
 
+  const texture = useMemo(() => {
+    if (shadingMode !== 'realistic') return null;
+    if (floorTextureType === 'madeira') {
+      return TextureGenerator.getWood('#d97706', '#7c2d12');
+    } else if (floorTextureType === 'ceramica') {
+      return TextureGenerator.getAzulejo('#fca5a5', '#b91c1c');
+    } else {
+      return TextureGenerator.getPorcelanato('#f8fafc');
+    }
+  }, [floorTextureType, shadingMode]);
+
   if (!geometry) return null;
 
   return (
-    <mesh position={[geometry.cx, geometry.cy, -0.005]} receiveShadow>
+    <mesh position={[geometry.cx, geometry.cy, -0.005]} receiveShadow raycast={() => null}>
       <planeGeometry args={[geometry.w, geometry.h]} />
       <meshStandardMaterial
-        color="#e2e8f0" // porcelanato cinza claro
-        roughness={0.4}
-        metalness={0.1}
+        color={shadingMode === 'realistic' ? undefined : '#e2e8f0'}
+        map={texture || undefined}
+        roughness={shadingMode === 'realistic' ? 0.35 : 0.4}
+        metalness={shadingMode === 'realistic' ? 0.2 : 0.1}
       />
     </mesh>
   );
@@ -144,7 +157,18 @@ interface Render3DViewProps {
 }
 
 export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChange }) => {
-  const { walls, devices, conduits } = useCadStore();
+  const {
+    walls,
+    devices,
+    conduits,
+    orbitControlsEnabled,
+    shadingMode,
+    setShadingMode,
+    activeViewFilter,
+    setViewFilter,
+    selectedDeviceId,
+    setSelectedDeviceId
+  } = useCadStore();
 
   const projectCenter = useMemo(() => {
     if (walls.length === 0) return { x: 0, y: 0 };
@@ -165,6 +189,25 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
       y: (minY + maxY) / 2
     };
   }, [walls]);
+
+  const handleCaptureSnapshot = () => {
+    const canvas = document.querySelector('canvas');
+    if (!canvas) {
+      alert('Erro ao localizar o visualizador 3D.');
+      return;
+    }
+    
+    // Captura o base64 do canvas
+    const dataUrl = canvas.toDataURL('image/png');
+    
+    // Pergunta o título da imagem
+    const title = prompt('Digite o título para este corte/vista 3D:', 'Corte Técnico 3D');
+    if (title === null) return; // cancelado
+    
+    // Adiciona na store
+    useCadStore.getState().addSnapshot3D(title || 'Vista 3D', dataUrl);
+    alert('Corte 3D capturado com sucesso! Agora você pode adicioná-lo como viewport em qualquer prancha.');
+  };
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#090d16', color: '#f8fafc', overflow: 'hidden' }}>
@@ -230,6 +273,77 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
         </div>
       </header>
 
+      {/* ─── Barra de Ferramentas do Visualizador 3D ─── */}
+      <div style={{
+        display: 'flex', gap: '16px', alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 24px', backgroundColor: '#0f172a', borderBottom: '1px solid #1e293b',
+        fontSize: '0.8rem'
+      }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          {/* Seletor de Modo de Renderização */}
+          <span style={{ color: '#94a3b8' }}>Estilo Visual:</span>
+          <div style={{ display: 'flex', backgroundColor: '#090d16', padding: '2px', borderRadius: '6px', border: '1px solid #334155' }}>
+            {(['shaded', 'transparent', 'wireframe', 'realistic'] as const).map(mode => (
+              <button
+                key={mode}
+                onClick={() => setShadingMode(mode)}
+                style={{
+                  padding: '4px 10px', borderRadius: '4px', border: 'none', cursor: 'pointer',
+                  fontSize: '0.75rem', fontWeight: 'bold',
+                  backgroundColor: shadingMode === mode ? '#3b82f6' : 'transparent',
+                  color: shadingMode === mode ? '#fff' : '#94a3b8',
+                  transition: 'all 0.2s'
+                }}
+              >
+                {mode === 'shaded' ? 'Sólido' : mode === 'transparent' ? 'Raio-X' : mode === 'wireframe' ? 'Aramado' : 'Realista'}
+              </button>
+            ))}
+          </div>
+
+          {/* Filtro de Disciplinas MEP (Revit-like) */}
+          <span style={{ color: '#94a3b8', marginLeft: '12px' }}>Filtro MEP:</span>
+          <select
+            value={activeViewFilter}
+            onChange={(e) => setViewFilter(e.target.value as any)}
+            style={{
+              backgroundColor: '#090d16', border: '1px solid #334155', color: '#fff',
+              padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer',
+              outline: 'none'
+            }}
+          >
+            <option value="completa">Vista Completa (Todas)</option>
+            <option value="infraestrutura">Somente Infraestrutura (Eletrodutos + Caixas)</option>
+            <option value="fiacao_dispositivos">Fiação e Acabamento (Tomadas/Interruptores)</option>
+          </select>
+        </div>
+
+        {/* Captura de Foto 3D e Botão de Desmarcar Seleção */}
+        <div style={{ display: 'flex', gap: '10px' }}>
+          {selectedDeviceId && (
+            <button
+              onClick={() => setSelectedDeviceId(null)}
+              style={{
+                backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid #ef4444',
+                borderRadius: '6px', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
+              }}
+            >
+              Desmarcar Elemento
+            </button>
+          )}
+
+          <button
+            onClick={handleCaptureSnapshot}
+            style={{
+              backgroundColor: '#22c55e', color: '#fff', border: 'none',
+              borderRadius: '6px', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '6px'
+            }}
+          >
+            📸 Capturar Corte / Foto 3D
+          </button>
+        </div>
+      </div>
+
       {/* ─── Área do Canvas 3D (WebGL) ─── */}
       <div style={{ flex: 1, position: 'relative', outline: 'none' }}>
         
@@ -280,7 +394,7 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
         <Canvas
           camera={{ position: [projectCenter.x + 8, projectCenter.y - 8, 8], fov: 45, up: [0, 0, 1] }}
           shadows
-          gl={{ localClippingEnabled: true }}
+          gl={{ localClippingEnabled: true, preserveDrawingBuffer: true }}
           style={{ width: '100%', height: '100%', outline: 'none' }}
         >
           {/* Fundo do Espaço 3D */}
@@ -351,6 +465,7 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
 
           {/* Controles de Câmera e Órbita centralizada */}
           <OrbitControls
+            enabled={orbitControlsEnabled}
             enableDamping
             dampingFactor={0.05}
             maxPolarAngle={Math.PI / 2 - 0.05} // impede a câmera de passar para debaixo do chão

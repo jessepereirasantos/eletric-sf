@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { useCadStore } from '../../store/useCadStore';
+import { TextureGenerator } from '../../utils/textureGenerator';
 import type { Wall } from '../../store/useCadStore';
 
 interface Wall3DProps {
@@ -8,7 +9,7 @@ interface Wall3DProps {
 }
 
 export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
-  const { shadingMode, clippingState } = useCadStore();
+  const { shadingMode, clippingState, wallColor } = useCadStore();
 
   const L = Math.sqrt(Math.pow(wall.p2.x - wall.p1.x, 2) + Math.pow(wall.p2.y - wall.p1.y, 2));
   if (L === 0) return null;
@@ -22,16 +23,26 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
 
   // Definir materiais com base nas propriedades da parede
   const getMaterialProperties = () => {
+    let texture = undefined;
+    if (shadingMode === 'realistic' && wall.material === 'alvenaria') {
+      texture = TextureGenerator.getWallPaint(wallColor || '#ffffff');
+    }
+
     switch (wall.material) {
       case 'concreto':
-        return { color: '#64748b', roughness: 0.8, metalness: 0.2 };
+        return { color: '#64748b', roughness: 0.8, metalness: 0.2, map: undefined };
       case 'drywall':
-        return { color: '#f8fafc', roughness: 0.9, metalness: 0.0 };
+        return { color: '#f8fafc', roughness: 0.9, metalness: 0.0, map: undefined };
       case 'vidro':
-        return { color: '#93c5fd', roughness: 0.1, metalness: 0.9, transparent: true, opacity: 0.4 };
+        return { color: '#93c5fd', roughness: 0.1, metalness: 0.9, transparent: true, opacity: 0.4, map: undefined };
       case 'alvenaria':
       default:
-        return { color: '#cbd5e1', roughness: 0.7, metalness: 0.1 };
+        return {
+          color: shadingMode === 'realistic' ? (wallColor || '#cbd5e1') : '#cbd5e1',
+          roughness: 0.7,
+          metalness: 0.1,
+          map: texture
+        };
     }
   };
 
@@ -74,7 +85,7 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
     const y = wall.p1.y + centerDist * dy;
 
     return (
-      <mesh key={`full-${idx}`} position={[x, y, wall.height / 2]} rotation={[0, 0, angle]}>
+      <mesh key={`full-${idx}`} position={[x, y, wall.height / 2]} rotation={[0, 0, angle]} raycast={() => null}>
         <boxGeometry args={[segL, wall.thickness, wall.height]} />
         <meshStandardMaterial
           {...matProps}
@@ -113,7 +124,7 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
         <React.Fragment key={`cutout-fill-${idx}`}>
           {/* Parede abaixo da janela */}
           {belowHeight > 0.01 && (
-            <mesh position={[x, y, belowHeight / 2]} rotation={[0, 0, angle]}>
+            <mesh position={[x, y, belowHeight / 2]} rotation={[0, 0, angle]} raycast={() => null}>
               <boxGeometry args={[cL, wall.thickness, belowHeight]} />
               <meshStandardMaterial
                 {...matProps}
@@ -127,7 +138,7 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
           )}
           {/* Parede acima da janela */}
           {aboveHeight > 0.01 && (
-            <mesh position={[x, y, wall.height - aboveHeight / 2]} rotation={[0, 0, angle]}>
+            <mesh position={[x, y, wall.height - aboveHeight / 2]} rotation={[0, 0, angle]} raycast={() => null}>
               <boxGeometry args={[cL, wall.thickness, aboveHeight]} />
               <meshStandardMaterial
                 {...matProps}
@@ -147,7 +158,7 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
       const aboveHeight = Math.max(0.01, wall.height - doorH);
       return (
         aboveHeight > 0.01 ? (
-          <mesh key={`cutout-fill-${idx}`} position={[x, y, wall.height - aboveHeight / 2]} rotation={[0, 0, angle]}>
+          <mesh key={`cutout-fill-${idx}`} position={[x, y, wall.height - aboveHeight / 2]} rotation={[0, 0, angle]} raycast={() => null}>
             <boxGeometry args={[cL, wall.thickness, aboveHeight]} />
             <meshStandardMaterial
               {...matProps}

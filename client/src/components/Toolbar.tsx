@@ -156,6 +156,12 @@ const IconGuide = () => (
   </svg>
 );
 
+const IconFurniture = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path d="M4 18v3M20 18v3M4 10h16M4 14h16M8 10V6a2 2 0 012-2h4a2 2 0 012 2v4" />
+  </svg>
+);
+
 // ─── Definição das Categorias/Ferramentas ─────────────────────────────────
 
 interface ToolbarItem {
@@ -328,6 +334,21 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         { type: 'tue_chuveiro', label: 'Chuveiro Elétrico', isDevice: true, symbolDesc: '♨' },
         { type: 'torneira_eletrica', label: 'Torneira Elétrica', isDevice: true, symbolDesc: '🚰' },
         { type: 'tue_ar', label: 'Ar Condicionado', isDevice: true, symbolDesc: '❄' },
+      ],
+    },
+    {
+      key: 'mobiliario',
+      label: 'Mobiliário',
+      icon: <IconFurniture />,
+      hasDropdown: true,
+      defaultTool: 'device',
+      defaultDevice: 'sofa',
+      items: [
+        { type: 'sofa', label: 'Sofá Residencial', isDevice: true, symbolDesc: '🛋️' },
+        { type: 'geladeira', label: 'Geladeira', isDevice: true, symbolDesc: '❄️' },
+        { type: 'fogao', label: 'Fogão', isDevice: true, symbolDesc: '🔥' },
+        { type: 'cama', label: 'Cama de Casal', isDevice: true, symbolDesc: '🛏️' },
+        { type: 'mesa_jantar', label: 'Mesa de Jantar', isDevice: true, symbolDesc: '🪑' },
       ],
     },
     {

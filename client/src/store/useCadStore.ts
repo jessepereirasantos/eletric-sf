@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { dimensionateCircuit } from '../utils/nbr5410';
 import { calculateWiringRouting } from '../utils/pathfinding';
-import type { ToolType } from '../types';
+import type { ToolType, Sheet, SheetViewport, Snapshot3D } from '../types';
 
 const API_URL = typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '5173'
   ? 'http://localhost:3001/api'
@@ -145,6 +145,13 @@ interface HistorySnapshot {
   bgImageScaleY: number;
   bgImagePos: Point2D;
   bgImageRotation: number;
+  sheetsList: Sheet[];
+  activeSheetId: string;
+  snapshots3D: Snapshot3D[];
+  wallColor: string;
+  floorTextureType: 'madeira' | 'porcelanato' | 'ceramica' | 'pintura';
+  doorColor: string;
+  windowColor: string;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -299,13 +306,13 @@ interface CadState {
 
   // Estado de Visualizações e Barra MEP (Revit-Like)
   activeViewFilter: 'completa' | 'infraestrutura' | 'fiacao_dispositivos';
-  shadingMode: 'shaded' | 'transparent' | 'wireframe';
+  shadingMode: 'shaded' | 'transparent' | 'wireframe' | 'realistic';
   clippingState: { enabled: boolean; axis: 'X' | 'Y' | 'Z' | '-X' | '-Y' | '-Z'; value: number };
   projectScale: number; // Ex: 50 para 1:50, 100 para 1:100
   utilityGridType: 'monofasico' | 'bifasico' | 'trifasico';
 
   setViewFilter: (filter: 'completa' | 'infraestrutura' | 'fiacao_dispositivos') => void;
-  setShadingMode: (mode: 'shaded' | 'transparent' | 'wireframe') => void;
+  setShadingMode: (mode: 'shaded' | 'transparent' | 'wireframe' | 'realistic') => void;
   setClippingState: (clipping: Partial<{ enabled: boolean; axis: 'X' | 'Y' | 'Z' | '-X' | '-Y' | '-Z'; value: number }>) => void;
   setProjectScale: (scale: number) => void;
   setUtilityGridType: (type: 'monofasico' | 'bifasico' | 'trifasico') => void;
@@ -333,6 +340,39 @@ interface CadState {
   loadProjectByIdFromDb: (id: number) => Promise<void>;
   deleteProjectFromDb: (id: number) => Promise<void>;
   setWorkspaceData: (data: any) => void;
+
+  // Estado de Pranchas (Paper Space) Multi-folhas Flexíveis
+  sheetsList: Sheet[];
+  activeSheetId: string;
+  snapshots3D: Snapshot3D[];
+
+  // Propriedades Estéticas 3D
+  wallColor: string;
+  floorTextureType: 'madeira' | 'porcelanato' | 'ceramica' | 'pintura';
+  doorColor: string;
+  windowColor: string;
+
+  // Mutadoras de Pranchas e Viewports
+  addSheet: (sheet: Omit<Sheet, 'id'>) => void;
+  removeSheet: (id: string) => void;
+  updateSheet: (id: string, props: Partial<Omit<Sheet, 'id'>>) => void;
+  setActiveSheetId: (id: string) => void;
+  updateViewportGeometry: (sheetId: string, viewportId: string, geometry: Partial<Pick<SheetViewport, 'x' | 'y' | 'w' | 'h'>>) => void;
+  addViewportToSheet: (sheetId: string, type: SheetViewport['type'], snapshotId?: string) => void;
+  removeViewportFromSheet: (sheetId: string, viewportId: string) => void;
+
+  // Mutadoras de Snapshots 3D
+  addSnapshot3D: (title: string, dataUrl: string) => void;
+  removeSnapshot3D: (id: string) => void;
+
+  // Mutadoras Estéticas
+  setWallColor: (color: string) => void;
+  setFloorTextureType: (type: 'madeira' | 'porcelanato' | 'ceramica' | 'pintura') => void;
+  setDoorColor: (color: string) => void;
+  setWindowColor: (color: string) => void;
+
+  orbitControlsEnabled: boolean;
+  setOrbitControlsEnabled: (enabled: boolean) => void;
 }
 
 const MAX_HISTORY = 50;
@@ -351,6 +391,13 @@ const takeSnapshot = (state: CadState): HistorySnapshot => ({
   bgImageScaleY: state.bgImageScaleY,
   bgImagePos: JSON.parse(JSON.stringify(state.bgImagePos || { x: 0, y: 0 })),
   bgImageRotation: state.bgImageRotation,
+  sheetsList: JSON.parse(JSON.stringify(state.sheetsList || [])),
+  activeSheetId: state.activeSheetId || '',
+  snapshots3D: JSON.parse(JSON.stringify(state.snapshots3D || [])),
+  wallColor: state.wallColor || '#ffffff',
+  floorTextureType: state.floorTextureType || 'pintura',
+  doorColor: state.doorColor || '#b45309',
+  windowColor: state.windowColor || '#38bdf8',
 });
 
 export const useCadStore = create<CadState>()(
@@ -374,10 +421,142 @@ export const useCadStore = create<CadState>()(
       paperSheetNum: 'PR-01/01',
       paperLogo: '',
 
+      sheetsList: [
+        {
+          id: 'sheet_1',
+          code: 'PR-01/02',
+          title: 'Planta de Distribuição Elétrica',
+          size: 'A1',
+          orientation: 'landscape',
+          viewports: [
+            { id: 'vp_planta', type: 'planta', x: 5, y: 5, w: 60, h: 80 },
+            { id: 'vp_legenda', type: 'legenda', x: 68, y: 5, w: 27, h: 80 }
+          ]
+        },
+        {
+          id: 'sheet_2',
+          code: 'PR-02/02',
+          title: 'Diagrama Unifilar e Tabelas',
+          size: 'A1',
+          orientation: 'landscape',
+          viewports: [
+            { id: 'vp_unifilar', type: 'unifilar', x: 5, y: 5, w: 55, h: 80 },
+            { id: 'vp_cargas', type: 'cargas', x: 63, y: 5, w: 32, h: 38 },
+            { id: 'vp_materiais', type: 'materiais', x: 63, y: 46, w: 32, h: 39 }
+          ]
+        }
+      ],
+      activeSheetId: 'sheet_1',
+      snapshots3D: [],
+      wallColor: '#e2e8f0',
+      floorTextureType: 'porcelanato',
+      doorColor: '#b45309',
+      windowColor: '#38bdf8',
+      orbitControlsEnabled: true,
+
       setPaperSpaceActive: (active) => set({ paperSpaceActive: active }),
       setPaperSize: (size) => set({ paperSize: size }),
       setPaperScale: (scale) => set({ paperScale: scale }),
       setPaperPos: (pos) => set({ paperPos: pos }),
+      setOrbitControlsEnabled: (enabled) => set({ orbitControlsEnabled: enabled }),
+
+      addSheet: (sheet) => {
+        get().pushHistory();
+        const newId = `sheet_${Date.now()}`;
+        set((s) => ({
+          sheetsList: [...s.sheetsList, { ...sheet, id: newId, viewports: [] }],
+          activeSheetId: newId
+        }));
+      },
+      removeSheet: (id) => {
+        get().pushHistory();
+        set((s) => {
+          const filtered = s.sheetsList.filter(sheet => sheet.id !== id);
+          const nextActiveId = filtered.length > 0 ? filtered[0].id : '';
+          return {
+            sheetsList: filtered,
+            activeSheetId: nextActiveId
+          };
+        });
+      },
+      updateSheet: (id, props) => {
+        get().pushHistory();
+        set((s) => ({
+          sheetsList: s.sheetsList.map(sheet => sheet.id === id ? { ...sheet, ...props } : sheet)
+        }));
+      },
+      setActiveSheetId: (id) => set({ activeSheetId: id }),
+      updateViewportGeometry: (sheetId, viewportId, geometry) => {
+        set((s) => ({
+          sheetsList: s.sheetsList.map(sheet => {
+            if (sheet.id !== sheetId) return sheet;
+            return {
+              ...sheet,
+              viewports: sheet.viewports.map(vp => {
+                if (vp.id !== viewportId) return vp;
+                return { ...vp, ...geometry };
+              })
+            };
+          })
+        }));
+      },
+      addViewportToSheet: (sheetId, type, snapshotId) => {
+        get().pushHistory();
+        set((s) => {
+          const newVp: SheetViewport = {
+            id: `vp_${type}_${Date.now()}`,
+            type,
+            x: 10,
+            y: 10,
+            w: type === 'planta' || type === 'unifilar' ? 50 : 30,
+            h: type === 'planta' || type === 'unifilar' ? 50 : 30,
+            snapshotId
+          };
+          return {
+            sheetsList: s.sheetsList.map(sheet => {
+              if (sheet.id !== sheetId) return sheet;
+              if (type !== 'corte_3d' && sheet.viewports.some(vp => vp.type === type)) {
+                return sheet;
+              }
+              return {
+                ...sheet,
+                viewports: [...sheet.viewports, newVp]
+              };
+            })
+          };
+        });
+      },
+      removeViewportFromSheet: (sheetId, viewportId) => {
+        get().pushHistory();
+        set((s) => ({
+          sheetsList: s.sheetsList.map(sheet => {
+            if (sheet.id !== sheetId) return sheet;
+            return {
+              ...sheet,
+              viewports: sheet.viewports.filter(vp => vp.id !== viewportId)
+            };
+          })
+        }));
+      },
+      addSnapshot3D: (title, dataUrl) => {
+        set((s) => ({
+          snapshots3D: [...s.snapshots3D, {
+            id: `snap_${Date.now()}`,
+            title,
+            dataUrl,
+            createdAt: new Date().toLocaleDateString('pt-BR')
+          }]
+        }));
+      },
+      removeSnapshot3D: (id) => {
+        set((s) => ({
+          snapshots3D: s.snapshots3D.filter(snap => snap.id !== id)
+        }));
+      },
+      setWallColor: (color) => set({ wallColor: color }),
+      setFloorTextureType: (type) => set({ floorTextureType: type }),
+      setDoorColor: (color) => set({ doorColor: color }),
+      setWindowColor: (color) => set({ windowColor: color }),
       setViewFilter: (filter) => {
         set({ activeViewFilter: filter });
         get().recomputeDerivedState();
@@ -1868,6 +2047,13 @@ export const useCadStore = create<CadState>()(
             bgImageScaleY: projectData.bgImageScaleY || projectData.bgImageScale || 1.0,
             bgImagePos: projectData.bgImagePos || { x: 0, y: 0 },
             bgImageRotation: projectData.bgImageRotation || 0,
+            sheetsList: projectData.sheetsList || [],
+            activeSheetId: projectData.activeSheetId || '',
+            snapshots3D: projectData.snapshots3D || [],
+            wallColor: projectData.wallColor || '#ffffff',
+            floorTextureType: projectData.floorTextureType || 'pintura',
+            doorColor: projectData.doorColor || '#b45309',
+            windowColor: projectData.windowColor || '#38bdf8',
             history: [],
             future: []
           });
@@ -1921,6 +2107,13 @@ export const useCadStore = create<CadState>()(
       bgImageScaleY: state.bgImageScaleY,
       bgImagePos: state.bgImagePos,
       bgImageRotation: state.bgImageRotation,
+      sheetsList: state.sheetsList || [],
+      activeSheetId: state.activeSheetId || '',
+      snapshots3D: state.snapshots3D || [],
+      wallColor: state.wallColor || '#ffffff',
+      floorTextureType: state.floorTextureType || 'pintura',
+      doorColor: state.doorColor || '#b45309',
+      windowColor: state.windowColor || '#38bdf8',
     }),
     onRehydrateStorage: () => (state) => {
       if (state && typeof state.recomputeDerivedState === 'function') {
