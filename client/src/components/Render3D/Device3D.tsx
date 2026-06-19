@@ -9,7 +9,10 @@ interface Device3DProps {
 
 export const Device3D: React.FC<Device3DProps> = ({ device }) => {
   const { shadingMode, clippingState } = useCadStore();
-  const rotationRad = (device.rotation * Math.PI) / 180;
+  
+  // Rotação invertida: o Three.js rotaciona em torno de Z no sentido anti-horário,
+  // enquanto o Konva (2D) e o SVG rotacionam no sentido horário.
+  const rotationRad = (-device.rotation * Math.PI) / 180;
 
   // Planos de corte dinâmicos (Clipping Planes)
   const clippingPlanes = useMemo(() => {
@@ -24,20 +27,19 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
     return [new THREE.Plane(normal, clippingState.value)];
   }, [clippingState]);
 
-  // Sempre visível no 3D conforme solicitado: "todos devem aparecer na vista 3d, todos"
+  // Sempre visível no 3D
   const isVisible = true;
-
   if (!isVisible) return null;
+
+  const type = device.type;
 
   // Determinar a altura Z de fixação com base no peitoril ou norma e tipo de dispositivo
   const getZCoordAndHeight = (): { z: number; width: number; depth: number; height: number; color: string; isEsquadria: boolean } => {
-    const type = device.type;
-    
     // Esquadrias
     if (type.startsWith('door')) {
       const doorW = device.width ?? 0.8;
       const doorH = device.height3d ?? 2.10;
-      return { z: doorH / 2, width: doorW, depth: 0.04, height: doorH, color: '#b45309', isEsquadria: true };
+      return { z: doorH / 2, width: doorW, depth: 0.04, height: doorH, color: '#78350f', isEsquadria: true };
     }
     if (type === 'window') {
       const winW = device.width ?? 1.2;
@@ -56,9 +58,13 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
     if (device.peitoril !== undefined) {
       z = device.peitoril;
     } else {
-      if (type.includes('baixa') || type === 'tomada_10a_nbr') {
+      if (type === 'maquina_lavar') {
+        z = 0.00;
+      } else if (type === 'tue_chuveiro' || type === 'tue_ar' || type === 'sconce' || type === 'cftv_camera') {
+        z = 2.20;
+      } else if (type.includes('baixa') || type === 'tomada_10a_nbr') {
         z = 0.30;
-      } else if (type.includes('alta') || type.includes('tue_') || type === 'sconce' || type === 'ceiling_light' || type === 'lampada' || type === 'fluorescent' || type === 'box_octogonal') {
+      } else if (type.includes('alta') || type === 'ceiling_light' || type === 'lampada' || type === 'fluorescent' || type === 'box_octogonal' || type === 'sensor_presenca' || type === 'sensor_fumaca') {
         z = 2.80; // teto
       } else if (type === 'qdc' || type === 'qgbt') {
         z = 1.50;
@@ -67,7 +73,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
       }
     }
 
-    let size = { width: 0.08, depth: 0.05, height: 0.12, color: '#f8fafc' };
+    let size = { width: 0.08, depth: 0.05, height: 0.12, color: '#ffffff' };
 
     if (type === 'ceiling_light' || type === 'lampada' || type === 'fluorescent' || type === 'box_octogonal') {
       size = { width: 0.20, depth: 0.20, height: 0.04, color: '#fef08a' };
@@ -76,13 +82,15 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
     } else if (type === 'poste') {
       size = { width: 0.12, depth: 0.12, height: 3.20, color: '#64748b' };
     } else if (type === 'box_4x2' || type === 'box_4x4') {
-      size = { width: 0.10, depth: 0.08, height: 0.10, color: '#eab308' }; // caixa amarela
+      size = { width: 0.10, depth: 0.08, height: 0.10, color: '#eab308' }; // caixas amarelas
     } else if (type === 'cftv_camera') {
       size = { width: 0.12, depth: 0.12, height: 0.10, color: '#1e293b' };
     } else if (type === 'sensor_presenca' || type === 'sensor_fumaca') {
       size = { width: 0.14, depth: 0.14, height: 0.04, color: '#ffffff' };
     } else if (type === 'central_alarme') {
       size = { width: 0.20, depth: 0.06, height: 0.15, color: '#cbd5e1' };
+    } else if (type === 'maquina_lavar') {
+      size = { width: 0.60, depth: 0.60, height: 0.85, color: '#f8fafc' };
     }
 
     return { z, ...size, isEsquadria: false };
@@ -90,47 +98,64 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
 
   const { z, width, depth, height, color } = getZCoordAndHeight();
 
-  // Se for vão livre simples, não precisa de malha sólida
-  if (device.type === 'open_van') return null;
+  // Propriedades comuns de material para os dispositivos de acabamento (sólidos e opacos)
+  // Conforme solicitação, aparecem sólidos tanto em modo "sólido" quanto em "raio-X" (transparente).
+  // Apenas em modo "arame" (wireframe) ficam em arame.
+  const matProps = {
+    wireframe: shadingMode === 'wireframe',
+    transparent: false,
+    opacity: 1.0,
+    clippingPlanes: clippingPlanes,
+  };
 
-  // Desenhar portas realistas
-  if (device.type.startsWith('door')) {
+  // Se for vão livre simples, não precisa de malha sólida
+  if (type === 'open_van') return null;
+
+  // Lógica para detectar se o dispositivo é montado em parede
+  // Se for parede, aplicamos o yOffset de -0.075m para colocá-lo na face
+  const isWallMounted = !type.startsWith('door') && 
+                        type !== 'window' && 
+                        type !== 'stairs' && 
+                        type !== 'poste' && 
+                        type !== 'motor' && 
+                        type !== 'bomba_agua' && 
+                        type !== 'gerador' && 
+                        type !== 'nobreak' && 
+                        type !== 'maquina_lavar' && 
+                        !type.includes('light') && 
+                        type !== 'lampada' && 
+                        type !== 'fluorescent' && 
+                        type !== 'box_octogonal';
+
+  // 1. Desenhar portas realistas e fechadas
+  if (type.startsWith('door')) {
     const portalThickness = 0.03;
-    const frameDepth = 0.16; // espessura do batente cobrindo a parede
-    const isGiro = device.type === 'door' || device.type === 'door_pivotante';
+    const frameDepth = 0.16; // batente cobrindo a parede
+    const isGiro = type === 'door' || type === 'door_pivotante';
 
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
         <group scale={[isGiro && device.flip ? -1 : 1, 1, 1]}>
-          {/* Batente/Portal da porta */}
           {/* Batente Esquerdo */}
           <mesh position={[isGiro ? portalThickness / 2 : -width / 2 + portalThickness / 2, 0, 0]}>
             <boxGeometry args={[portalThickness, frameDepth, height]} />
-            <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
+            <meshStandardMaterial color="#78350f" roughness={0.7} {...matProps} />
           </mesh>
           {/* Batente Direito */}
           <mesh position={[isGiro ? width - portalThickness / 2 : width / 2 - portalThickness / 2, 0, 0]}>
             <boxGeometry args={[portalThickness, frameDepth, height]} />
-            <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
+            <meshStandardMaterial color="#78350f" roughness={0.7} {...matProps} />
           </mesh>
           {/* Batente Superior */}
           <mesh position={[isGiro ? width / 2 : 0, 0, height / 2 - portalThickness / 2]}>
             <boxGeometry args={[width, frameDepth, portalThickness]} />
-            <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
+            <meshStandardMaterial color="#78350f" roughness={0.7} {...matProps} />
           </mesh>
 
           {/* Folha da porta - FECHADA */}
           <mesh position={[isGiro ? width / 2 : 0, 0, 0]}>
             <boxGeometry args={[width - portalThickness * 2, depth, height - portalThickness]} />
-            <meshStandardMaterial
-              color={color}
-              roughness={0.6}
-              wireframe={shadingMode === 'wireframe'}
-              transparent={shadingMode === 'transparent'}
-              opacity={shadingMode === 'transparent' ? 0.35 : 1.0}
-              clippingPlanes={clippingPlanes}
-              clipShadows={true}
-            />
+            <meshStandardMaterial color="#a16207" roughness={0.6} {...matProps} />
           </mesh>
 
           {/* Maçaneta Metálica */}
@@ -139,14 +164,14 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
               {/* Haste interna */}
               <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
                 <cylinderGeometry args={[0.008, 0.008, 0.08, 8]} />
-                <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
+                <meshStandardMaterial color="#d1d5db" metalness={0.9} roughness={0.1} />
               </mesh>
-              {/* Maçaneta lado 1 */}
+              {/* Maçaneta externa */}
               <mesh position={[0, 0.04, 0]}>
                 <boxGeometry args={[0.02, 0.015, 0.12]} />
                 <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
               </mesh>
-              {/* Maçaneta lado 2 */}
+              {/* Maçaneta interna */}
               <mesh position={[0, -0.04, 0]}>
                 <boxGeometry args={[0.02, 0.015, 0.12]} />
                 <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
@@ -158,270 +183,343 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
     );
   }
 
-  // Desenhar janelas realistas
-  if (device.type === 'window') {
+  // 2. Desenhar janelas realistas (moldura branca, vidros duplos translúcidos)
+  if (type === 'window') {
     const frameThickness = 0.04;
-    const frameDepth = 0.16; // espessura cobrindo a parede
+    const frameDepth = 0.16;
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        {/* Moldura Vazada Branca de Alumínio */}
-        {/* Superior */}
+        {/* Moldura Superior */}
         <mesh position={[0, 0, height / 2 - frameThickness / 2]}>
           <boxGeometry args={[width, frameDepth, frameThickness]} />
-          <meshStandardMaterial color="#f8fafc" metalness={0.5} roughness={0.3} clippingPlanes={clippingPlanes} />
+          <meshStandardMaterial color="#f8fafc" metalness={0.5} roughness={0.3} {...matProps} />
         </mesh>
-        {/* Inferior */}
+        {/* Moldura Inferior */}
         <mesh position={[0, 0, -height / 2 + frameThickness / 2]}>
           <boxGeometry args={[width, frameDepth, frameThickness]} />
-          <meshStandardMaterial color="#f8fafc" metalness={0.5} roughness={0.3} clippingPlanes={clippingPlanes} />
+          <meshStandardMaterial color="#f8fafc" metalness={0.5} roughness={0.3} {...matProps} />
         </mesh>
-        {/* Esquerda */}
+        {/* Moldura Esquerda */}
         <mesh position={[-width / 2 + frameThickness / 2, 0, 0]}>
           <boxGeometry args={[frameThickness, frameDepth, height - frameThickness * 2]} />
-          <meshStandardMaterial color="#f8fafc" metalness={0.5} roughness={0.3} clippingPlanes={clippingPlanes} />
+          <meshStandardMaterial color="#f8fafc" metalness={0.5} roughness={0.3} {...matProps} />
         </mesh>
-        {/* Direita */}
+        {/* Moldura Direita */}
         <mesh position={[width / 2 - frameThickness / 2, 0, 0]}>
           <boxGeometry args={[frameThickness, frameDepth, height - frameThickness * 2]} />
-          <meshStandardMaterial color="#f8fafc" metalness={0.5} roughness={0.3} clippingPlanes={clippingPlanes} />
+          <meshStandardMaterial color="#f8fafc" metalness={0.5} roughness={0.3} {...matProps} />
         </mesh>
-
-        {/* Montante central vertical branco */}
+        {/* Montante central */}
         <mesh position={[0, 0, 0]}>
           <boxGeometry args={[frameThickness, frameDepth, height - frameThickness * 2]} />
-          <meshStandardMaterial color="#f8fafc" metalness={0.5} roughness={0.3} clippingPlanes={clippingPlanes} />
+          <meshStandardMaterial color="#f8fafc" metalness={0.5} roughness={0.3} {...matProps} />
         </mesh>
 
-        {/* Vidro translúcido duplo com reflexo real */}
+        {/* Vidro Duplo Translúcido */}
         <mesh position={[-width / 4, 0, 0]}>
           <boxGeometry args={[width / 2 - frameThickness, 0.02, height - frameThickness * 2]} />
-          <meshStandardMaterial
-            color="#a5f3fc"
-            transparent={true}
-            opacity={shadingMode === 'transparent' ? 0.10 : 0.4}
-            roughness={0.05}
-            metalness={0.95}
-            clippingPlanes={clippingPlanes}
-            clipShadows={true}
-          />
+          <meshStandardMaterial color="#a5f3fc" transparent={true} opacity={0.4} roughness={0.05} metalness={0.9} clippingPlanes={clippingPlanes} />
         </mesh>
         <mesh position={[width / 4, 0, 0]}>
           <boxGeometry args={[width / 2 - frameThickness, 0.02, height - frameThickness * 2]} />
-          <meshStandardMaterial
-            color="#a5f3fc"
-            transparent={true}
-            opacity={shadingMode === 'transparent' ? 0.10 : 0.4}
-            roughness={0.05}
-            metalness={0.95}
-            clippingPlanes={clippingPlanes}
-            clipShadows={true}
-          />
+          <meshStandardMaterial color="#a5f3fc" transparent={true} opacity={0.4} roughness={0.05} metalness={0.9} clippingPlanes={clippingPlanes} />
         </mesh>
       </group>
     );
   }
 
-  // Desenhar Câmera CFTV detalhada
-  if (device.type === 'cftv_camera') {
+  // 3. Desenhar Chuveiro Elétrico (`tue_chuveiro`)
+  if (type === 'tue_chuveiro') {
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        {/* Base da câmera fixada na parede */}
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.05, 0.05, 0.02, 12]} />
-          <meshStandardMaterial color="#475569" clippingPlanes={clippingPlanes} />
-        </mesh>
-        {/* Corpo da câmera dome */}
-        <mesh position={[0, -0.02, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <sphereGeometry args={[0.04, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
-          <meshStandardMaterial color="#0f172a" metalness={0.9} roughness={0.1} clippingPlanes={clippingPlanes} />
-        </mesh>
-        {/* Lente da câmera */}
-        <mesh position={[0, -0.04, 0.01]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.01, 0.01, 0.01, 8]} />
-          <meshBasicMaterial color="#000000" clippingPlanes={clippingPlanes} />
-        </mesh>
-      </group>
-    );
-  }
-
-  // Desenhar Sensor de Presença / Fumaça
-  if (device.type === 'sensor_presenca' || device.type === 'sensor_fumaca') {
-    return (
-      <group position={[device.x, device.y, z]}>
-        {/* Corpo do sensor */}
-        <mesh>
-          <cylinderGeometry args={[0.06, 0.06, 0.03, 16]} />
-          <meshStandardMaterial color="#ffffff" roughness={0.4} clippingPlanes={clippingPlanes} />
-        </mesh>
-        {/* LED indicador */}
-        <mesh position={[0.03, 0.016, 0]}>
-          <sphereGeometry args={[0.006, 8, 8]} />
-          <meshBasicMaterial color={device.type === 'sensor_presenca' ? '#22c55e' : '#ef4444'} clippingPlanes={clippingPlanes} />
-        </mesh>
-      </group>
-    );
-  }
-
-  // Desenhar Central de Alarme
-  if (device.type === 'central_alarme') {
-    return (
-      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        {/* Painel plástico cinza */}
-        <mesh>
-          <boxGeometry args={[0.20, 0.04, 0.15]} />
-          <meshStandardMaterial color="#cbd5e1" roughness={0.5} clippingPlanes={clippingPlanes} />
-        </mesh>
-        {/* Visor LCD azul */}
-        <mesh position={[0, 0.021, 0.03]}>
-          <boxGeometry args={[0.12, 0.002, 0.04]} />
-          <meshBasicMaterial color="#60a5fa" clippingPlanes={clippingPlanes} />
-        </mesh>
-        {/* Teclado numérico */}
-        <mesh position={[0, 0.021, -0.03]}>
-          <boxGeometry args={[0.14, 0.002, 0.05]} />
-          <meshStandardMaterial color="#475569" roughness={0.9} clippingPlanes={clippingPlanes} />
-        </mesh>
-      </group>
-    );
-  }
-
-  // Desenhar Interruptores com placa de acabamento
-  if (device.type.startsWith('switch_') || device.type.startsWith('interruptor') || device.type === 'dimmer') {
-    return (
-      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        {/* Placa de acabamento externa */}
-        <mesh>
-          <boxGeometry args={[0.08, 0.015, 0.12]} />
-          <meshStandardMaterial color="#f8fafc" roughness={0.3} clippingPlanes={clippingPlanes} />
-        </mesh>
-        {/* Módulo do interruptor central */}
-        <mesh position={[0, 0.008, 0]}>
-          <boxGeometry args={[0.03, 0.002, 0.05]} />
-          <meshStandardMaterial color="#cbd5e1" roughness={0.6} clippingPlanes={clippingPlanes} />
-        </mesh>
-      </group>
-    );
-  }
-
-  // Desenhar Poste de Entrada Realista (Padrão de Entrada de Concessionária)
-  if (device.type === 'poste') {
-    return (
-      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        {/* Poste de Concreto Cinza Texturizado */}
-        <mesh position={[0, 0, 0]}>
-          <boxGeometry args={[0.14, 0.14, 3.2]} />
-          <meshStandardMaterial
-            color="#64748b"
-            roughness={0.9}
-            wireframe={shadingMode === 'wireframe'}
-            transparent={shadingMode === 'transparent'}
-            opacity={shadingMode === 'transparent' ? 0.35 : 1.0}
-            clippingPlanes={clippingPlanes}
-          />
-        </mesh>
-
-        {/* Bengala (Eletroduto Curvo Metálico de Entrada) */}
-        <group position={[0.09, 0, 0.2]}>
-          {/* Tubo reto que sobe no poste */}
-          <mesh position={[0, 0, 0.4]}>
-            <cylinderGeometry args={[0.02, 0.02, 2.4, 8]} />
-            <meshStandardMaterial color="#cbd5e1" metalness={0.8} roughness={0.2} clippingPlanes={clippingPlanes} />
+        <group position={[0, -0.075, 0]}> {/* Desloca para a face da parede */}
+          {/* Tubo Cromado horizontal */}
+          <mesh position={[0, -0.18, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.012, 0.012, 0.36, 12]} />
+            <meshStandardMaterial color="#cbd5e1" metalness={0.95} roughness={0.05} {...matProps} />
           </mesh>
-          {/* Curva da Bengala superior */}
-          <mesh position={[-0.05, 0, 1.6]} rotation={[0, Math.PI / 4, 0]}>
-            <cylinderGeometry args={[0.02, 0.02, 0.2, 8]} />
-            <meshStandardMaterial color="#cbd5e1" metalness={0.8} roughness={0.2} clippingPlanes={clippingPlanes} />
+          {/* Corpo/Espalhador do Chuveiro */}
+          <mesh position={[0, -0.36, -0.04]}>
+            <boxGeometry args={[0.16, 0.16, 0.04]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.2} {...matProps} />
+          </mesh>
+          {/* Detalhe metálico na parede */}
+          <mesh position={[0, -0.002, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.025, 0.025, 0.005, 12]} />
+            <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} {...matProps} />
           </mesh>
         </group>
+      </group>
+    );
+  }
 
-        {/* Roldanas de Porcelana (Isoladores da Entrada Aérea) */}
+  // 4. Desenhar Torneira Elétrica (`torneira_eletrica`)
+  if (type === 'torneira_eletrica') {
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        <group position={[0, -0.075, 0]}>
+          {/* Corpo da torneira (plástico branco) */}
+          <mesh position={[0, -0.04, 0]}>
+            <boxGeometry args={[0.08, 0.08, 0.14]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.3} {...matProps} />
+          </mesh>
+          {/* Bica curvada cromada */}
+          <mesh position={[0, -0.10, 0.04]} rotation={[Math.PI / 6, 0, 0]}>
+            <cylinderGeometry args={[0.008, 0.008, 0.12, 8]} />
+            <meshStandardMaterial color="#d1d5db" metalness={0.95} roughness={0.05} {...matProps} />
+          </mesh>
+          {/* Registro lateral */}
+          <mesh position={[0.042, -0.04, -0.02]} rotation={[0, Math.PI / 2, 0]}>
+            <cylinderGeometry args={[0.015, 0.015, 0.015, 12]} />
+            <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} {...matProps} />
+          </mesh>
+        </group>
+      </group>
+    );
+  }
+
+  // 5. Desenhar Máquina de Lavar (`maquina_lavar`)
+  if (type === 'maquina_lavar') {
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        {/* Cuba / Gabinete principal no chão */}
+        <mesh position={[0, 0, 0.425]}>
+          <boxGeometry args={[0.60, 0.60, 0.85]} />
+          <meshStandardMaterial color="#f8fafc" roughness={0.4} {...matProps} />
+        </mesh>
+        {/* Painel superior inclinado cinza */}
+        <mesh position={[0, 0.02, 0.825]} rotation={[-0.25, 0, 0]}>
+          <boxGeometry args={[0.58, 0.15, 0.06]} />
+          <meshStandardMaterial color="#334155" roughness={0.6} {...matProps} />
+        </mesh>
+        {/* Porta frontal circular escura (vidro) */}
+        <mesh position={[0, -0.301, 0.45]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.18, 0.18, 0.01, 24]} />
+          <meshStandardMaterial color="#111827" metalness={0.8} roughness={0.1} {...matProps} />
+        </mesh>
+        {/* Moldura da porta circular */}
+        <mesh position={[0, -0.302, 0.45]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.18, 0.012, 8, 24]} />
+          <meshStandardMaterial color="#d1d5db" metalness={0.9} roughness={0.1} {...matProps} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // 6. Desenhar Tomadas Residenciais (`tug_baixa`, `tug_media`, `tug_alta`, `tomada_10a_nbr`, `tomada_20a`, `tomada_220`)
+  if (type.startsWith('tug_') || type.startsWith('tomada_') || type === 'tomada_220') {
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        <group position={[0, -0.075, 0]}>
+          {/* Placa plástica branca (espelho) */}
+          <mesh position={[0, -0.005, 0]}>
+            <boxGeometry args={[0.08, 0.01, 0.12]} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.3} {...matProps} />
+          </mesh>
+          {/* Módulo interno cinza claro */}
+          <mesh position={[0, -0.009, 0]}>
+            <boxGeometry args={[0.03, 0.005, 0.05]} />
+            <meshStandardMaterial color="#e2e8f0" roughness={0.5} {...matProps} />
+          </mesh>
+          {/* 3 Furos do padrão brasileiro */}
+          <mesh position={[0, -0.012, 0.012]}>
+            <cylinderGeometry args={[0.002, 0.002, 0.002, 8]} />
+            <meshBasicMaterial color="#1e293b" />
+          </mesh>
+          <mesh position={[0, -0.012, -0.012]}>
+            <cylinderGeometry args={[0.002, 0.002, 0.002, 8]} />
+            <meshBasicMaterial color="#1e293b" />
+          </mesh>
+          <mesh position={[0.006, -0.012, 0]}>
+            <cylinderGeometry args={[0.002, 0.002, 0.002, 8]} />
+            <meshBasicMaterial color="#1e293b" />
+          </mesh>
+        </group>
+      </group>
+    );
+  }
+
+  // 7. Desenhar Interruptores Residenciais com Placa de Acabamento e Tecla Saliente
+  if (type.startsWith('switch_') || type.startsWith('interruptor') || type === 'dimmer') {
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        <group position={[0, -0.075, 0]}>
+          {/* Placa plástica branca */}
+          <mesh position={[0, -0.005, 0]}>
+            <boxGeometry args={[0.08, 0.01, 0.12]} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.3} {...matProps} />
+          </mesh>
+          {/* Tecla central inclinado */}
+          <mesh position={[0, -0.011, 0]} rotation={[0.12, 0, 0]}>
+            <boxGeometry args={[0.03, 0.005, 0.05]} />
+            <meshStandardMaterial color="#f1f5f9" roughness={0.4} {...matProps} />
+          </mesh>
+        </group>
+      </group>
+    );
+  }
+
+  // 8. Câmera de Segurança Dome CFTV
+  if (type === 'cftv_camera') {
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        <group position={[0, -0.075, 0]}>
+          {/* Base */}
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.05, 0.05, 0.02, 12]} />
+            <meshStandardMaterial color="#475569" {...matProps} />
+          </mesh>
+          {/* Cúpula escura */}
+          <mesh position={[0, -0.02, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <sphereGeometry args={[0.04, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
+            <meshStandardMaterial color="#0f172a" metalness={0.9} roughness={0.1} {...matProps} />
+          </mesh>
+          {/* Lente */}
+          <mesh position={[0, -0.04, 0.01]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.01, 0.01, 0.01, 8]} />
+            <meshBasicMaterial color="#000000" />
+          </mesh>
+        </group>
+      </group>
+    );
+  }
+
+  // 9. Sensores de Fumaça ou de Presença
+  if (type === 'sensor_presenca' || type === 'sensor_fumaca') {
+    const isCeiling = device.peitoril === undefined || device.peitoril >= 2.70;
+    return (
+      <group position={[device.x, device.y, z]} rotation={isCeiling ? undefined : [0, 0, rotationRad]}>
+        <group position={isCeiling ? [0, 0, 0] : [0, -0.075, 0]}>
+          <mesh rotation={isCeiling ? undefined : [Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.06, 0.06, 0.03, 16]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.4} {...matProps} />
+          </mesh>
+          {/* LED indicador de atividade */}
+          <mesh position={isCeiling ? [0.03, 0, 0.016] : [0.03, -0.016, 0]}>
+            <sphereGeometry args={[0.006, 8, 8]} />
+            <meshBasicMaterial color={type === 'sensor_presenca' ? '#22c55e' : '#ef4444'} />
+          </mesh>
+        </group>
+      </group>
+    );
+  }
+
+  // 10. Central de Alarme
+  if (type === 'central_alarme') {
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        <group position={[0, -0.075, 0]}>
+          {/* Painel plástico cinza */}
+          <mesh position={[0, -0.02, 0]}>
+            <boxGeometry args={[0.20, 0.04, 0.15]} />
+            <meshStandardMaterial color="#cbd5e1" roughness={0.5} {...matProps} />
+          </mesh>
+          {/* Visor LCD azul */}
+          <mesh position={[0, -0.041, 0.03]}>
+            <boxGeometry args={[0.12, 0.002, 0.04]} />
+            <meshBasicMaterial color="#60a5fa" />
+          </mesh>
+          {/* Teclado numérico */}
+          <mesh position={[0, -0.041, -0.03]}>
+            <boxGeometry args={[0.14, 0.002, 0.05]} />
+            <meshStandardMaterial color="#475569" roughness={0.9} {...matProps} />
+          </mesh>
+        </group>
+      </group>
+    );
+  }
+
+  // 11. Poste de Entrada de Concessionária ( Bengala + Roldanas + Caixa )
+  if (type === 'poste') {
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        {/* Poste de Concreto Cinza */}
+        <mesh position={[0, 0, 0]}>
+          <boxGeometry args={[0.14, 0.14, 3.2]} />
+          <meshStandardMaterial color="#64748b" roughness={0.9} {...matProps} />
+        </mesh>
+        {/* Bengala Metálica */}
+        <group position={[0.09, 0, 0.2]}>
+          <mesh position={[0, 0, 0.4]}>
+            <cylinderGeometry args={[0.02, 0.02, 2.4, 8]} />
+            <meshStandardMaterial color="#cbd5e1" metalness={0.8} roughness={0.2} {...matProps} />
+          </mesh>
+          <mesh position={[-0.05, 0, 1.6]} rotation={[0, Math.PI / 4, 0]}>
+            <cylinderGeometry args={[0.02, 0.02, 0.2, 8]} />
+            <meshStandardMaterial color="#cbd5e1" metalness={0.8} roughness={0.2} {...matProps} />
+          </mesh>
+        </group>
+        {/* Roldanas de Porcelana Isoladoras */}
         <group position={[0.15, 0, 1.4]}>
-          {/* Suporte Metálico */}
           <mesh position={[-0.05, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
             <cylinderGeometry args={[0.008, 0.008, 0.12, 8]} />
-            <meshStandardMaterial color="#94a3b8" metalness={0.9} clippingPlanes={clippingPlanes} />
+            <meshStandardMaterial color="#94a3b8" metalness={0.9} />
           </mesh>
-          {/* Roldanas */}
           {[-0.15, 0, 0.15].map((offsetZ, i) => (
             <mesh key={i} position={[0, 0, offsetZ]} rotation={[Math.PI / 2, 0, 0]}>
               <cylinderGeometry args={[0.035, 0.035, 0.05, 12]} />
-              <meshStandardMaterial color="#f8fafc" roughness={0.3} clippingPlanes={clippingPlanes} />
+              <meshStandardMaterial color="#f8fafc" roughness={0.3} />
             </mesh>
           ))}
         </group>
-
-        {/* Caixa de Medição de Energia (Padrão de Entrada) */}
+        {/* Caixa de Medição de Energia do Padrão */}
         <group position={[0.12, 0, -0.2]}>
-          {/* Caixa de Metal/Vidro */}
           <mesh>
             <boxGeometry args={[0.14, 0.32, 0.42]} />
-            <meshStandardMaterial color="#475569" metalness={0.5} roughness={0.3} clippingPlanes={clippingPlanes} />
+            <meshStandardMaterial color="#475569" metalness={0.5} roughness={0.3} {...matProps} />
           </mesh>
-          {/* Visor de Vidro do Medidor */}
+          {/* Visor de Vidro */}
           <mesh position={[0.075, 0, 0.05]}>
             <boxGeometry args={[0.005, 0.22, 0.26]} />
-            <meshStandardMaterial color="#a5f3fc" transparent={true} opacity={0.6} clippingPlanes={clippingPlanes} />
+            <meshStandardMaterial color="#a5f3fc" transparent={true} opacity={0.6} />
           </mesh>
-          {/* Medidor Interno e Disjuntor Geral */}
+          {/* Medidor Interno */}
           <mesh position={[0.04, 0, 0.05]}>
             <boxGeometry args={[0.04, 0.12, 0.12]} />
-            <meshStandardMaterial color="#0f172a" clippingPlanes={clippingPlanes} />
+            <meshStandardMaterial color="#0f172a" />
           </mesh>
-          {/* Disjuntor Geral Din */}
+          {/* Disjuntor Geral */}
           <mesh position={[0.04, 0, -0.08]}>
             <boxGeometry args={[0.03, 0.08, 0.08]} />
-            <meshStandardMaterial color="#2563eb" clippingPlanes={clippingPlanes} />
+            <meshStandardMaterial color="#2563eb" />
           </mesh>
         </group>
       </group>
     );
   }
 
-  // Desenhar ponto de luz no teto
-  if (device.type === 'ceiling_light' || device.type === 'lampada' || device.type === 'fluorescent') {
+  // 12. Ponto de Luz no Teto
+  if (type === 'ceiling_light' || type === 'lampada' || type === 'fluorescent') {
     return (
       <group position={[device.x, device.y, z]}>
-        {/* Base da luminária */}
+        {/* Luminária */}
         <mesh>
           <boxGeometry args={[width, depth, height]} />
-          <meshStandardMaterial
-            color="#ffffff"
-            roughness={0.5}
-            wireframe={shadingMode === 'wireframe'}
-            transparent={shadingMode === 'transparent'}
-            opacity={shadingMode === 'transparent' ? 0.35 : 1.0}
-            clippingPlanes={clippingPlanes}
-            clipShadows={true}
-          />
+          <meshStandardMaterial color="#ffffff" roughness={0.5} {...matProps} />
         </mesh>
-        {/* Brilho da lâmpada */}
-        <mesh position={[0, 0, -0.01]}>
+        {/* Lâmpada brilhante */}
+        <mesh position={[0, 0, -0.015]}>
           <sphereGeometry args={[0.06, 16, 16]} />
-          <meshBasicMaterial
-            color="#fef08a"
-            transparent={shadingMode === 'transparent'}
-            opacity={shadingMode === 'transparent' ? 0.35 : 1.0}
-            clippingPlanes={clippingPlanes}
-          />
+          <meshBasicMaterial color="#fef08a" />
         </mesh>
       </group>
     );
   }
 
-  // Desenhar outros dispositivos como tomadas/quadros
+  // Fallback genérico para outros dispositivos elétricos (como QDC/QGBT/Caixas/etc.)
   return (
-    <mesh position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-      <boxGeometry args={[width, depth, height]} />
-      <meshStandardMaterial
-        color={color}
-        roughness={0.4}
-        metalness={device.type === 'qdc' ? 0.6 : 0.1}
-        wireframe={shadingMode === 'wireframe'}
-        transparent={shadingMode === 'transparent'}
-        opacity={shadingMode === 'transparent' ? 0.35 : 1.0}
-        clippingPlanes={clippingPlanes}
-        clipShadows={true}
-      />
-    </mesh>
+    <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+      <group position={isWallMounted ? [0, -0.075, 0] : [0, 0, 0]}>
+        <mesh>
+          <boxGeometry args={[width, depth, height]} />
+          <meshStandardMaterial
+            color={color}
+            roughness={0.4}
+            metalness={type === 'qdc' || type === 'qgbt' ? 0.6 : 0.1}
+            {...matProps}
+          />
+        </mesh>
+      </group>
+    </group>
   );
 };

@@ -976,6 +976,20 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
         </Group>
       );
 
+    case 'maquina_lavar':
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <Rect x={-H} y={-H} width={S} height={S} rx={S * 0.1} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
+          <Circle x={0} y={0} radius={H * 0.5} stroke={stroke} strokeWidth={sw} />
+          <Text text="ML" x={-H * 0.7} y={-H * 0.3} width={H * 1.4} fontSize={H * 0.65} fontStyle="bold" align="center" fill={stroke} listening={false} />
+          {circuitNumber && (
+            <Text text={String(circuitNumber)} x={H * 1.15} y={-H * 0.5} fontSize={H * 0.7} fontStyle="bold" fill={stroke} listening={false} />
+          )}
+          <SelectionRing r={H * 1.35} />
+        </Group>
+      );
+
+
     case 'fotocelula':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>

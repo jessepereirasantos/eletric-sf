@@ -904,6 +904,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
         motor: 750, // 1 CV ~750W
         bomba_agua: 375, // 0.5 CV ~375W
         torneira_eletrica: 4400,
+        maquina_lavar: 1500,
         // Iluminação
         ceiling_light: 60, lampada: 60,
         sconce: 40, lampada_parede: 40,
@@ -937,7 +938,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
       const finalFlip = isDoor ? (doorCycle === 1 || doorCycle === 3) : false;
 
       // Fase inicial para novas cargas do catálogo
-      const isCargaCatalogo = ['motor', 'bomba_agua', 'torneira_eletrica'].includes(selectedDeviceType);
+      const isCargaCatalogo = ['motor', 'bomba_agua', 'torneira_eletrica', 'maquina_lavar'].includes(selectedDeviceType);
       const phasesDefault = isCargaCatalogo ? 'mono' : undefined;
 
       addDevice({
@@ -1004,6 +1005,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
       motor: 'Motor Elétrico (Força)',
       bomba_agua: 'Bomba d\'Água (Força)',
       torneira_eletrica: 'Torneira Elétrica (Força)',
+      maquina_lavar: 'Máquina de Lavar (1.0m)',
       
       // Iluminação
       ceiling_light: 'Ponto de Luz no Teto',

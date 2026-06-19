@@ -17,5 +17,5 @@ export type DeviceType =
   | 'cftv_camera' | 'sensor_presenca' | 'central_alarme' | 'sensor_fumaca'
   | 'box_octogonal' | 'box_4x2' | 'box_4x4'
   | 'motor' | 'bomba_agua' | 'torneira_eletrica' | 'fotocelula' | 'campainha'
-  | 'gerador' | 'nobreak';
+  | 'gerador' | 'nobreak' | 'maquina_lavar';
 

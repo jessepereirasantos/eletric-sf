@@ -311,6 +311,26 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       ],
     },
     {
+      key: 'eletroeletronicos',
+      label: 'Eletroeletrônicos',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="5" y="3" width="14" height="18" rx="2" />
+          <line x1="5" y1="9" x2="19" y2="9" />
+          <circle cx="12" cy="15" r="3" />
+        </svg>
+      ),
+      hasDropdown: true,
+      defaultTool: 'device',
+      defaultDevice: 'maquina_lavar',
+      items: [
+        { type: 'maquina_lavar', label: 'Máquina de Lavar', isDevice: true, symbolDesc: '🧺' },
+        { type: 'tue_chuveiro', label: 'Chuveiro Elétrico', isDevice: true, symbolDesc: '♨' },
+        { type: 'torneira_eletrica', label: 'Torneira Elétrica', isDevice: true, symbolDesc: '🚰' },
+        { type: 'tue_ar', label: 'Ar Condicionado', isDevice: true, symbolDesc: '❄' },
+      ],
+    },
+    {
       key: 'interruptores',
       label: 'Interruptores',
       icon: <IconSwitch />,

@@ -645,6 +645,7 @@ export const useCadStore = create<CadState>()(
       motor: 450.00,
       bomba_agua: 320.00,
       torneira_eletrica: 150.00,
+      maquina_lavar: 600.00,
       fotocelula: 38.00,
       campainha: 25.00,
       // Novos dispositivos NBR 5410
@@ -685,6 +686,7 @@ export const useCadStore = create<CadState>()(
       fotocelula: 'Fotocélula',
       campainha: 'Campainha / Cigarra',
       cftv_camera: 'Câmera CFTV',
+      maquina_lavar: 'Máquina de Lavar',
       central_alarme: 'Central de Alarme',
       // Novos módulos NBR 5410
       disjuntor: 'Disjuntor Termomagnético',
@@ -1341,7 +1343,7 @@ export const useCadStore = create<CadState>()(
 
   splitCircuitsTUE: () => {
     get().pushHistory();
-    const tueTypes = ['tomada_220', 'tue_chuveiro', 'tue_ar'];
+    const tueTypes = ['tomada_220', 'tue_chuveiro', 'tue_ar', 'torneira_eletrica', 'maquina_lavar'];
     const tueDevices = get().devices.filter(d => 
       tueTypes.includes(d.type) || (d.power && d.power > 1200 && !d.type.startsWith('lampada') && d.type !== 'qdc')
     );
@@ -1495,7 +1497,7 @@ export const useCadStore = create<CadState>()(
     });
 
     // 6. Conecta cada tomada à lâmpada mais próxima ou ao QDC
-    const tugTypes: string[] = ['tomada_baixa', 'tomada_media', 'tomada_alta', 'tug_baixa', 'tug_media', 'tug_alta', 'tomada_220', 'tue_chuveiro', 'tue_ar'];
+    const tugTypes: string[] = ['tomada_baixa', 'tomada_media', 'tomada_alta', 'tug_baixa', 'tug_media', 'tug_alta', 'tomada_220', 'tue_chuveiro', 'tue_ar', 'torneira_eletrica', 'maquina_lavar'];
     const tugs = devs.filter(d => tugTypes.includes(d.type)) as Device[];
 
     tugs.forEach(tg => {

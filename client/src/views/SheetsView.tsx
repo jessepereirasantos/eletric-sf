@@ -759,94 +759,160 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
                   }
 
                   if (type === 'legenda') {
+                    const isSmall = activeSheet.size === 'A4' || activeSheet.size === 'A3';
+                    const fontSize = isSmall ? '7.5px' : '8.5px';
+                    const padding = isSmall ? '2px 4px' : '4px';
+
+                    const legendItems = [
+                      {
+                        symbol: (
+                          <svg width="14" height="14" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
+                            <circle cx="8" cy="8" r="6" fill="#f59e0b" stroke="#000" strokeWidth="1" />
+                            <line x1="8" y1="2" x2="8" y2="14" stroke="#000" strokeWidth="1" />
+                            <line x1="2" y1="8" x2="14" y2="8" stroke="#000" strokeWidth="1" />
+                          </svg>
+                        ),
+                        desc: 'Ponto de Luz no Teto (Luminária)',
+                        install: 'Teto (2.80m)'
+                      },
+                      {
+                        symbol: (
+                          <svg width="14" height="14" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
+                            <path d="M 8,14 L 3,6 L 13,6 Z" fill="none" stroke="#000" strokeWidth="1" />
+                          </svg>
+                        ),
+                        desc: 'Tomada Baixa 10A (NBR 14136)',
+                        install: 'Parede (0.30m)'
+                      },
+                      {
+                        symbol: (
+                          <svg width="14" height="14" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
+                            <path d="M 8,14 L 3,6 L 13,6 Z" fill="#94a3b8" stroke="#000" strokeWidth="1" />
+                          </svg>
+                        ),
+                        desc: 'Tomada Média 10A (NBR 14136)',
+                        install: 'Parede (1.10m)'
+                      },
+                      {
+                        symbol: (
+                          <svg width="14" height="14" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
+                            <path d="M 8,14 L 3,6 L 13,6 Z" fill="#000" stroke="#000" strokeWidth="1" />
+                          </svg>
+                        ),
+                        desc: 'Tomada Alta TUE (Chuveiro/Ar)',
+                        install: 'Parede (2.20m)'
+                      },
+                      {
+                        symbol: (
+                          <svg width="14" height="14" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
+                            <circle cx="8" cy="8" r="4" fill="#a855f7" stroke="#000" strokeWidth="1" />
+                            <line x1="8" y1="8" x2="12" y2="4" stroke="#000" strokeWidth="1" />
+                          </svg>
+                        ),
+                        desc: 'Interruptor Simples (Acionamento)',
+                        install: 'Parede (1.10m)'
+                      },
+                      {
+                        symbol: (
+                          <svg width="14" height="14" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
+                            <circle cx="8" cy="8" r="6" fill="#fbbf24" stroke="#000" strokeWidth="1" />
+                          </svg>
+                        ),
+                        desc: 'Caixa de Passagem Octogonal',
+                        install: 'Teto (2.80m)'
+                      },
+                      {
+                        symbol: (
+                          <svg width="14" height="14" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
+                            <rect x="4" y="2" width="8" height="12" fill="#fbbf24" stroke="#000" strokeWidth="1" />
+                          </svg>
+                        ),
+                        desc: 'Caixa de Embutir 4x2 (Parede)',
+                        install: 'Variável'
+                      },
+                      {
+                        symbol: (
+                          <svg width="14" height="14" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
+                            <circle cx="8" cy="8" r="5" fill="#1e293b" stroke="#000" strokeWidth="1" />
+                            <path d="M 5,8 L 8,5 L 11,8" fill="none" stroke="#fff" strokeWidth="1" />
+                          </svg>
+                        ),
+                        desc: 'Câmera Dome CFTV',
+                        install: 'Parede (2.50m)'
+                      }
+                    ];
+
+                    if (isSmall) {
+                      const col1 = legendItems.slice(0, 4);
+                      const col2 = legendItems.slice(4);
+                      return (
+                        <div key={type} style={{ border: '1px dashed #cbd5e1', padding: '8px', borderRadius: '4px', backgroundColor: '#fcfcfc', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                          <span style={{ fontSize: '8px', fontWeight: 'bold', color: '#475569', marginBottom: '4px', display: 'block' }}>LEGENDA DE SIMBOLOGIA ELÉTRICA</span>
+                          <div style={{ display: 'flex', gap: '12px', width: '100%', height: '100%' }}>
+                            <div style={{ flex: 1 }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: fontSize, textAlign: 'left' }}>
+                                <thead>
+                                  <tr style={{ background: '#f1f5f9' }}>
+                                    <th style={{ padding: padding, width: '30px' }}>Símb.</th>
+                                    <th style={{ padding: padding }}>Descrição</th>
+                                    <th style={{ padding: padding, width: '45px' }}>Instal.</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {col1.map((item, i) => (
+                                    <tr key={i} style={{ borderBottom: '0.5px solid #f1f5f9' }}>
+                                      <td style={{ padding: padding, textAlign: 'center' }}>{item.symbol}</td>
+                                      <td style={{ padding: padding }}>{item.desc}</td>
+                                      <td style={{ padding: padding, color: '#475569' }}>{item.install}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: fontSize, textAlign: 'left' }}>
+                                <thead>
+                                  <tr style={{ background: '#f1f5f9' }}>
+                                    <th style={{ padding: padding, width: '30px' }}>Símb.</th>
+                                    <th style={{ padding: padding }}>Descrição</th>
+                                    <th style={{ padding: padding, width: '45px' }}>Instal.</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {col2.map((item, i) => (
+                                    <tr key={i} style={{ borderBottom: '0.5px solid #f1f5f9' }}>
+                                      <td style={{ padding: padding, textAlign: 'center' }}>{item.symbol}</td>
+                                      <td style={{ padding: padding }}>{item.desc}</td>
+                                      <td style={{ padding: padding, color: '#475569' }}>{item.install}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div key={type} style={{ border: '1px dashed #cbd5e1', padding: '12px', borderRadius: '4px', backgroundColor: '#fcfcfc', overflow: 'auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
                         <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#475569', marginBottom: '8px', display: 'block' }}>LEGENDA DE SIMBOLOGIA ELÉTRICA</span>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5px', textAlign: 'left' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: fontSize, textAlign: 'left' }}>
                           <thead>
                             <tr style={{ background: '#f1f5f9' }}>
-                              <th style={{ padding: '4px', width: '40px' }}>Símbolo</th>
-                              <th style={{ padding: '4px' }}>Descrição</th>
-                              <th style={{ padding: '4px', width: '50px' }}>Instalação</th>
+                              <th style={{ padding: padding, width: '40px' }}>Símbolo</th>
+                              <th style={{ padding: padding }}>Descrição</th>
+                              <th style={{ padding: padding, width: '60px' }}>Instalação</th>
                             </tr>
                           </thead>
                           <tbody>
-                            <tr>
-                              <td style={{ padding: '4px', textAlign: 'center' }}>
-                                <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
-                                  <circle cx="8" cy="8" r="6" fill="#f59e0b" stroke="#000" strokeWidth="1" />
-                                  <line x1="8" y1="2" x2="8" y2="14" stroke="#000" strokeWidth="1" />
-                                  <line x1="2" y1="8" x2="14" y2="8" stroke="#000" strokeWidth="1" />
-                                </svg>
-                              </td>
-                              <td style={{ padding: '4px' }}>Ponto de Luz no Teto (Luminária/Lâmpada)</td>
-                              <td style={{ padding: '4px', color: '#475569' }}>Teto (2.80m)</td>
-                            </tr>
-                            <tr>
-                              <td style={{ padding: '4px', textAlign: 'center' }}>
-                                <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
-                                  <path d="M 8,14 L 3,6 L 13,6 Z" fill="none" stroke="#000" strokeWidth="1" />
-                                </svg>
-                              </td>
-                              <td style={{ padding: '4px' }}>Tomada Baixa 10A (NBR 14136)</td>
-                              <td style={{ padding: '4px', color: '#475569' }}>Parede (0.30m)</td>
-                            </tr>
-                            <tr>
-                              <td style={{ padding: '4px', textAlign: 'center' }}>
-                                <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
-                                  <path d="M 8,14 L 3,6 L 13,6 Z" fill="#94a3b8" stroke="#000" strokeWidth="1" />
-                                </svg>
-                              </td>
-                              <td style={{ padding: '4px' }}>Tomada Média 10A/20A (NBR 14136)</td>
-                              <td style={{ padding: '4px', color: '#475569' }}>Parede (1.10m)</td>
-                            </tr>
-                            <tr>
-                              <td style={{ padding: '4px', textAlign: 'center' }}>
-                                <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
-                                  <path d="M 8,14 L 3,6 L 13,6 Z" fill="#000" stroke="#000" strokeWidth="1" />
-                                </svg>
-                              </td>
-                              <td style={{ padding: '4px' }}>Tomada Alta (TUE / Chuveiro / Ar Condicionado)</td>
-                              <td style={{ padding: '4px', color: '#475569' }}>Parede (2.20m)</td>
-                            </tr>
-                            <tr>
-                              <td style={{ padding: '4px', textAlign: 'center' }}>
-                                <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
-                                  <circle cx="8" cy="8" r="4" fill="#a855f7" stroke="#000" strokeWidth="1" />
-                                  <line x1="8" y1="8" x2="12" y2="4" stroke="#000" strokeWidth="1" />
-                                </svg>
-                              </td>
-                              <td style={{ padding: '4px' }}>Interruptor Simples (Acionamento)</td>
-                              <td style={{ padding: '4px', color: '#475569' }}>Parede (1.10m)</td>
-                            </tr>
-                            <tr>
-                              <td style={{ padding: '4px', textAlign: 'center' }}>
-                                <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
-                                  <circle cx="8" cy="8" r="6" fill="#fbbf24" stroke="#000" strokeWidth="1" />
-                                </svg>
-                              </td>
-                              <td style={{ padding: '4px' }}>Caixa de Passagem Octogonal (Teto)</td>
-                              <td style={{ padding: '4px', color: '#475569' }}>Teto (2.80m)</td>
-                            </tr>
-                            <tr>
-                              <td style={{ padding: '4px', textAlign: 'center' }}>
-                                <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
-                                  <rect x="4" y="2" width="8" height="12" fill="#fbbf24" stroke="#000" strokeWidth="1" />
-                                </svg>
-                              </td>
-                              <td style={{ padding: '4px' }}>Caixa de Embutir 4x2 (Parede)</td>
-                              <td style={{ padding: '4px', color: '#475569' }}>Variável</td>
-                            </tr>
-                            <tr>
-                              <td style={{ padding: '4px', textAlign: 'center' }}>
-                                <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
-                                  <circle cx="8" cy="8" r="5" fill="#1e293b" stroke="#000" strokeWidth="1" />
-                                  <path d="M 5,8 L 8,5 L 11,8" fill="none" stroke="#fff" strokeWidth="1" />
-                                </svg>
-                              </td>
-                              <td style={{ padding: '4px' }}>Câmera de Segurança CFTV Dome</td>
-                              <td style={{ padding: '4px', color: '#475569' }}>Parede (2.50m)</td>
-                            </tr>
+                            {legendItems.map((item, i) => (
+                              <tr key={i} style={{ borderBottom: '0.5px solid #f1f5f9' }}>
+                                <td style={{ padding: padding, textAlign: 'center' }}>{item.symbol}</td>
+                                <td style={{ padding: padding }}>{item.desc}</td>
+                                <td style={{ padding: padding, color: '#475569' }}>{item.install}</td>
+                              </tr>
+                            ))}
                           </tbody>
                         </table>
                       </div>

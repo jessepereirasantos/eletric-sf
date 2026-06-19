@@ -358,11 +358,22 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
   const isTelecom = device.type.startsWith('tele_');
   const isSeguranca = device.type === 'cftv_camera' || device.type === 'sensor_presenca' || device.type === 'central_alarme' || device.type === 'fotocelula' || device.type === 'campainha' || device.type === 'sensor_fumaca';
   const isBox = device.type.startsWith('box_');
-  const isCargaCatalogo = ['motor', 'bomba_agua', 'torneira_eletrica'].includes(device.type);
+  const isCargaCatalogo = ['motor', 'bomba_agua', 'torneira_eletrica', 'maquina_lavar'].includes(device.type);
   const isCargaEspecial = ['gerador', 'nobreak'].includes(device.type);
   const isProtecao = ['disjuntor', 'dr', 'idr', 'dps', 'aterramento', 'spda'].includes(device.type);
   const isComandoEspecial = ['sensor_presenca', 'fotocelula'].includes(device.type);
   const isModular = (isTomada || isInterruptor || isTelecom) && !isBox && !isCargaCatalogo && !isComandoEspecial && !isProtecao && !isCargaEspecial;
+
+  const defaultPeitoril = (() => {
+    if (device.type === 'maquina_lavar') return 0.00;
+    if (device.type === 'tue_chuveiro') return 2.20;
+    if (device.type === 'tue_ar') return 2.20;
+    if (device.type === 'sconce' || device.type === 'cftv_camera') return 2.20;
+    if (device.type.includes('baixa') || device.type === 'tomada_10a_nbr') return 0.30;
+    if (device.type.includes('alta') || device.type === 'ceiling_light' || device.type === 'lampada' || device.type === 'fluorescent' || device.type === 'box_octogonal' || device.type === 'sensor_presenca' || device.type === 'sensor_fumaca') return 2.80;
+    if (device.type === 'qdc' || device.type === 'qgbt') return 1.50;
+    return 1.10;
+  })();
 
   // Limite de módulos por tipo de caixa
   const boxModuleLimit = device.type === 'box_4x2' ? 3 : device.type === 'box_4x4' ? 6 : device.type === 'box_octogonal' ? 2 : 3;
@@ -438,31 +449,16 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
               min={0}
               max={300}
               step={5}
-              value={Math.round((device.peitoril ?? (
-                device.type.includes('baixa') || device.type === 'tomada_10a_nbr' ? 0.30 :
-                device.type.includes('alta') || device.type.includes('tue_') || device.type === 'sconce' || device.type === 'ceiling_light' || device.type === 'lampada' || device.type === 'fluorescent' || device.type === 'box_octogonal' || device.type === 'cftv_camera' || device.type === 'sensor_presenca' || device.type === 'sensor_fumaca' ? 2.80 :
-                device.type === 'qdc' || device.type === 'qgbt' ? 1.50 :
-                1.10
-              )) * 100)}
+              value={Math.round((device.peitoril ?? defaultPeitoril) * 100)}
               onChange={e => update({ peitoril: parseFloat(e.target.value) / 100 })}
             />
-            <span className="props-value">{Math.round((device.peitoril ?? (
-              device.type.includes('baixa') || device.type === 'tomada_10a_nbr' ? 0.30 :
-              device.type.includes('alta') || device.type.includes('tue_') || device.type === 'sconce' || device.type === 'ceiling_light' || device.type === 'lampada' || device.type === 'fluorescent' || device.type === 'box_octogonal' || device.type === 'cftv_camera' || device.type === 'sensor_presenca' || device.type === 'sensor_fumaca' ? 2.80 :
-              device.type === 'qdc' || device.type === 'qgbt' ? 1.50 :
-              1.10
-            )) * 100)} cm</span>
+            <span className="props-value">{Math.round((device.peitoril ?? defaultPeitoril) * 100)} cm</span>
           </div>
           <input
             type="number"
             className="props-input"
             min={0} max={300} step={5}
-            value={Math.round((device.peitoril ?? (
-              device.type.includes('baixa') || device.type === 'tomada_10a_nbr' ? 0.30 :
-              device.type.includes('alta') || device.type.includes('tue_') || device.type === 'sconce' || device.type === 'ceiling_light' || device.type === 'lampada' || device.type === 'fluorescent' || device.type === 'box_octogonal' || device.type === 'cftv_camera' || device.type === 'sensor_presenca' || device.type === 'sensor_fumaca' ? 2.80 :
-              device.type === 'qdc' || device.type === 'qgbt' ? 1.50 :
-              1.10
-            )) * 100)}
+            value={Math.round((device.peitoril ?? defaultPeitoril) * 100)}
             onChange={e => update({ peitoril: Math.max(0, parseInt(e.target.value) || 0) / 100 })}
           />
         </div>
