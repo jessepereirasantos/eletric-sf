@@ -62,6 +62,82 @@ const Laje3D: React.FC = () => {
   );
 };
 
+const Piso3D: React.FC = () => {
+  const { walls } = useCadStore();
+
+  const geometry = useMemo(() => {
+    if (walls.length === 0) return null;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+
+    walls.forEach(w => {
+      minX = Math.min(minX, w.p1.x, w.p2.x);
+      maxX = Math.max(maxX, w.p1.x, w.p2.x);
+      minY = Math.min(minY, w.p1.y, w.p2.y);
+      maxY = Math.max(maxY, w.p1.y, w.p2.y);
+    });
+
+    const w = (maxX - minX) + 12.0; // Margem generosa ao redor do projeto
+    const h = (maxY - minY) + 12.0;
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+
+    return { cx, cy, w, h };
+  }, [walls]);
+
+  if (!geometry) return null;
+
+  return (
+    <mesh position={[geometry.cx, geometry.cy, -0.005]} receiveShadow>
+      <planeGeometry args={[geometry.w, geometry.h]} />
+      <meshStandardMaterial
+        color="#e2e8f0" // porcelanato cinza claro
+        roughness={0.4}
+        metalness={0.1}
+      />
+    </mesh>
+  );
+};
+
+const OriginAxes3D: React.FC = () => {
+  const { showOriginAxes } = useCadStore();
+  if (!showOriginAxes) return null;
+
+  return (
+    <group position={[0, 0, 0.01]}>
+      {/* Eixo X - Vermelho */}
+      <mesh rotation={[0, Math.PI / 2, 0]} position={[1.5, 0, 0]}>
+        <cylinderGeometry args={[0.015, 0.015, 3, 8]} />
+        <meshBasicMaterial color="#ef4444" />
+      </mesh>
+      {/* Seta X */}
+      <mesh rotation={[0, 0, -Math.PI / 2]} position={[3, 0, 0]}>
+        <coneGeometry args={[0.05, 0.15, 8]} />
+        <meshBasicMaterial color="#ef4444" />
+      </mesh>
+
+      {/* Eixo Y - Verde */}
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 1.5, 0]}>
+        <cylinderGeometry args={[0.015, 0.015, 3, 8]} />
+        <meshBasicMaterial color="#22c55e" />
+      </mesh>
+      {/* Seta Y */}
+      <mesh rotation={[0, 0, 0]} position={[0, 3, 0]}>
+        <coneGeometry args={[0.05, 0.15, 8]} />
+        <meshBasicMaterial color="#22c55e" />
+      </mesh>
+
+      {/* Esfera central da origem */}
+      <mesh position={[0, 0, 0]}>
+        <sphereGeometry args={[0.04, 16, 16]} />
+        <meshBasicMaterial color="#3b82f6" />
+      </mesh>
+    </group>
+  );
+};
+
 interface Render3DViewProps {
   activeTab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets';
   onTabChange: (tab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets') => void;
@@ -69,6 +145,26 @@ interface Render3DViewProps {
 
 export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChange }) => {
   const { walls, devices, conduits } = useCadStore();
+
+  const projectCenter = useMemo(() => {
+    if (walls.length === 0) return { x: 0, y: 0 };
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+
+    walls.forEach(w => {
+      minX = Math.min(minX, w.p1.x, w.p2.x);
+      maxX = Math.max(maxX, w.p1.x, w.p2.x);
+      minY = Math.min(minY, w.p1.y, w.p2.y);
+      maxY = Math.max(maxY, w.p1.y, w.p2.y);
+    });
+
+    return {
+      x: (minX + maxX) / 2,
+      y: (minY + maxY) / 2
+    };
+  }, [walls]);
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#090d16', color: '#f8fafc', overflow: 'hidden' }}>
@@ -182,7 +278,7 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
 
         {/* Canvas WebGL do R3F */}
         <Canvas
-          camera={{ position: [8, -8, 8], fov: 45, up: [0, 0, 1] }}
+          camera={{ position: [projectCenter.x + 8, projectCenter.y - 8, 8], fov: 45, up: [0, 0, 1] }}
           shadows
           gl={{ localClippingEnabled: true }}
           style={{ width: '100%', height: '100%', outline: 'none' }}
@@ -196,7 +292,13 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
           <pointLight position={[-10, -10, 8]} intensity={0.6} />
           <directionalLight position={[0, 0, 15]} intensity={0.8} />
 
-          {/* Grid Técnico no Piso */}
+          {/* Piso de Porcelanato sob o projeto */}
+          <Piso3D />
+
+          {/* Eixos de Origem Técnicos coincidentes */}
+          <OriginAxes3D />
+
+          {/* Grid Técnico sutil no piso */}
           <Grid
             renderOrder={-1}
             position={[0, 0, 0]}
@@ -247,13 +349,14 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
             })}
           </group>
 
-          {/* Controles de Câmera e Órbita */}
+          {/* Controles de Câmera e Órbita centralizada */}
           <OrbitControls
             enableDamping
             dampingFactor={0.05}
             maxPolarAngle={Math.PI / 2 - 0.05} // impede a câmera de passar para debaixo do chão
-            minDistance={1}
-            maxDistance={40}
+            minDistance={0.05}
+            maxDistance={60}
+            target={[projectCenter.x, projectCenter.y, 1.10]}
           />
         </Canvas>
       </div>

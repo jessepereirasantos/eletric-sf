@@ -228,37 +228,108 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
     );
   }
 
-  // 3. Desenhar Chuveiro Elétrico (`tue_chuveiro`)
+  // 3. Desenhar Chuveiro Elétrico (`tue_chuveiro`) com Box de Vidro e Gabinete/Pia
   if (type === 'tue_chuveiro') {
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        <group position={[0, -0.075, 0]}> {/* Desloca para a face da parede */}
+        <group position={[0, 0.075, 0]}> {/* Desloca para a face de dentro da parede */}
           {/* Tubo Cromado horizontal */}
-          <mesh position={[0, -0.18, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <mesh position={[0, -0.18, 0.02]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.012, 0.012, 0.36, 12]} />
             <meshStandardMaterial color="#cbd5e1" metalness={0.95} roughness={0.05} {...matProps} />
           </mesh>
-          {/* Corpo/Espalhador do Chuveiro */}
-          <mesh position={[0, -0.36, -0.04]}>
-            <boxGeometry args={[0.16, 0.16, 0.04]} />
+          {/* Corpo/Espalhador do Chuveiro (Moderno) */}
+          <mesh position={[0, -0.36, 0.04]}>
+            <boxGeometry args={[0.22, 0.22, 0.04]} />
             <meshStandardMaterial color="#ffffff" roughness={0.2} {...matProps} />
           </mesh>
-          {/* Detalhe metálico na parede */}
-          <mesh position={[0, -0.002, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          {/* Detalhe frontal cromado do chuveiro */}
+          <mesh position={[0, -0.36, 0.06]}>
+            <boxGeometry args={[0.18, 0.02, 0.01]} />
+            <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
+          </mesh>
+          {/* Queda de água 3D */}
+          <group position={[0, -0.36, -0.1]}>
+            {Array.from({ length: 8 }).map((_, i) => {
+              const angle = (i * Math.PI * 2) / 8;
+              const r = 0.06;
+              const xPos = Math.cos(angle) * r;
+              const yPos = Math.sin(angle) * r;
+              return (
+                <mesh key={i} position={[xPos, yPos, -1.0]} rotation={[0, 0, 0]}>
+                  <cylinderGeometry args={[0.003, 0.003, 2.0, 4]} />
+                  <meshStandardMaterial color="#a5f3fc" transparent={true} opacity={0.6} />
+                </mesh>
+              );
+            })}
+          </group>
+          {/* Detalhe de acabamento na parede */}
+          <mesh position={[0, -0.002, 0.02]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.025, 0.025, 0.005, 12]} />
             <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} {...matProps} />
           </mesh>
+
+          {/* Box de Banheiro (Vidro temperado + Perfil Preto) */}
+          <group position={[0, -0.4, -2.2 + 1.0]}>
+            {/* Vidro Frontal do Box */}
+            <mesh position={[0, -0.4, 0]}>
+              <boxGeometry args={[0.9, 0.01, 2.0]} />
+              <meshStandardMaterial color="#bae6fd" transparent={true} opacity={0.3} metalness={0.9} roughness={0.05} />
+            </mesh>
+            {/* Vidro Lateral do Box */}
+            <mesh position={[-0.45, 0, 0]}>
+              <boxGeometry args={[0.01, 0.8, 2.0]} />
+              <meshStandardMaterial color="#bae6fd" transparent={true} opacity={0.3} metalness={0.9} roughness={0.05} />
+            </mesh>
+            {/* Perfis pretos da moldura */}
+            <mesh position={[0, -0.4, 1.0]}>
+              <boxGeometry args={[0.92, 0.03, 0.03]} />
+              <meshStandardMaterial color="#1e293b" roughness={0.8} />
+            </mesh>
+            <mesh position={[-0.45, -0.4, 0]}>
+              <boxGeometry args={[0.03, 0.03, 2.0]} />
+              <meshStandardMaterial color="#1e293b" roughness={0.8} />
+            </mesh>
+            <mesh position={[0.45, -0.4, 0]}>
+              <boxGeometry args={[0.03, 0.03, 2.0]} />
+              <meshStandardMaterial color="#1e293b" roughness={0.8} />
+            </mesh>
+          </group>
+
+          {/* Gabinete de Banheiro com Pia ao lado do Box */}
+          <group position={[0.8, -0.4, -2.2 + 0.4]}>
+            {/* Gabinete de Madeira */}
+            <mesh>
+              <boxGeometry args={[0.6, 0.5, 0.8]} />
+              <meshStandardMaterial color="#a16207" roughness={0.7} />
+            </mesh>
+            {/* Pia branca embutida */}
+            <mesh position={[0, 0, 0.41]}>
+              <boxGeometry args={[0.62, 0.52, 0.02]} />
+              <meshStandardMaterial color="#ffffff" roughness={0.1} />
+            </mesh>
+            {/* Cuba da pia */}
+            <mesh position={[0, 0, 0.42]}>
+              <boxGeometry args={[0.35, 0.25, 0.01]} />
+              <meshStandardMaterial color="#e2e8f0" roughness={0.2} />
+            </mesh>
+            {/* Torneira cromada */}
+            <mesh position={[0, 0.15, 0.48]} rotation={[0.2, 0, 0]}>
+              <cylinderGeometry args={[0.01, 0.01, 0.1, 8]} />
+              <meshStandardMaterial color="#d1d5db" metalness={0.9} roughness={0.1} />
+            </mesh>
+          </group>
         </group>
       </group>
     );
   }
 
-  // 4. Desenhar Torneira Elétrica (`torneira_eletrica`)
+  // 4. Desenhar Torneira Elétrica (`torneira_eletrica`) com Bancada de Cozinha e Gabinete
   if (type === 'torneira_eletrica') {
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        <group position={[0, -0.075, 0]}>
-          {/* Corpo da torneira (plástico branco) */}
+        <group position={[0, 0.075, 0]}>
+          {/* Corpo da torneira (aquecedor branco) */}
           <mesh position={[0, -0.04, 0]}>
             <boxGeometry args={[0.08, 0.08, 0.14]} />
             <meshStandardMaterial color="#ffffff" roughness={0.3} {...matProps} />
@@ -273,16 +344,44 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
             <cylinderGeometry args={[0.015, 0.015, 0.015, 12]} />
             <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} {...matProps} />
           </mesh>
+
+          {/* Bancada de Granito Escura, Pia e Gabinete de Cozinha */}
+          <group position={[0, -0.3, -0.2]}>
+            {/* Bancada de Granito Preto */}
+            <mesh position={[0, 0, 0]}>
+              <boxGeometry args={[1.2, 0.6, 0.04]} />
+              <meshStandardMaterial color="#0f172a" roughness={0.2} metalness={0.3} />
+            </mesh>
+            {/* Cuba de Inox da Pia */}
+            <mesh position={[0, 0, 0.01]}>
+              <boxGeometry args={[0.5, 0.4, 0.03]} />
+              <meshStandardMaterial color="#cbd5e1" metalness={0.8} roughness={0.2} />
+            </mesh>
+            {/* Gabinete de Cozinha em Madeira (abaixo da bancada) */}
+            <mesh position={[0, 0.02, -0.45]}>
+              <boxGeometry args={[1.16, 0.56, 0.86]} />
+              <meshStandardMaterial color="#7c2d12" roughness={0.8} />
+            </mesh>
+            {/* Puxadores de Metal */}
+            <mesh position={[-0.2, -0.27, -0.3]}>
+              <boxGeometry args={[0.1, 0.02, 0.01]} />
+              <meshStandardMaterial color="#cbd5e1" metalness={0.9} />
+            </mesh>
+            <mesh position={[0.2, -0.27, -0.3]}>
+              <boxGeometry args={[0.1, 0.02, 0.01]} />
+              <meshStandardMaterial color="#cbd5e1" metalness={0.9} />
+            </mesh>
+          </group>
         </group>
       </group>
     );
   }
 
-  // 5. Desenhar Máquina de Lavar (`maquina_lavar`)
+  // 5. Desenhar Máquina de Lavar (`maquina_lavar`) com Tanque de Lavanderia ao lado
   if (type === 'maquina_lavar') {
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        {/* Cuba / Gabinete principal no chão */}
+        {/* Máquina de Lavar (Gabinete principal) */}
         <mesh position={[0, 0, 0.425]}>
           <boxGeometry args={[0.60, 0.60, 0.85]} />
           <meshStandardMaterial color="#f8fafc" roughness={0.4} {...matProps} />
@@ -302,6 +401,30 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
           <torusGeometry args={[0.18, 0.012, 8, 24]} />
           <meshStandardMaterial color="#d1d5db" metalness={0.9} roughness={0.1} {...matProps} />
         </mesh>
+
+        {/* Tanque de Lavar Roupas de Louça Branca ao lado (Direito) */}
+        <group position={[0.65, 0, 0]}>
+          {/* Gabinete de lavanderia inferior */}
+          <mesh position={[0, 0, 0.4]}>
+            <boxGeometry args={[0.55, 0.55, 0.8]} />
+            <meshStandardMaterial color="#e2e8f0" roughness={0.5} />
+          </mesh>
+          {/* Cuba do Tanque de Louça Branca */}
+          <mesh position={[0, 0, 0.825]}>
+            <boxGeometry args={[0.58, 0.58, 0.05]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.1} />
+          </mesh>
+          {/* Interior cavidade do tanque */}
+          <mesh position={[0, 0, 0.84]}>
+            <boxGeometry args={[0.48, 0.44, 0.02]} />
+            <meshStandardMaterial color="#cbd5e1" roughness={0.3} />
+          </mesh>
+          {/* Torneira de metal simples do tanque */}
+          <mesh position={[0, 0.22, 0.94]} rotation={[0.3, 0, 0]}>
+            <cylinderGeometry args={[0.008, 0.008, 0.12, 8]} />
+            <meshStandardMaterial color="#94a3b8" metalness={0.9} />
+          </mesh>
+        </group>
       </group>
     );
   }
@@ -310,7 +433,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
   if (type.startsWith('tug_') || type.startsWith('tomada_') || type === 'tomada_220') {
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        <group position={[0, -0.075, 0]}>
+        <group position={[0, 0.075, 0]}>
           {/* Placa plástica branca (espelho) */}
           <mesh position={[0, -0.005, 0]}>
             <boxGeometry args={[0.08, 0.01, 0.12]} />
@@ -343,7 +466,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
   if (type.startsWith('switch_') || type.startsWith('interruptor') || type === 'dimmer') {
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        <group position={[0, -0.075, 0]}>
+        <group position={[0, 0.075, 0]}>
           {/* Placa plástica branca */}
           <mesh position={[0, -0.005, 0]}>
             <boxGeometry args={[0.08, 0.01, 0.12]} />
@@ -363,7 +486,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
   if (type === 'cftv_camera') {
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        <group position={[0, -0.075, 0]}>
+        <group position={[0, 0.075, 0]}>
           {/* Base */}
           <mesh rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.05, 0.05, 0.02, 12]} />
@@ -389,7 +512,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
     const isCeiling = device.peitoril === undefined || device.peitoril >= 2.70;
     return (
       <group position={[device.x, device.y, z]} rotation={isCeiling ? undefined : [0, 0, rotationRad]}>
-        <group position={isCeiling ? [0, 0, 0] : [0, -0.075, 0]}>
+        <group position={isCeiling ? [0, 0, 0] : [0, 0.075, 0]}>
           <mesh rotation={isCeiling ? undefined : [Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.06, 0.06, 0.03, 16]} />
             <meshStandardMaterial color="#ffffff" roughness={0.4} {...matProps} />
@@ -408,7 +531,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
   if (type === 'central_alarme') {
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        <group position={[0, -0.075, 0]}>
+        <group position={[0, 0.075, 0]}>
           {/* Painel plástico cinza */}
           <mesh position={[0, -0.02, 0]}>
             <boxGeometry args={[0.20, 0.04, 0.15]} />
@@ -506,10 +629,170 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
     );
   }
 
-  // Fallback genérico para outros dispositivos elétricos (como QDC/QGBT/Caixas/etc.)
+  // 13. Quadro de Distribuição de Circuitos (QDC) Hiper-Realista
+  if (type === 'qdc' || type === 'qgbt') {
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        <group position={[0, 0.075, 0]}> {/* Face interna da parede */}
+          {/* Caixa Embutida Traseira (preta) */}
+          <mesh position={[0, -0.04, 0]}>
+            <boxGeometry args={[0.38, 0.08, 0.48]} />
+            <meshStandardMaterial color="#1e293b" roughness={0.9} {...matProps} />
+          </mesh>
+
+          {/* Tampa / Moldura Externa Branca */}
+          <mesh position={[0, 0.002, 0]}>
+            <boxGeometry args={[0.42, 0.01, 0.52]} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.3} {...matProps} />
+          </mesh>
+
+          {/* Fundo do Quadro Interno onde ficam os trilhos */}
+          <mesh position={[0, -0.03, 0]}>
+            <boxGeometry args={[0.34, 0.01, 0.44]} />
+            <meshStandardMaterial color="#e2e8f0" roughness={0.7} />
+          </mesh>
+
+          {/* Trilho DIN Metálico superior */}
+          <mesh position={[0, -0.025, 0.10]}>
+            <boxGeometry args={[0.30, 0.01, 0.025]} />
+            <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
+          </mesh>
+          {/* Trilho DIN Metálico inferior */}
+          <mesh position={[0, -0.025, -0.10]}>
+            <boxGeometry args={[0.30, 0.01, 0.025]} />
+            <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
+          </mesh>
+
+          {/* DISPOSITIVOS INTERNOS NO TRILHO SUPERIOR */}
+          <group position={[0, -0.015, 0.10]}>
+            {/* Disjuntor Geral (Bipolar/Tripolar) - Preto */}
+            <mesh position={[-0.10, 0, 0]}>
+              <boxGeometry args={[0.05, 0.03, 0.08]} />
+              <meshStandardMaterial color="#0f172a" roughness={0.4} />
+            </mesh>
+            {/* Alavanca Geral - Laranja */}
+            <mesh position={[-0.10, 0.016, 0]}>
+              <boxGeometry args={[0.01, 0.01, 0.02]} />
+              <meshBasicMaterial color="#f97316" />
+            </mesh>
+
+            {/* Disjuntor DR - Cinza com Botão de Teste Vermelho */}
+            <mesh position={[-0.04, 0, 0]}>
+              <boxGeometry args={[0.06, 0.03, 0.08]} />
+              <meshStandardMaterial color="#64748b" roughness={0.4} />
+            </mesh>
+            {/* Botão de Teste DR - Vermelho */}
+            <mesh position={[-0.05, 0.016, 0.02]}>
+              <boxGeometry args={[0.012, 0.005, 0.012]} />
+              <meshBasicMaterial color="#ef4444" />
+            </mesh>
+
+            {/* DPS (Dispositivos de Proteção contra Surtos) - Verdes */}
+            <mesh position={[0.02, 0, 0]}>
+              <boxGeometry args={[0.03, 0.03, 0.08]} />
+              <meshStandardMaterial color="#22c55e" roughness={0.4} />
+            </mesh>
+            <mesh position={[0.05, 0, 0]}>
+              <boxGeometry args={[0.03, 0.03, 0.08]} />
+              <meshStandardMaterial color="#22c55e" roughness={0.4} />
+            </mesh>
+          </group>
+
+          {/* DISPOSITIVOS INTERNOS NO TRILHO INFERIOR (Disjuntores Termomagnéticos Mono/Bipolares) */}
+          <group position={[0, -0.015, -0.10]}>
+            {/* Disjuntor 1 (Iluminação) - Branco com alavanca preta */}
+            <mesh position={[-0.10, 0, 0]}>
+              <boxGeometry args={[0.025, 0.03, 0.08]} />
+              <meshStandardMaterial color="#e2e8f0" roughness={0.3} />
+            </mesh>
+            <mesh position={[-0.10, 0.016, 0]}>
+              <boxGeometry args={[0.006, 0.01, 0.015]} />
+              <meshBasicMaterial color="#000000" />
+            </mesh>
+
+            {/* Disjuntor 2 (Tomadas) - Branco */}
+            <mesh position={[-0.07, 0, 0]}>
+              <boxGeometry args={[0.025, 0.03, 0.08]} />
+              <meshStandardMaterial color="#e2e8f0" roughness={0.3} />
+            </mesh>
+            <mesh position={[-0.07, 0.016, 0]}>
+              <boxGeometry args={[0.006, 0.01, 0.015]} />
+              <meshBasicMaterial color="#000000" />
+            </mesh>
+
+            {/* Disjuntor 3 (Chuveiro) - Preto */}
+            <mesh position={[-0.03, 0, 0]}>
+              <boxGeometry args={[0.04, 0.03, 0.08]} />
+              <meshStandardMaterial color="#0f172a" roughness={0.4} />
+            </mesh>
+            <mesh position={[-0.03, 0.016, 0]}>
+              <boxGeometry args={[0.01, 0.01, 0.015]} />
+              <meshBasicMaterial color="#f97316" />
+            </mesh>
+
+            {/* Outros mini disjuntores de reserva */}
+            <mesh position={[0.02, 0, 0]}>
+              <boxGeometry args={[0.025, 0.03, 0.08]} />
+              <meshStandardMaterial color="#e2e8f0" roughness={0.3} opacity={0.6} transparent={true} />
+            </mesh>
+            <mesh position={[0.05, 0, 0]}>
+              <boxGeometry args={[0.025, 0.03, 0.08]} />
+              <meshStandardMaterial color="#e2e8f0" roughness={0.3} opacity={0.6} transparent={true} />
+            </mesh>
+          </group>
+
+          {/* BARRAMENTOS LATERAIS */}
+          {/* Barramento de Neutro */}
+          <group position={[-0.13, -0.025, 0]}>
+            <mesh>
+              <boxGeometry args={[0.015, 0.01, 0.12]} />
+              <meshStandardMaterial color="#eab308" metalness={0.8} roughness={0.2} />
+            </mesh>
+            <mesh position={[0, -0.005, 0]}>
+              <boxGeometry args={[0.02, 0.01, 0.14]} />
+              <meshBasicMaterial color="#2563eb" />
+            </mesh>
+          </group>
+
+          {/* Barramento de Terra */}
+          <group position={[0.13, -0.025, 0]}>
+            <mesh>
+              <boxGeometry args={[0.015, 0.01, 0.12]} />
+              <meshStandardMaterial color="#eab308" metalness={0.8} roughness={0.2} />
+            </mesh>
+            <mesh position={[0, -0.005, 0]}>
+              <boxGeometry args={[0.02, 0.01, 0.14]} />
+              <meshBasicMaterial color="#16a34a" />
+            </mesh>
+          </group>
+
+          {/* Porta de Acrílico Fumê Translúcida (Aberta) */}
+          <group position={[-0.17, 0.008, 0]} rotation={[0, -0.6, 0]}>
+            <mesh position={[0.17, 0.002, 0]}>
+              <boxGeometry args={[0.34, 0.006, 0.44]} />
+              <meshStandardMaterial
+                color="#0f172a"
+                transparent={true}
+                opacity={0.4}
+                roughness={0.1}
+                metalness={0.9}
+                clippingPlanes={clippingPlanes}
+              />
+            </mesh>
+            <mesh position={[0.33, 0.005, 0]}>
+              <boxGeometry args={[0.02, 0.008, 0.04]} />
+              <meshStandardMaterial color="#d1d5db" metalness={0.9} />
+            </mesh>
+          </group>
+        </group>
+      </group>
+    );
+  }
+
+  // Fallback genérico para outros dispositivos
   return (
     <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-      <group position={isWallMounted ? [0, -0.075, 0] : [0, 0, 0]}>
+      <group position={isWallMounted ? [0, 0.075, 0] : [0, 0, 0]}>
         <mesh>
           <boxGeometry args={[width, depth, height]} />
           <meshStandardMaterial

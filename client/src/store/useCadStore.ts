@@ -289,12 +289,13 @@ interface CadState {
   paperDesigner: string;
   paperDate: string;
   paperSheetNum: string;
+  paperLogo: string;
 
   setPaperSpaceActive: (active: boolean) => void;
   setPaperSize: (size: 'A0' | 'A1' | 'A2' | 'A3' | 'A4') => void;
   setPaperScale: (scale: number) => void;
   setPaperPos: (pos: Point2D) => void;
-  updatePaperStamp: (fields: Partial<{ title: string; owner: string; designer: string; date: string; sheetNum: string }>) => void;
+  updatePaperStamp: (fields: Partial<{ title: string; owner: string; designer: string; date: string; sheetNum: string; logo: string }>) => void;
 
   // Estado de Visualizações e Barra MEP (Revit-Like)
   activeViewFilter: 'completa' | 'infraestrutura' | 'fiacao_dispositivos';
@@ -371,6 +372,7 @@ export const useCadStore = create<CadState>()(
       paperDesigner: 'Eng. Antigravity',
       paperDate: new Date().toLocaleDateString('pt-BR'),
       paperSheetNum: 'PR-01/01',
+      paperLogo: '',
 
       setPaperSpaceActive: (active) => set({ paperSpaceActive: active }),
       setPaperSize: (size) => set({ paperSize: size }),
@@ -405,6 +407,7 @@ export const useCadStore = create<CadState>()(
         paperDesigner: fields.designer !== undefined ? fields.designer : s.paperDesigner,
         paperDate: fields.date !== undefined ? fields.date : s.paperDate,
         paperSheetNum: fields.sheetNum !== undefined ? fields.sheetNum : s.paperSheetNum,
+        paperLogo: fields.logo !== undefined ? fields.logo : s.paperLogo,
       })),
       bgImageLock: true,
       bgImageScaleX: 1.0,
@@ -1666,6 +1669,7 @@ export const useCadStore = create<CadState>()(
     paperOwner: 'Silvana Barbosa',
     paperDesigner: 'Eng. Antigravity',
     paperSheetNum: 'PR-01/01',
+    paperLogo: '',
   }),
 
   // Estado Inicial de Autenticação

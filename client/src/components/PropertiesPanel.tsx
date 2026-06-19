@@ -1036,7 +1036,7 @@ const EmptyPanel: React.FC = () => (
 
 const PaperProperties: React.FC = () => {
   const {
-    paperSize, paperScale, paperTitle, paperOwner, paperDesigner, paperDate, paperSheetNum,
+    paperSize, paperScale, paperTitle, paperOwner, paperDesigner, paperDate, paperSheetNum, paperLogo,
     setPaperSize, setPaperScale, updatePaperStamp,
   } = useCadStore();
 
@@ -1134,6 +1134,20 @@ const PaperProperties: React.FC = () => {
             value={paperSheetNum}
             onChange={e => updatePaperStamp({ sheetNum: e.target.value })}
           />
+        </div>
+      </div>
+
+      <div className="props-field">
+        <label>Logo do Carimbo (Link/URL)</label>
+        <input
+          type="text"
+          className="props-input"
+          value={paperLogo || ''}
+          onChange={e => updatePaperStamp({ logo: e.target.value })}
+          placeholder="https://exemplo.com/logo.png"
+        />
+        <div className="props-hint">
+          Deixe em branco para usar o logotipo técnico padrão.
         </div>
       </div>
 

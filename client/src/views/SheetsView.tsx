@@ -26,7 +26,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
     materialsList,
     paperOwner,
     paperDesigner,
-    paperDate
+    paperLogo
   } = useCadStore();
 
   // Gerenciamento de múltiplas folhas
@@ -172,17 +172,30 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
             position: absolute;
             bottom: 0;
             right: 0;
-            width: 280px;
-            height: 110px;
+            width: 240px;
+            height: 95px;
             border-top: 1.5px solid #000;
             border-left: 1.5px solid #000;
             background: #fafafa;
-            padding: 10px;
+            padding: 8px;
+            display: flex;
+            gap: 8px;
+            font-size: 8px;
+            line-height: 1.3;
+          }
+          .stamp-logo-col {
+            width: 65px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-right: 1px dotted #000;
+            padding-right: 6px;
+          }
+          .stamp-info-col {
+            flex: 1;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            font-size: 8.5px;
-            line-height: 1.4;
           }
           .stamp-title { font-weight: bold; font-size: 9.5px; margin-bottom: 2px; text-transform: uppercase; }
           .grid-container {
@@ -300,15 +313,26 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
 
                 <!-- Carimbo Selo Técnico ABNT NBR 6492 -->
                 <div class="stamp-box">
-                  <div>
-                    <div class="stamp-title">PROJETO: ${projectName}</div>
-                    <div>Proprietário: ${paperOwner}</div>
-                    <div>Desenhista/Responsável: ${paperDesigner}</div>
+                  <div class="stamp-logo-col">
+                    ${paperLogo ? `
+                      <img src="${paperLogo}" alt="Logo" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
+                    ` : `
+                      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                      </svg>
+                    `}
                   </div>
-                  <div style="display: flex; justify-content: space-between; border-top: 1px solid #ddd; padding-top: 4px; font-size: 7.5px; color: #475569;">
-                    <span>Escala: 1:${useCadStore.getState().projectScale}</span>
-                    <span>Data: ${paperDate}</span>
-                    <strong style="color: #000;">Folha: ${s.code}</strong>
+                  <div class="stamp-info-col">
+                    <div>
+                      <div class="stamp-title" style="font-size: 8.5px; font-weight: bold;">PROJ.: ${projectName}</div>
+                      <div>Prop.: ${paperOwner}</div>
+                      <div>Resp.: ${paperDesigner}</div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-top: 1px solid #000; padding-top: 2px; font-size: 7px; color: #475569;">
+                      <span>Esc.: 1:${useCadStore.getState().projectScale}</span>
+                      <strong style="color: #000;">Folha: ${s.code}</strong>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -928,27 +952,49 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
                 position: 'absolute',
                 bottom: 0,
                 right: 0,
-                width: '280px',
-                height: '110px',
+                width: isSmallSheet ? '240px' : '280px',
+                height: isSmallSheet ? '95px' : '110px',
                 borderTop: '1.5px solid #000',
                 borderLeft: '1.5px solid #000',
                 backgroundColor: '#fafafa',
-                padding: '10px',
+                padding: '8px',
                 display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                fontSize: '9px',
-                lineHeight: '1.4'
+                gap: '8px',
+                fontSize: isSmallSheet ? '8px' : '9px',
+                lineHeight: '1.3'
               }}>
-                <div>
-                  <div style={{ fontWeight: 'bold', fontSize: '10px', textTransform: 'uppercase' }}>PROJETO: {projectName}</div>
-                  <div>Proprietário: {paperOwner}</div>
-                  <div>Responsável Técnico: {paperDesigner}</div>
+                {/* Coluna 1: Logotipo */}
+                <div style={{
+                  width: isSmallSheet ? '65px' : '80px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRight: '1px solid #ddd',
+                  paddingRight: '6px'
+                }}>
+                  {paperLogo ? (
+                    <img src={paperLogo} alt="Logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                  ) : (
+                    <svg viewBox="0 0 24 24" width={isSmallSheet ? "24" : "28"} height={isSmallSheet ? "24" : "28"} fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    </svg>
+                  )}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ddd', paddingTop: '4px', fontSize: '8px', color: '#475569' }}>
-                  <span>Escala: 1:{useCadStore.getState().projectScale}</span>
-                  <span>Data: {paperDate}</span>
-                  <strong style={{ color: '#000' }}>Folha: {activeSheet.code}</strong>
+
+                {/* Coluna 2: Informações */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontWeight: 'bold', fontSize: isSmallSheet ? '8.5px' : '10px', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      PROJ.: {projectName}
+                    </div>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Prop.: {paperOwner}</div>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Resp.: {paperDesigner}</div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ddd', paddingTop: '2px', fontSize: isSmallSheet ? '7px' : '8px', color: '#475569' }}>
+                    <span>Esc.: 1:{useCadStore.getState().projectScale}</span>
+                    <strong style={{ color: '#000' }}>Folha: {activeSheet.code}</strong>
+                  </div>
                 </div>
               </div>
             </div>
