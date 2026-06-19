@@ -14,7 +14,7 @@ interface Sheet {
   title: string;
   size: 'A0' | 'A1' | 'A2' | 'A3' | 'A4';
   orientation: 'landscape' | 'portrait';
-  contentTypes: ('planta' | 'cargas' | 'materiais' | 'unifilar')[];
+  contentTypes: ('planta' | 'cargas' | 'materiais' | 'unifilar' | 'legenda')[];
 }
 
 export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }) => {
@@ -37,7 +37,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
       title: 'Planta de Distribuição Elétrica',
       size: 'A1',
       orientation: 'landscape',
-      contentTypes: ['planta']
+      contentTypes: ['planta', 'legenda']
     },
     {
       id: 'sheet_2',
@@ -120,9 +120,9 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
   const fitScale = Math.min(containerSize.w / sheetPixelW, containerSize.h / sheetPixelH);
 
   // Alterar tipos de conteúdo alocados na folha técnica
-  const toggleContent = (type: 'planta' | 'cargas' | 'materiais' | 'unifilar') => {
+  const toggleContent = (type: 'planta' | 'cargas' | 'materiais' | 'unifilar' | 'legenda') => {
     const exists = activeSheet.contentTypes.includes(type);
-    let updated: ('planta' | 'cargas' | 'materiais' | 'unifilar')[];
+    let updated: ('planta' | 'cargas' | 'materiais' | 'unifilar' | 'legenda')[];
     if (exists) {
       updated = activeSheet.contentTypes.filter(t => t !== type);
     } else {
@@ -444,6 +444,10 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
                 <input type="checkbox" checked={activeSheet.contentTypes.includes('materiais')} onChange={() => toggleContent('materiais')} />
                 Lista de Materiais
               </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', cursor: 'pointer' }}>
+                <input type="checkbox" checked={activeSheet.contentTypes.includes('legenda')} onChange={() => toggleContent('legenda')} />
+                Legenda de Símbolos
+              </label>
             </div>
           </div>
 
@@ -585,14 +589,22 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
                               {/* Desenhar esquadrias (portas e janelas) */}
                               {devices.filter(d => d.type.startsWith('door') || d.type === 'window' || d.type === 'open_van').map(d => {
                                 const isDoor = d.type.startsWith('door');
+                                const isGiro = d.type === 'door' || d.type === 'door_pivotante';
                                 const color = isDoor ? '#b45309' : '#38bdf8';
                                 const w = d.width ?? 0.8;
                                 return (
                                   <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
-                                    <rect x={isDoor && d.flip ? -w : -w/2} y={-0.06} width={w} height={0.12} fill={color} stroke="#1e293b" strokeWidth="0.02" opacity={0.8} />
-                                    {isDoor && (
-                                      <line x1={0} y1={0} x2={0} y2={d.flip ? w : -w} stroke="#b45309" strokeWidth="0.03" />
-                                    )}
+                                    <g transform={isGiro && d.flip ? 'scale(-1, 1)' : undefined}>
+                                      {isGiro ? (
+                                        <>
+                                          <rect x={0} y={-0.06} width={w} height={0.12} fill={color} stroke="#1e293b" strokeWidth="0.02" opacity={0.8} />
+                                          <line x1={0} y1={0} x2={0} y2={-w} stroke="#b45309" strokeWidth="0.03" />
+                                          <path d={`M 0,${-w} A ${w},${w} 0 0,1 ${w},0`} fill="none" stroke="#b45309" strokeWidth="0.015" strokeDasharray="0.05, 0.05" />
+                                        </>
+                                      ) : (
+                                        <rect x={-w / 2} y={-0.06} width={w} height={0.12} fill={color} stroke="#1e293b" strokeWidth="0.02" opacity={0.8} />
+                                      )}
+                                    </g>
                                   </g>
                                 );
                               })}
@@ -740,6 +752,101 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
                                 <td>{item.unit}</td>
                               </tr>
                             ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  }
+
+                  if (type === 'legenda') {
+                    return (
+                      <div key={type} style={{ border: '1px dashed #cbd5e1', padding: '12px', borderRadius: '4px', backgroundColor: '#fcfcfc', overflow: 'auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#475569', marginBottom: '8px', display: 'block' }}>LEGENDA DE SIMBOLOGIA ELÉTRICA</span>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5px', textAlign: 'left' }}>
+                          <thead>
+                            <tr style={{ background: '#f1f5f9' }}>
+                              <th style={{ padding: '4px', width: '40px' }}>Símbolo</th>
+                              <th style={{ padding: '4px' }}>Descrição</th>
+                              <th style={{ padding: '4px', width: '50px' }}>Instalação</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td style={{ padding: '4px', textAlign: 'center' }}>
+                                <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
+                                  <circle cx="8" cy="8" r="6" fill="#f59e0b" stroke="#000" strokeWidth="1" />
+                                  <line x1="8" y1="2" x2="8" y2="14" stroke="#000" strokeWidth="1" />
+                                  <line x1="2" y1="8" x2="14" y2="8" stroke="#000" strokeWidth="1" />
+                                </svg>
+                              </td>
+                              <td style={{ padding: '4px' }}>Ponto de Luz no Teto (Luminária/Lâmpada)</td>
+                              <td style={{ padding: '4px', color: '#475569' }}>Teto (2.80m)</td>
+                            </tr>
+                            <tr>
+                              <td style={{ padding: '4px', textAlign: 'center' }}>
+                                <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
+                                  <path d="M 8,14 L 3,6 L 13,6 Z" fill="none" stroke="#000" strokeWidth="1" />
+                                </svg>
+                              </td>
+                              <td style={{ padding: '4px' }}>Tomada Baixa 10A (NBR 14136)</td>
+                              <td style={{ padding: '4px', color: '#475569' }}>Parede (0.30m)</td>
+                            </tr>
+                            <tr>
+                              <td style={{ padding: '4px', textAlign: 'center' }}>
+                                <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
+                                  <path d="M 8,14 L 3,6 L 13,6 Z" fill="#94a3b8" stroke="#000" strokeWidth="1" />
+                                </svg>
+                              </td>
+                              <td style={{ padding: '4px' }}>Tomada Média 10A/20A (NBR 14136)</td>
+                              <td style={{ padding: '4px', color: '#475569' }}>Parede (1.10m)</td>
+                            </tr>
+                            <tr>
+                              <td style={{ padding: '4px', textAlign: 'center' }}>
+                                <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
+                                  <path d="M 8,14 L 3,6 L 13,6 Z" fill="#000" stroke="#000" strokeWidth="1" />
+                                </svg>
+                              </td>
+                              <td style={{ padding: '4px' }}>Tomada Alta (TUE / Chuveiro / Ar Condicionado)</td>
+                              <td style={{ padding: '4px', color: '#475569' }}>Parede (2.20m)</td>
+                            </tr>
+                            <tr>
+                              <td style={{ padding: '4px', textAlign: 'center' }}>
+                                <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
+                                  <circle cx="8" cy="8" r="4" fill="#a855f7" stroke="#000" strokeWidth="1" />
+                                  <line x1="8" y1="8" x2="12" y2="4" stroke="#000" strokeWidth="1" />
+                                </svg>
+                              </td>
+                              <td style={{ padding: '4px' }}>Interruptor Simples (Acionamento)</td>
+                              <td style={{ padding: '4px', color: '#475569' }}>Parede (1.10m)</td>
+                            </tr>
+                            <tr>
+                              <td style={{ padding: '4px', textAlign: 'center' }}>
+                                <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
+                                  <circle cx="8" cy="8" r="6" fill="#fbbf24" stroke="#000" strokeWidth="1" />
+                                </svg>
+                              </td>
+                              <td style={{ padding: '4px' }}>Caixa de Passagem Octogonal (Teto)</td>
+                              <td style={{ padding: '4px', color: '#475569' }}>Teto (2.80m)</td>
+                            </tr>
+                            <tr>
+                              <td style={{ padding: '4px', textAlign: 'center' }}>
+                                <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
+                                  <rect x="4" y="2" width="8" height="12" fill="#fbbf24" stroke="#000" strokeWidth="1" />
+                                </svg>
+                              </td>
+                              <td style={{ padding: '4px' }}>Caixa de Embutir 4x2 (Parede)</td>
+                              <td style={{ padding: '4px', color: '#475569' }}>Variável</td>
+                            </tr>
+                            <tr>
+                              <td style={{ padding: '4px', textAlign: 'center' }}>
+                                <svg width="16" height="16" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
+                                  <circle cx="8" cy="8" r="5" fill="#1e293b" stroke="#000" strokeWidth="1" />
+                                  <path d="M 5,8 L 8,5 L 11,8" fill="none" stroke="#fff" strokeWidth="1" />
+                                </svg>
+                              </td>
+                              <td style={{ padding: '4px' }}>Câmera de Segurança CFTV Dome</td>
+                              <td style={{ padding: '4px', color: '#475569' }}>Parede (2.50m)</td>
+                            </tr>
                           </tbody>
                         </table>
                       </div>

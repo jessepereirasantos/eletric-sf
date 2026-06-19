@@ -98,31 +98,29 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
     const portalThickness = 0.03;
     const frameDepth = 0.16; // espessura do batente cobrindo a parede
     const isGiro = device.type === 'door' || device.type === 'door_pivotante';
-    const tx = isGiro ? (device.flip ? -width / 2 : width / 2) : 0;
+
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        <group position={[tx, 0, 0]}>
+        <group scale={[isGiro && device.flip ? -1 : 1, 1, 1]}>
           {/* Batente/Portal da porta */}
           {/* Batente Esquerdo */}
-          <mesh position={[-width / 2 + portalThickness / 2, 0, 0]}>
+          <mesh position={[isGiro ? portalThickness / 2 : -width / 2 + portalThickness / 2, 0, 0]}>
             <boxGeometry args={[portalThickness, frameDepth, height]} />
             <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
           </mesh>
           {/* Batente Direito */}
-          <mesh position={[width / 2 - portalThickness / 2, 0, 0]}>
+          <mesh position={[isGiro ? width - portalThickness / 2 : width / 2 - portalThickness / 2, 0, 0]}>
             <boxGeometry args={[portalThickness, frameDepth, height]} />
             <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
           </mesh>
           {/* Batente Superior */}
-          <mesh position={[0, 0, height / 2 - portalThickness / 2]}>
+          <mesh position={[isGiro ? width / 2 : 0, 0, height / 2 - portalThickness / 2]}>
             <boxGeometry args={[width, frameDepth, portalThickness]} />
             <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
           </mesh>
 
-        {/* Folha da porta - FECHADA e alinhada localmente */}
-        <group position={[device.flip ? width / 2 - portalThickness : -width / 2 + portalThickness, 0, 0]}>
-          {/* Folha de Madeira */}
-          <mesh position={[device.flip ? -width / 2 + portalThickness : width / 2 - portalThickness, 0, 0]}>
+          {/* Folha da porta - FECHADA */}
+          <mesh position={[isGiro ? width / 2 : 0, 0, 0]}>
             <boxGeometry args={[width - portalThickness * 2, depth, height - portalThickness]} />
             <meshStandardMaterial
               color={color}
@@ -136,27 +134,28 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
           </mesh>
 
           {/* Maçaneta Metálica */}
-          <group position={[device.flip ? -width + 0.10 + portalThickness * 2 : width - 0.10 - portalThickness * 2, 0, 0.0]}>
-            {/* Haste interna */}
-            <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.008, 0.008, 0.08, 8]} />
-              <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
-            </mesh>
-            {/* Maçaneta lado 1 */}
-            <mesh position={[0, 0.04, 0]} rotation={[0, 0, device.flip ? Math.PI : 0]}>
-              <boxGeometry args={[0.02, 0.015, 0.12]} />
-              <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
-            </mesh>
-            {/* Maçaneta lado 2 */}
-            <mesh position={[0, -0.04, 0]} rotation={[0, 0, device.flip ? Math.PI : 0]}>
-              <boxGeometry args={[0.02, 0.015, 0.12]} />
-              <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
-            </mesh>
-          </group>
+          {isGiro && (
+            <group position={[width - 0.10, 0, 0]}>
+              {/* Haste interna */}
+              <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                <cylinderGeometry args={[0.008, 0.008, 0.08, 8]} />
+                <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
+              </mesh>
+              {/* Maçaneta lado 1 */}
+              <mesh position={[0, 0.04, 0]}>
+                <boxGeometry args={[0.02, 0.015, 0.12]} />
+                <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
+              </mesh>
+              {/* Maçaneta lado 2 */}
+              <mesh position={[0, -0.04, 0]}>
+                <boxGeometry args={[0.02, 0.015, 0.12]} />
+                <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
+              </mesh>
+            </group>
+          )}
         </group>
       </group>
-    </group>
-  );
+    );
   }
 
   // Desenhar janelas realistas
