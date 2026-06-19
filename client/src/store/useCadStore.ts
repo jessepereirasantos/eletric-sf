@@ -373,6 +373,8 @@ interface CadState {
 
   orbitControlsEnabled: boolean;
   setOrbitControlsEnabled: (enabled: boolean) => void;
+  showLaje3D: boolean;
+  setShowLaje3D: (show: boolean) => void;
 }
 
 const MAX_HISTORY = 50;
@@ -453,12 +455,14 @@ export const useCadStore = create<CadState>()(
       doorColor: '#b45309',
       windowColor: '#38bdf8',
       orbitControlsEnabled: true,
+      showLaje3D: true,
 
       setPaperSpaceActive: (active) => set({ paperSpaceActive: active }),
       setPaperSize: (size) => set({ paperSize: size }),
       setPaperScale: (scale) => set({ paperScale: scale }),
       setPaperPos: (pos) => set({ paperPos: pos }),
       setOrbitControlsEnabled: (enabled) => set({ orbitControlsEnabled: enabled }),
+      setShowLaje3D: (show) => set({ showLaje3D: show }),
 
       addSheet: (sheet) => {
         get().pushHistory();
@@ -1902,6 +1906,7 @@ export const useCadStore = create<CadState>()(
     paperDesigner: 'Eng. Antigravity',
     paperSheetNum: 'PR-01/01',
     paperLogo: '',
+    showLaje3D: true,
   }),
 
   // Estado Inicial de Autenticação
@@ -2167,6 +2172,7 @@ export const useCadStore = create<CadState>()(
       floorTextureType: state.floorTextureType || 'pintura',
       doorColor: state.doorColor || '#b45309',
       windowColor: state.windowColor || '#38bdf8',
+      showLaje3D: state.showLaje3D,
     }),
     onRehydrateStorage: () => (state) => {
       if (state && typeof state.recomputeDerivedState === 'function') {

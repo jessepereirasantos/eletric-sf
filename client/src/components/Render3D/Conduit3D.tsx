@@ -140,8 +140,8 @@ export const Conduit3D: React.FC<Conduit3DProps> = ({ fromDevice, toDevice, diam
     const zA = getZ(fromDevice);
     const zB = getZ(toDevice);
 
-    const posA = new THREE.Vector3(fromDevice.x, fromDevice.y, zA);
-    const posB = new THREE.Vector3(toDevice.x, toDevice.y, zB);
+    const posA = new THREE.Vector3(fromDevice.x, -fromDevice.y, zA);
+    const posB = new THREE.Vector3(toDevice.x, -toDevice.y, zB);
 
     const pathPoints: THREE.Vector3[] = [];
 
@@ -149,7 +149,7 @@ export const Conduit3D: React.FC<Conduit3DProps> = ({ fromDevice, toDevice, diam
       pathPoints.push(posA);
       waypoints.forEach(wp => {
         const wpZ = zA === 2.80 || zB === 2.80 ? 2.80 : (zA + zB) / 2;
-        pathPoints.push(new THREE.Vector3(wp.x, wp.y, wpZ));
+        pathPoints.push(new THREE.Vector3(wp.x, -wp.y, wpZ));
       });
       pathPoints.push(posB);
     } else {
@@ -160,19 +160,19 @@ export const Conduit3D: React.FC<Conduit3DProps> = ({ fromDevice, toDevice, diam
         const wallRoute = getWallRouteLocal({ x: fromDevice.x, y: fromDevice.y }, { x: toDevice.x, y: toDevice.y }, walls);
         if (wallRoute && wallRoute.length > 0) {
           pathPoints.push(posA);
-          pathPoints.push(new THREE.Vector3(fromDevice.x, fromDevice.y, 2.80));
+          pathPoints.push(new THREE.Vector3(fromDevice.x, -fromDevice.y, 2.80));
           for (let i = 1; i < wallRoute.length - 1; i++) {
-            pathPoints.push(new THREE.Vector3(wallRoute[i].x, wallRoute[i].y, 2.80));
+            pathPoints.push(new THREE.Vector3(wallRoute[i].x, -wallRoute[i].y, 2.80));
           }
-          pathPoints.push(new THREE.Vector3(toDevice.x, toDevice.y, 2.80));
+          pathPoints.push(new THREE.Vector3(toDevice.x, -toDevice.y, 2.80));
           pathPoints.push(posB);
         } else {
-          pathPoints.push(posA, new THREE.Vector3(fromDevice.x, fromDevice.y, 2.80), new THREE.Vector3(toDevice.x, toDevice.y, 2.80), posB);
+          pathPoints.push(posA, new THREE.Vector3(fromDevice.x, -fromDevice.y, 2.80), new THREE.Vector3(toDevice.x, -toDevice.y, 2.80), posB);
         }
       } else if (isCeilingA && !isCeilingB) {
-        pathPoints.push(posA, new THREE.Vector3(toDevice.x, toDevice.y, 2.80), posB);
+        pathPoints.push(posA, new THREE.Vector3(toDevice.x, -toDevice.y, 2.80), posB);
       } else if (!isCeilingA && isCeilingB) {
-        pathPoints.push(posA, new THREE.Vector3(fromDevice.x, fromDevice.y, 2.80), posB);
+        pathPoints.push(posA, new THREE.Vector3(fromDevice.x, -fromDevice.y, 2.80), posB);
       } else {
         pathPoints.push(posA, posB);
       }

@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import * as THREE from 'three';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
 import { useCadStore } from '../store/useCadStore';
 import { TextureGenerator } from '../utils/textureGenerator';
@@ -10,7 +10,9 @@ import { Conduit3D } from '../components/Render3D/Conduit3D';
 import { BottomBar } from '../components/BottomBar';
 
 const Laje3D: React.FC = () => {
-  const { walls, clippingState } = useCadStore();
+  const { walls, clippingState, showLaje3D } = useCadStore();
+
+  if (!showLaje3D) return null;
 
   const clippingPlanes = useMemo(() => {
     if (!clippingState.enabled) return [];
@@ -34,8 +36,8 @@ const Laje3D: React.FC = () => {
     walls.forEach(w => {
       minX = Math.min(minX, w.p1.x, w.p2.x);
       maxX = Math.max(maxX, w.p1.x, w.p2.x);
-      minY = Math.min(minY, w.p1.y, w.p2.y);
-      maxY = Math.max(maxY, w.p1.y, w.p2.y);
+      minY = Math.min(minY, -w.p1.y, -w.p2.y); // Usa Y invertido
+      maxY = Math.max(maxY, -w.p1.y, -w.p2.y);
     });
 
     const w = (maxX - minX) + 1.0;
@@ -76,8 +78,8 @@ const Piso3D: React.FC = () => {
     walls.forEach(w => {
       minX = Math.min(minX, w.p1.x, w.p2.x);
       maxX = Math.max(maxX, w.p1.x, w.p2.x);
-      minY = Math.min(minY, w.p1.y, w.p2.y);
-      maxY = Math.max(maxY, w.p1.y, w.p2.y);
+      minY = Math.min(minY, -w.p1.y, -w.p2.y); // Usa Y invertido
+      maxY = Math.max(maxY, -w.p1.y, -w.p2.y);
     });
 
     const w = (maxX - minX) + 12.0; // Margem generosa ao redor do projeto
@@ -151,6 +153,43 @@ const OriginAxes3D: React.FC = () => {
   );
 };
 
+interface CameraTourProps {
+  center: { x: number; y: number };
+  duration: number; // em segundos
+  onComplete: () => void;
+}
+
+const CameraTour: React.FC<CameraTourProps> = ({ center, duration, onComplete }) => {
+  const { camera } = useThree();
+  const startTimeRef = useRef<number | null>(null);
+
+  useFrame((state) => {
+    if (startTimeRef.current === null) {
+      startTimeRef.current = state.clock.getElapsedTime();
+    }
+    const elapsed = state.clock.getElapsedTime() - startTimeRef.current;
+    const progress = Math.min(elapsed / duration, 1);
+
+    // Ângulo de órbita 360°
+    const angle = progress * Math.PI * 2;
+    const radius = 8; // distância orbital padrão
+
+    // Posição orbital com oscilação em Z (altura)
+    const x = center.x + Math.cos(angle) * radius;
+    const y = center.y + Math.sin(angle) * radius;
+    const z = 2.2 + Math.sin(progress * Math.PI) * 1.5; // varia suavemente
+
+    camera.position.set(x, y, z);
+    camera.lookAt(center.x, center.y, 1.10);
+
+    if (progress >= 1) {
+      onComplete();
+    }
+  });
+
+  return null;
+};
+
 interface Render3DViewProps {
   activeTab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets';
   onTabChange: (tab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets') => void;
@@ -167,8 +206,16 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
     activeViewFilter,
     setViewFilter,
     selectedDeviceId,
-    setSelectedDeviceId
+    setSelectedDeviceId,
+    removeDevice,
+    showLaje3D,
+    setShowLaje3D
   } = useCadStore();
+
+  const [hiddenDeviceIds, setHiddenDeviceIds] = useState<Set<string>>(new Set());
+  const [isTouring, setIsTouring] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
   const projectCenter = useMemo(() => {
     if (walls.length === 0) return { x: 0, y: 0 };
@@ -180,8 +227,8 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
     walls.forEach(w => {
       minX = Math.min(minX, w.p1.x, w.p2.x);
       maxX = Math.max(maxX, w.p1.x, w.p2.x);
-      minY = Math.min(minY, w.p1.y, w.p2.y);
-      maxY = Math.max(maxY, w.p1.y, w.p2.y);
+      minY = Math.min(minY, -w.p1.y, -w.p2.y); // Inverte o Y das paredes
+      maxY = Math.max(maxY, -w.p1.y, -w.p2.y);
     });
 
     return {
@@ -207,6 +254,66 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
     // Adiciona na store
     useCadStore.getState().addSnapshot3D(title || 'Vista 3D', dataUrl);
     alert('Corte 3D capturado com sucesso! Agora você pode adicioná-lo como viewport em qualquer prancha.');
+  };
+
+  const handleStartTour = () => {
+    const canvas = document.querySelector('canvas');
+    if (!canvas) {
+      alert('Erro ao localizar o visualizador 3D.');
+      return;
+    }
+
+    setIsTouring(true);
+    chunksRef.current = [];
+
+    let stream: MediaStream;
+    try {
+      // @ts-ignore
+      stream = canvas.captureStream(30);
+    } catch (e) {
+      alert('Seu navegador não suporta capturar stream do canvas.');
+      setIsTouring(false);
+      return;
+    }
+
+    let options = { mimeType: 'video/webm;codecs=vp9' };
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+      options = { mimeType: 'video/webm;codecs=vp8' };
+    }
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+      options = { mimeType: 'video/webm' };
+    }
+
+    try {
+      const recorder = new MediaRecorder(stream, options);
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunksRef.current.push(e.data);
+        }
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `percurso-3d-${Date.now()}.webm`;
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+    } catch (err) {
+      console.error('Falha ao iniciar MediaRecorder:', err);
+      alert('Seu navegador não suporta gravação de vídeo.');
+      setIsTouring(false);
+    }
+  };
+
+  const handleTourComplete = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsTouring(false);
   };
 
   return (
@@ -317,19 +424,84 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
           </select>
         </div>
 
-        {/* Captura de Foto 3D e Botão de Desmarcar Seleção */}
-        <div style={{ display: 'flex', gap: '10px' }}>
+        {/* Captura de Foto 3D, Gravação de Percurso, Controles de Laje e Ocultamento */}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           {selectedDeviceId && (
+            <>
+              <button
+                onClick={() => {
+                  removeDevice(selectedDeviceId);
+                  setSelectedDeviceId(null);
+                }}
+                style={{
+                  backgroundColor: '#ef4444', color: '#fff', border: 'none',
+                  borderRadius: '6px', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
+                }}
+              >
+                🗑️ Excluir
+              </button>
+              <button
+                onClick={() => {
+                  setHiddenDeviceIds(prev => {
+                    const next = new Set(prev);
+                    next.add(selectedDeviceId);
+                    return next;
+                  });
+                  setSelectedDeviceId(null);
+                }}
+                style={{
+                  backgroundColor: '#f59e0b', color: '#fff', border: 'none',
+                  borderRadius: '6px', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
+                }}
+              >
+                👁️ Ocultar
+              </button>
+              <button
+                onClick={() => setSelectedDeviceId(null)}
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)', color: '#cbd5e1', border: '1px solid #334155',
+                  borderRadius: '6px', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
+                }}
+              >
+                Desmarcar
+              </button>
+            </>
+          )}
+
+          {hiddenDeviceIds.size > 0 && (
             <button
-              onClick={() => setSelectedDeviceId(null)}
+              onClick={() => setHiddenDeviceIds(new Set())}
               style={{
-                backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid #ef4444',
+                backgroundColor: '#10b981', color: '#fff', border: 'none',
                 borderRadius: '6px', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
               }}
             >
-              Desmarcar Elemento
+              👁️ Mostrar Todos ({hiddenDeviceIds.size})
             </button>
           )}
+
+          <button
+            onClick={() => setShowLaje3D(!showLaje3D)}
+            style={{
+              backgroundColor: showLaje3D ? '#1e293b' : '#3b82f6',
+              color: '#fff', border: '1px solid #334155',
+              borderRadius: '6px', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
+            }}
+          >
+            {showLaje3D ? '🏠 Ocultar Teto' : '🏠 Exibir Teto'}
+          </button>
+
+          <button
+            onClick={isTouring ? handleTourComplete : handleStartTour}
+            style={{
+              backgroundColor: isTouring ? '#ef4444' : '#6366f1',
+              color: '#fff', border: 'none',
+              borderRadius: '6px', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '6px'
+            }}
+          >
+            {isTouring ? '⏹️ Parar Gravação' : '🎥 Gravar Percurso'}
+          </button>
 
           <button
             onClick={handleCaptureSnapshot}
@@ -339,7 +511,7 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
               display: 'flex', alignItems: 'center', gap: '6px'
             }}
           >
-            📸 Capturar Corte / Foto 3D
+            📸 Foto 3D
           </button>
         </div>
       </div>
@@ -430,6 +602,15 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
            {/* Renderização da Laje de Cobertura */}
           <Laje3D />
 
+          {/* Componente de Tour Virtual 360 Graus */}
+          {isTouring && (
+            <CameraTour
+              center={projectCenter}
+              duration={6}
+              onComplete={handleTourComplete}
+            />
+          )}
+
           {/* Renderização das Paredes */}
           <group>
             {walls.map((wall) => (
@@ -437,35 +618,39 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
             ))}
           </group>
 
-          {/* Renderização dos Dispositivos */}
+          {/* Renderização dos Dispositivos (com filtro de ocultados) */}
           <group>
-            {devices.map((device) => (
-              <Device3D key={device.id} device={device} />
-            ))}
+            {devices
+              .filter(device => !hiddenDeviceIds.has(device.id))
+              .map((device) => (
+                <Device3D key={device.id} device={device} />
+              ))}
           </group>
 
-          {/* Renderização dos Conduítes */}
+          {/* Renderização dos Conduítes (com filtro se algum dispositivo ponta estiver oculto) */}
           <group>
-            {conduits.map((conduit) => {
-              const fromDev = devices.find((d) => d.id === conduit.fromDeviceId);
-              const toDev = devices.find((d) => d.id === conduit.toDeviceId);
-              if (!fromDev || !toDev) return null;
-              return (
-                <Conduit3D
-                  key={conduit.id}
-                  id={conduit.id}
-                  fromDevice={fromDev}
-                  toDevice={toDev}
-                  diameter={conduit.diameter}
-                  waypoints={conduit.waypoints}
-                />
-              );
-            })}
+            {conduits
+              .filter(conduit => !hiddenDeviceIds.has(conduit.fromDeviceId) && !hiddenDeviceIds.has(conduit.toDeviceId))
+              .map((conduit) => {
+                const fromDev = devices.find((d) => d.id === conduit.fromDeviceId);
+                const toDev = devices.find((d) => d.id === conduit.toDeviceId);
+                if (!fromDev || !toDev) return null;
+                return (
+                  <Conduit3D
+                    key={conduit.id}
+                    id={conduit.id}
+                    fromDevice={fromDev}
+                    toDevice={toDev}
+                    diameter={conduit.diameter}
+                    waypoints={conduit.waypoints}
+                  />
+                );
+              })}
           </group>
 
           {/* Controles de Câmera e Órbita centralizada */}
           <OrbitControls
-            enabled={orbitControlsEnabled}
+            enabled={orbitControlsEnabled && !isTouring}
             enableDamping
             dampingFactor={0.05}
             maxPolarAngle={Math.PI / 2 - 0.05} // impede a câmera de passar para debaixo do chão

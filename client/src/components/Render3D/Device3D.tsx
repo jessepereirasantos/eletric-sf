@@ -9,8 +9,39 @@ interface Device3DProps {
   isInner?: boolean;
 }
 
+const getClosestPointOnSegment = (pt: { x: number; y: number }, p1: { x: number; y: number }, p2: { x: number; y: number }) => {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const t2 = dx * dx + dy * dy;
+  if (t2 === 0) {
+    const dist = Math.sqrt((pt.x - p1.x) ** 2 + (pt.y - p1.y) ** 2);
+    return { point: p1, distance: dist };
+  }
+  let t = ((pt.x - p1.x) * dx + (pt.y - p1.y) * dy) / t2;
+  t = Math.max(0, Math.min(1, t));
+  const proj = { x: p1.x + t * dx, y: p1.y + t * dy };
+  const dist = Math.sqrt((pt.x - proj.x) ** 2 + (pt.y - proj.y) ** 2);
+  return { point: proj, distance: dist };
+};
+
+const getClosestWallThickness = (devX: number, devY: number, wallsList: any[]): number => {
+  if (!wallsList || wallsList.length === 0) return 0.15;
+  let minDistance = Infinity;
+  let closestWallThickness = 0.15; // padrão 15cm
+
+  wallsList.forEach(w => {
+    const res = getClosestPointOnSegment({ x: devX, y: devY }, w.p1, w.p2);
+    if (res.distance < minDistance) {
+      minDistance = res.distance;
+      closestWallThickness = w.thickness;
+    }
+  });
+
+  return minDistance < 0.5 ? closestWallThickness : 0.15;
+};
+
 export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner = false }) => {
-  const { shadingMode, clippingState, doorColor, windowColor, selectedDeviceId, updateDeviceProperties } = useCadStore();
+  const { shadingMode, clippingState, doorColor, windowColor, selectedDeviceId, updateDeviceProperties, walls } = useCadStore();
   
   // Rotação invertida: o Three.js rotaciona em torno de Z no sentido anti-horário,
   // enquanto o Konva (2D) e o SVG rotacionam no sentido horário.
@@ -86,6 +117,8 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
         z = 1.50;
       } else if (type === 'poste') {
         z = 1.60;
+      } else if (type === 'ground_rod' || type === 'aterramento') {
+        z = -1.20;
       }
     }
 
@@ -107,6 +140,10 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
       size = { width: 0.20, depth: 0.06, height: 0.15, color: '#cbd5e1' };
     } else if (type === 'maquina_lavar') {
       size = { width: 0.60, depth: 0.60, height: 0.85, color: '#f8fafc' };
+    } else if (type === 'ground_rod' || type === 'aterramento') {
+      size = { width: 0.02, depth: 0.02, height: 2.4, color: '#b45309' };
+    } else if (type === 'device_dr' || type === 'dr' || type === 'idr' || type === 'dps') {
+      size = { width: 0.08, depth: 0.05, height: 0.12, color: '#e2e8f0' };
     }
 
     return { z: z + size.height / 2, ...size, isEsquadria: false };
@@ -130,7 +167,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
 
       updateDeviceProperties(deviceProp.id, {
         x: Number(x.toFixed(3)),
-        y: Number(y.toFixed(3)),
+        y: Number((-y).toFixed(3)), // Reinverte para a coordenada Y do CAD 2D
         peitoril: Number(newPeitoril.toFixed(3))
       });
     };
@@ -162,7 +199,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
           <group
             ref={groupRef}
             name={deviceProp.id}
-            position={[deviceProp.x, deviceProp.y, computedZ]}
+            position={[deviceProp.x, -deviceProp.y, computedZ]} // Usa Y invertido (-y)
             rotation={[0, 0, computedRotationRad]}
             onClick={handleSelect}
           >
@@ -176,7 +213,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
       <group
         ref={groupRef}
         name={deviceProp.id}
-        position={[deviceProp.x, deviceProp.y, computedZ]}
+        position={[deviceProp.x, -deviceProp.y, computedZ]} // Usa Y invertido (-y)
         rotation={[0, 0, computedRotationRad]}
         onClick={handleSelect}
       >
@@ -199,7 +236,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
   if (type === 'open_van') return null;
 
   // Lógica para detectar se o dispositivo é montado em parede
-  // Se for parede, aplicamos o yOffset de -0.075m para colocá-lo na face
+  // Se for parede, calculamos a espessura da parede mais próxima para aplicar o yOffset de faceamento
   const isWallMounted = !type.startsWith('door') && 
                         type !== 'window' && 
                         type !== 'stairs' && 
@@ -209,10 +246,27 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
                         type !== 'gerador' && 
                         type !== 'nobreak' && 
                         type !== 'maquina_lavar' && 
+                        type !== 'ground_rod' && 
+                        type !== 'aterramento' && 
                         !type.includes('light') && 
                         type !== 'lampada' && 
                         type !== 'fluorescent' && 
                         type !== 'box_octogonal';
+
+  const wallThickness = useMemo(() => {
+    return getClosestWallThickness(deviceProp.x, deviceProp.y, walls);
+  }, [deviceProp.x, deviceProp.y, walls]);
+
+  const yOffset = useMemo(() => {
+    if (!isWallMounted) return 0;
+    if (type === 'qdc' || type === 'qgbt') {
+      return wallThickness / 2;
+    }
+    if (type === 'box_4x2' || type === 'box_4x4') {
+      return wallThickness / 2 - depth / 2 + 0.002;
+    }
+    return wallThickness / 2 + 0.002;
+  }, [isWallMounted, type, wallThickness, depth]);
 
   // 1. Desenhar portas realistas e fechadas
   if (type.startsWith('door')) {
@@ -319,7 +373,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
   if (type === 'tue_chuveiro') {
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        <group position={[0, 0.075, 0]}> {/* Desloca para a face de dentro da parede */}
+        <group position={[0, yOffset, 0]}> {/* Faceamento dinâmico na parede */}
           {/* Tubo Cromado horizontal */}
           <mesh position={[0, -0.18, 0.02]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.012, 0.012, 0.36, 12]} />
@@ -415,7 +469,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
   if (type === 'torneira_eletrica') {
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        <group position={[0, 0.075, 0]}>
+        <group position={[0, yOffset, 0]}>
           {/* Corpo da torneira (aquecedor branco) */}
           <mesh position={[0, -0.04, 0]}>
             <boxGeometry args={[0.08, 0.08, 0.14]} />
@@ -520,7 +574,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
   if (type.startsWith('tug_') || type.startsWith('tomada_') || type === 'tomada_220') {
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        <group position={[0, 0.075, 0]}>
+        <group position={[0, yOffset, 0]}>
           {/* Placa plástica branca (espelho) */}
           <mesh position={[0, -0.005, 0]}>
             <boxGeometry args={[0.08, 0.01, 0.12]} />
@@ -553,7 +607,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
   if (type.startsWith('switch_') || type.startsWith('interruptor') || type === 'dimmer') {
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        <group position={[0, 0.075, 0]}>
+        <group position={[0, yOffset, 0]}>
           {/* Placa plástica branca */}
           <mesh position={[0, -0.005, 0]}>
             <boxGeometry args={[0.08, 0.01, 0.12]} />
@@ -573,7 +627,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
   if (type === 'cftv_camera') {
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        <group position={[0, 0.075, 0]}>
+        <group position={[0, yOffset, 0]}>
           {/* Base */}
           <mesh rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.05, 0.05, 0.02, 12]} />
@@ -599,7 +653,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
     const isCeiling = device.peitoril === undefined || device.peitoril >= 2.70;
     return (
       <group position={[device.x, device.y, z]} rotation={isCeiling ? undefined : [0, 0, rotationRad]}>
-        <group position={isCeiling ? [0, 0, 0] : [0, 0.075, 0]}>
+        <group position={isCeiling ? [0, 0, 0] : [0, yOffset, 0]}>
           <mesh rotation={isCeiling ? undefined : [Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.06, 0.06, 0.03, 16]} />
             <meshStandardMaterial color="#ffffff" roughness={0.4} {...matProps} />
@@ -618,7 +672,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
   if (type === 'central_alarme') {
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        <group position={[0, 0.075, 0]}>
+        <group position={[0, yOffset, 0]}>
           {/* Painel plástico cinza */}
           <mesh position={[0, -0.02, 0]}>
             <boxGeometry args={[0.20, 0.04, 0.15]} />
@@ -720,7 +774,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
   if (type === 'qdc' || type === 'qgbt') {
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        <group position={[0, 0.075, 0]}> {/* Face interna da parede */}
+        <group position={[0, yOffset, 0]}> {/* Faceamento dinâmico na parede */}
           {/* Caixa Embutida Traseira (preta) */}
           <mesh position={[0, -0.04, 0]}>
             <boxGeometry args={[0.38, 0.08, 0.48]} />
@@ -871,6 +925,63 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
               <meshStandardMaterial color="#d1d5db" metalness={0.9} />
             </mesh>
           </group>
+        </group>
+      </group>
+    );
+  }
+
+  // Haste de aterramento
+  if (type === 'ground_rod' || type === 'aterramento') {
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        {/* Caixa de inspeção de aterramento no chão */}
+        <mesh position={[0, 0, 0.02]}>
+          <cylinderGeometry args={[0.1, 0.1, 0.04, 12]} />
+          <meshStandardMaterial color="#475569" roughness={0.9} {...matProps} />
+        </mesh>
+        {/* Tampa da caixa de inspeção */}
+        <mesh position={[0, 0, 0.042]}>
+          <cylinderGeometry args={[0.09, 0.09, 0.005, 12]} />
+          <meshStandardMaterial color="#334155" roughness={0.7} />
+        </mesh>
+        {/* Haste de cobre descendo */}
+        <mesh position={[0, 0, -1.2]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.01, 0.01, 2.4, 8]} />
+          <meshStandardMaterial color="#b45309" metalness={0.9} roughness={0.2} {...matProps} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // Módulos DR e DPS
+  if (type === 'device_dr' || type === 'dr' || type === 'idr' || type === 'dps') {
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        <group position={[0, yOffset, 0]}>
+          {/* Caixa do dispositivo */}
+          <mesh>
+            <boxGeometry args={[width, depth, height]} />
+            <meshStandardMaterial color="#e2e8f0" roughness={0.4} {...matProps} />
+          </mesh>
+          {/* Alavanca de acionamento (preta/laranja) */}
+          <mesh position={[0.01, -depth/2 - 0.002, 0]}>
+            <boxGeometry args={[0.015, 0.01, 0.03]} />
+            <meshStandardMaterial color={type === 'dps' ? '#ef4444' : '#f97316'} />
+          </mesh>
+          {/* Botão de teste para DR */}
+          {(type === 'device_dr' || type === 'dr' || type === 'idr') && (
+            <mesh position={[-0.02, -depth/2 - 0.002, 0.02]}>
+              <boxGeometry args={[0.01, 0.005, 0.01]} />
+              <meshBasicMaterial color="#ef4444" />
+            </mesh>
+          )}
+          {/* Indicador de estado para DPS */}
+          {type === 'dps' && (
+            <mesh position={[-0.02, -depth/2 - 0.002, 0.02]}>
+              <boxGeometry args={[0.015, 0.005, 0.015]} />
+              <meshBasicMaterial color="#22c55e" />
+            </mesh>
+          )}
         </group>
       </group>
     );
@@ -1054,7 +1165,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
   // Fallback genérico para outros dispositivos
   return (
     <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-      <group position={isWallMounted ? [0, 0.075, 0] : [0, 0, 0]}>
+      <group position={[0, yOffset, 0]}>
         <mesh>
           <boxGeometry args={[width, depth, height]} />
           <meshStandardMaterial

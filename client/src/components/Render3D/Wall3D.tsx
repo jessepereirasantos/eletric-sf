@@ -11,12 +11,14 @@ interface Wall3DProps {
 export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
   const { shadingMode, clippingState, wallColor } = useCadStore();
 
-  const L = Math.sqrt(Math.pow(wall.p2.x - wall.p1.x, 2) + Math.pow(wall.p2.y - wall.p1.y, 2));
+  const p1y = -wall.p1.y;
+  const p2y = -wall.p2.y;
+  const L = Math.sqrt(Math.pow(wall.p2.x - wall.p1.x, 2) + Math.pow(p2y - p1y, 2));
   if (L === 0) return null;
 
   const dx = (wall.p2.x - wall.p1.x) / L;
-  const dy = (wall.p2.y - wall.p1.y) / L;
-  const angle = Math.atan2(wall.p2.y - wall.p1.y, wall.p2.x - wall.p1.x);
+  const dy = (p2y - p1y) / L;
+  const angle = Math.atan2(p2y - p1y, wall.p2.x - wall.p1.x);
 
   // Obter vãos livres (cutouts) ordenados
   const cutouts = wall.cutouts || [];
@@ -82,7 +84,7 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
     const segL = seg.end - seg.start;
     const centerDist = seg.start + segL / 2;
     const x = wall.p1.x + centerDist * dx;
-    const y = wall.p1.y + centerDist * dy;
+    const y = p1y + centerDist * dy;
 
     return (
       <mesh key={`full-${idx}`} position={[x, y, wall.height / 2]} rotation={[0, 0, angle]} raycast={() => null}>
@@ -106,7 +108,7 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
     const cL = c.end - c.start;
     const centerDist = c.start + cL / 2;
     const x = wall.p1.x + centerDist * dx;
-    const y = wall.p1.y + centerDist * dy;
+    const y = p1y + centerDist * dy;
 
     // Buscar o dispositivo correspondente ao cutout para ler dimensões dinâmicas
     const dev = devices.find(d => d.id === c.deviceId);
