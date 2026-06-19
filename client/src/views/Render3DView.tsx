@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
 import { useCadStore } from '../store/useCadStore';
@@ -6,6 +7,60 @@ import { Wall3D } from '../components/Render3D/Wall3D';
 import { Device3D } from '../components/Render3D/Device3D';
 import { Conduit3D } from '../components/Render3D/Conduit3D';
 import { BottomBar } from '../components/BottomBar';
+
+const Laje3D: React.FC = () => {
+  const { walls, clippingState } = useCadStore();
+
+  const clippingPlanes = useMemo(() => {
+    if (!clippingState.enabled) return [];
+    let normal = new THREE.Vector3(0, 0, -1);
+    if (clippingState.axis === 'X') normal = new THREE.Vector3(-1, 0, 0);
+    if (clippingState.axis === '-X') normal = new THREE.Vector3(1, 0, 0);
+    if (clippingState.axis === 'Y') normal = new THREE.Vector3(0, -1, 0);
+    if (clippingState.axis === '-Y') normal = new THREE.Vector3(0, 1, 0);
+    if (clippingState.axis === 'Z') normal = new THREE.Vector3(0, 0, -1);
+    if (clippingState.axis === '-Z') normal = new THREE.Vector3(0, 0, 1);
+    return [new THREE.Plane(normal, clippingState.value)];
+  }, [clippingState]);
+
+  const geometry = useMemo(() => {
+    if (walls.length === 0) return null;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+
+    walls.forEach(w => {
+      minX = Math.min(minX, w.p1.x, w.p2.x);
+      maxX = Math.max(maxX, w.p1.x, w.p2.x);
+      minY = Math.min(minY, w.p1.y, w.p2.y);
+      maxY = Math.max(maxY, w.p1.y, w.p2.y);
+    });
+
+    const w = (maxX - minX) + 1.0;
+    const h = (maxY - minY) + 1.0;
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+
+    return { cx, cy, w, h };
+  }, [walls]);
+
+  if (!geometry) return null;
+
+  return (
+    <mesh position={[geometry.cx, geometry.cy, 2.80 + 0.05]}>
+      <boxGeometry args={[geometry.w, geometry.h, 0.10]} />
+      <meshStandardMaterial
+        color="#475569"
+        roughness={0.8}
+        metalness={0.2}
+        transparent={true}
+        opacity={0.45}
+        clippingPlanes={clippingPlanes}
+      />
+    </mesh>
+  );
+};
 
 interface Render3DViewProps {
   activeTab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets';
@@ -155,6 +210,9 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
             fadeDistance={30}
             infiniteGrid
           />
+
+           {/* Renderização da Laje de Cobertura */}
+          <Laje3D />
 
           {/* Renderização das Paredes */}
           <group>

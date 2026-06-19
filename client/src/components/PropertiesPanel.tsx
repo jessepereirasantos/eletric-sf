@@ -429,6 +429,45 @@ const DeviceProperties: React.FC<{ device: Device }> = ({ device }) => {
         </>
       )}
 
+      {!isEsquadria && device.type !== 'poste' && (
+        <div className="props-field">
+          <label>Altura de Instalação (cm)</label>
+          <div className="props-input-row">
+            <input
+              type="range"
+              min={0}
+              max={300}
+              step={5}
+              value={Math.round((device.peitoril ?? (
+                device.type.includes('baixa') || device.type === 'tomada_10a_nbr' ? 0.30 :
+                device.type.includes('alta') || device.type.includes('tue_') || device.type === 'sconce' || device.type === 'ceiling_light' || device.type === 'lampada' || device.type === 'fluorescent' || device.type === 'box_octogonal' || device.type === 'cftv_camera' || device.type === 'sensor_presenca' || device.type === 'sensor_fumaca' ? 2.80 :
+                device.type === 'qdc' || device.type === 'qgbt' ? 1.50 :
+                1.10
+              )) * 100)}
+              onChange={e => update({ peitoril: parseFloat(e.target.value) / 100 })}
+            />
+            <span className="props-value">{Math.round((device.peitoril ?? (
+              device.type.includes('baixa') || device.type === 'tomada_10a_nbr' ? 0.30 :
+              device.type.includes('alta') || device.type.includes('tue_') || device.type === 'sconce' || device.type === 'ceiling_light' || device.type === 'lampada' || device.type === 'fluorescent' || device.type === 'box_octogonal' || device.type === 'cftv_camera' || device.type === 'sensor_presenca' || device.type === 'sensor_fumaca' ? 2.80 :
+              device.type === 'qdc' || device.type === 'qgbt' ? 1.50 :
+              1.10
+            )) * 100)} cm</span>
+          </div>
+          <input
+            type="number"
+            className="props-input"
+            min={0} max={300} step={5}
+            value={Math.round((device.peitoril ?? (
+              device.type.includes('baixa') || device.type === 'tomada_10a_nbr' ? 0.30 :
+              device.type.includes('alta') || device.type.includes('tue_') || device.type === 'sconce' || device.type === 'ceiling_light' || device.type === 'lampada' || device.type === 'fluorescent' || device.type === 'box_octogonal' || device.type === 'cftv_camera' || device.type === 'sensor_presenca' || device.type === 'sensor_fumaca' ? 2.80 :
+              device.type === 'qdc' || device.type === 'qgbt' ? 1.50 :
+              1.10
+            )) * 100)}
+            onChange={e => update({ peitoril: Math.max(0, parseInt(e.target.value) || 0) / 100 })}
+          />
+        </div>
+      )}
+
       {/* Tensão — tomadas, QDC e Cargas */}
       {(isTomada || isQDC || isCargaCatalogo) && (
         <div className="props-field">

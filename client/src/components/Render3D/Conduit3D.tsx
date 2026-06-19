@@ -127,6 +127,7 @@ export const Conduit3D: React.FC<Conduit3DProps> = ({ fromDevice, toDevice, diam
     };
 
     const getZ = (d: Device) => {
+      if (d.peitoril !== undefined) return d.peitoril;
       const type = d.type;
       if (type.includes('baixa') || type === 'tomada_10a_nbr') return 0.30;
       if (type.includes('alta') || type.includes('tue_') || type === 'sconce') return 2.20;
@@ -180,9 +181,13 @@ export const Conduit3D: React.FC<Conduit3DProps> = ({ fromDevice, toDevice, diam
     return pathPoints;
   }, [fromDevice, toDevice, waypoints, walls]);
 
-  // Criar curva CatmullRom a partir dos pontos calculados
+  // Criar curva 100% reta para evitar barriga/overshoot de CatmullRom
   const curve = useMemo(() => {
-    return new THREE.CatmullRomCurve3(points);
+    const curvePath = new THREE.CurvePath<THREE.Vector3>();
+    for (let i = 0; i < points.length - 1; i++) {
+      curvePath.add(new THREE.LineCurve3(points[i], points[i + 1]));
+    }
+    return curvePath;
   }, [points]);
 
   // Espessura do tubo do conduíte baseada no diâmetro

@@ -8,7 +8,7 @@ interface Device3DProps {
 }
 
 export const Device3D: React.FC<Device3DProps> = ({ device }) => {
-  const { shadingMode, activeViewFilter, clippingState } = useCadStore();
+  const { shadingMode, clippingState } = useCadStore();
   const rotationRad = (device.rotation * Math.PI) / 180;
 
   // Planos de corte dinâmicos (Clipping Planes)
@@ -24,28 +24,12 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
     return [new THREE.Plane(normal, clippingState.value)];
   }, [clippingState]);
 
-  // Filtros de Visibilidade de Planta 3D
-  const isVisible = useMemo(() => {
-    const isInfra = device.type === 'qdc' || device.type === 'qgbt' || device.type === 'meter' || device.type === 'medidor' || device.type === 'poste' || device.type === 'caixa_passagem' || device.type.startsWith('box_');
-    const isArch = device.type.startsWith('door') || device.type === 'window' || device.type === 'open_van' || device.type === 'stairs';
-
-    if (activeViewFilter === 'infraestrutura') {
-      return isInfra || isArch;
-    }
-
-    if (activeViewFilter === 'fiacao_dispositivos') {
-      // Oculta caixas de passagem vazias (sem módulos)
-      const isEmptyBox = (device.type === 'caixa_passagem' || device.type.startsWith('box_')) && (!device.modules || device.modules.length === 0);
-      if (isEmptyBox) return false;
-      return true;
-    }
-
-    return true;
-  }, [device.type, device.modules, activeViewFilter]);
+  // Sempre visível no 3D conforme solicitado: "todos devem aparecer na vista 3d, todos"
+  const isVisible = true;
 
   if (!isVisible) return null;
 
-  // Determinar a altura Z de fixação com base na norma e tipo de dispositivo
+  // Determinar a altura Z de fixação com base no peitoril ou norma e tipo de dispositivo
   const getZCoordAndHeight = (): { z: number; width: number; depth: number; height: number; color: string; isEsquadria: boolean } => {
     const type = device.type;
     
@@ -59,35 +43,46 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
       const winW = device.width ?? 1.2;
       const winH = device.height3d ?? 1.10;
       const peitoril = device.peitoril ?? 1.00;
-      // Z centro é a metade da altura da janela mais a altura do peitoril
       return { z: peitoril + winH / 2, width: winW, depth: 0.05, height: winH, color: '#38bdf8', isEsquadria: true };
     }
     if (type === 'open_van') {
       const vanW = device.width ?? 1.0;
       const vanH = device.height3d ?? 2.10;
-      return { z: vanH / 2, width: vanW, depth: 0.15, height: vanH, color: '#cbd5e1', isEsquadria: true }; // transparente/vazio na real
+      return { z: vanH / 2, width: vanW, depth: 0.15, height: vanH, color: '#cbd5e1', isEsquadria: true };
     }
 
-    // Tomadas e Interruptores (Z de Norma)
+    // Altura inteligente Z de fixação (prioriza peitoril/altura do usuário)
     let z = 1.10; // altura média padrão
+    if (device.peitoril !== undefined) {
+      z = device.peitoril;
+    } else {
+      if (type.includes('baixa') || type === 'tomada_10a_nbr') {
+        z = 0.30;
+      } else if (type.includes('alta') || type.includes('tue_') || type === 'sconce' || type === 'ceiling_light' || type === 'lampada' || type === 'fluorescent' || type === 'box_octogonal') {
+        z = 2.80; // teto
+      } else if (type === 'qdc' || type === 'qgbt') {
+        z = 1.50;
+      } else if (type === 'poste') {
+        z = 1.60;
+      }
+    }
+
     let size = { width: 0.08, depth: 0.05, height: 0.12, color: '#f8fafc' };
 
-    if (type.includes('baixa') || type === 'tomada_10a_nbr') {
-      z = 0.30;
-    } else if (type.includes('alta') || type.includes('tue_') || type === 'sconce') {
-      z = 2.20;
-    } else if (type === 'ceiling_light' || type === 'lampada' || type === 'fluorescent' || type === 'box_octogonal') {
-      z = 2.80; // teto
+    if (type === 'ceiling_light' || type === 'lampada' || type === 'fluorescent' || type === 'box_octogonal') {
       size = { width: 0.20, depth: 0.20, height: 0.04, color: '#fef08a' };
     } else if (type === 'qdc' || type === 'qgbt') {
-      z = 1.50; // altura do trinco
       size = { width: 0.40, depth: 0.12, height: 0.50, color: '#475569' };
     } else if (type === 'poste') {
-      z = 1.60;
       size = { width: 0.12, depth: 0.12, height: 3.20, color: '#64748b' };
     } else if (type === 'box_4x2' || type === 'box_4x4') {
-      z = 1.10;
-      size = { width: 0.10, depth: 0.08, height: 0.10, color: '#eab308' }; // caixa amarela embutida
+      size = { width: 0.10, depth: 0.08, height: 0.10, color: '#eab308' }; // caixa amarela
+    } else if (type === 'cftv_camera') {
+      size = { width: 0.12, depth: 0.12, height: 0.10, color: '#1e293b' };
+    } else if (type === 'sensor_presenca' || type === 'sensor_fumaca') {
+      size = { width: 0.14, depth: 0.14, height: 0.04, color: '#ffffff' };
+    } else if (type === 'central_alarme') {
+      size = { width: 0.20, depth: 0.06, height: 0.15, color: '#cbd5e1' };
     }
 
     return { z, ...size, isEsquadria: false };
@@ -98,7 +93,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
   // Se for vão livre simples, não precisa de malha sólida
   if (device.type === 'open_van') return null;
 
-  // Desenhar portas com painéis pivotados se  // Desenhar portas realistas
+  // Desenhar portas realistas
   if (device.type.startsWith('door')) {
     const portalThickness = 0.03;
     const frameDepth = 0.16; // espessura do batente cobrindo a parede
@@ -218,6 +213,88 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
             clippingPlanes={clippingPlanes}
             clipShadows={true}
           />
+        </mesh>
+      </group>
+    );
+  }
+
+  // Desenhar Câmera CFTV detalhada
+  if (device.type === 'cftv_camera') {
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        {/* Base da câmera fixada na parede */}
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.05, 0.05, 0.02, 12]} />
+          <meshStandardMaterial color="#475569" clippingPlanes={clippingPlanes} />
+        </mesh>
+        {/* Corpo da câmera dome */}
+        <mesh position={[0, -0.02, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <sphereGeometry args={[0.04, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
+          <meshStandardMaterial color="#0f172a" metalness={0.9} roughness={0.1} clippingPlanes={clippingPlanes} />
+        </mesh>
+        {/* Lente da câmera */}
+        <mesh position={[0, -0.04, 0.01]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.01, 0.01, 0.01, 8]} />
+          <meshBasicMaterial color="#000000" clippingPlanes={clippingPlanes} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // Desenhar Sensor de Presença / Fumaça
+  if (device.type === 'sensor_presenca' || device.type === 'sensor_fumaca') {
+    return (
+      <group position={[device.x, device.y, z]}>
+        {/* Corpo do sensor */}
+        <mesh>
+          <cylinderGeometry args={[0.06, 0.06, 0.03, 16]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.4} clippingPlanes={clippingPlanes} />
+        </mesh>
+        {/* LED indicador */}
+        <mesh position={[0.03, 0.016, 0]}>
+          <sphereGeometry args={[0.006, 8, 8]} />
+          <meshBasicMaterial color={device.type === 'sensor_presenca' ? '#22c55e' : '#ef4444'} clippingPlanes={clippingPlanes} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // Desenhar Central de Alarme
+  if (device.type === 'central_alarme') {
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        {/* Painel plástico cinza */}
+        <mesh>
+          <boxGeometry args={[0.20, 0.04, 0.15]} />
+          <meshStandardMaterial color="#cbd5e1" roughness={0.5} clippingPlanes={clippingPlanes} />
+        </mesh>
+        {/* Visor LCD azul */}
+        <mesh position={[0, 0.021, 0.03]}>
+          <boxGeometry args={[0.12, 0.002, 0.04]} />
+          <meshBasicMaterial color="#60a5fa" clippingPlanes={clippingPlanes} />
+        </mesh>
+        {/* Teclado numérico */}
+        <mesh position={[0, 0.021, -0.03]}>
+          <boxGeometry args={[0.14, 0.002, 0.05]} />
+          <meshStandardMaterial color="#475569" roughness={0.9} clippingPlanes={clippingPlanes} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // Desenhar Interruptores com placa de acabamento
+  if (device.type.startsWith('switch_') || device.type.startsWith('interruptor') || device.type === 'dimmer') {
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        {/* Placa de acabamento externa */}
+        <mesh>
+          <boxGeometry args={[0.08, 0.015, 0.12]} />
+          <meshStandardMaterial color="#f8fafc" roughness={0.3} clippingPlanes={clippingPlanes} />
+        </mesh>
+        {/* Módulo do interruptor central */}
+        <mesh position={[0, 0.008, 0]}>
+          <boxGeometry args={[0.03, 0.002, 0.05]} />
+          <meshStandardMaterial color="#cbd5e1" roughness={0.6} clippingPlanes={clippingPlanes} />
         </mesh>
       </group>
     );

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useCadStore } from '../store/useCadStore';
 import { BottomBar } from '../components/BottomBar';
 import { dimensionateCircuit } from '../utils/nbr5410';
@@ -50,23 +50,6 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
   ]);
 
   const [activeSheetId, setActiveSheetId] = useState<string>('sheet_1');
-  const [containerSize, setContainerSize] = useState({ w: 800, h: 600 });
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Observador de tamanho do contêiner para aplicar transform: scale automática
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (let entry of entries) {
-        setContainerSize({
-          w: entry.contentRect.width - 60, // margem de segurança de 30px nas laterais
-          h: entry.contentRect.height - 60
-        });
-      }
-    });
-    resizeObserver.observe(containerRef.current);
-    return () => resizeObserver.disconnect();
-  }, []);
 
   // Adicionar uma nova folha técnica
   const handleAddSheet = () => {
@@ -111,13 +94,10 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
 
   const dimMM = getSheetDimensionsMM(activeSheet.size, activeSheet.orientation);
   
-  // Fator de escala de pixels técnicos (escala real interna)
-  const scaleMultiplier = 3.5;
+  // Fator de escala clássico para pixels de tela
+  const scaleMultiplier = 2.2;
   const sheetPixelW = dimMM.w * scaleMultiplier;
   const sheetPixelH = dimMM.h * scaleMultiplier;
-
-  // Escala final de exibição para caber no contêiner do monitor
-  const fitScale = Math.min(containerSize.w / sheetPixelW, containerSize.h / sheetPixelH);
 
   // Alterar tipos de conteúdo alocados na folha técnica
   const toggleContent = (type: 'planta' | 'cargas' | 'materiais' | 'unifilar') => {
@@ -368,8 +348,8 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
       {/* Área de Trabalho */}
       <div style={{ flex: 1, display: 'flex', padding: '20px', gap: '20px', overflow: 'hidden' }}>
         
-        {/* Painel de Controle de Folhas */}
-        <div style={{ width: '280px', backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {/* Painel de Controle de Folhas com Rolagem Própria */}
+        <div style={{ width: '280px', backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ fontSize: '0.9rem', color: '#e2e8f0', margin: 0 }}>Suas Pranchas</h3>
             <button onClick={handleAddSheet} style={{ backgroundColor: '#22c55e', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 8px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}>
@@ -377,7 +357,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
             </button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, overflowY: 'auto' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '120px' }}>
             {sheets.map(s => (
               <div key={s.id} onClick={() => setActiveSheetId(s.id)} style={{
                 padding: '10px', borderRadius: '6px', cursor: 'pointer',
@@ -452,9 +432,8 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
           </button>
         </div>
 
-        {/* Simulador da Folha ABNT (Paper Space) com Redimensionamento e Escalonamento Dinâmico */}
+        {/* Simulador da Folha ABNT (Paper Space) Clássico com Rolagem Natural */}
         <div
-          ref={containerRef}
           style={{
             flex: 1,
             backgroundColor: '#0b0f19',
@@ -463,8 +442,9 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            overflow: 'hidden',
+            overflow: 'auto',
             position: 'relative',
+            padding: '20px'
           }}
         >
           
@@ -472,8 +452,6 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
           <div style={{
             width: `${sheetPixelW}px`,
             height: `${sheetPixelH}px`,
-            transform: `scale(${fitScale})`,
-            transformOrigin: 'center center',
             backgroundColor: '#ffffff',
             border: '2.5px solid #0f172a',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
