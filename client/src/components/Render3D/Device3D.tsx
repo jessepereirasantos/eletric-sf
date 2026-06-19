@@ -16,6 +16,9 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
   // enquanto o Konva (2D) e o SVG rotacionam no sentido horário.
   const computedRotationRad = (-deviceProp.rotation * Math.PI) / 180;
 
+  // Sombreado de constantes para que o switch/ifs original rode na origem se isInner for true
+  const device = isInner ? { ...deviceProp, x: 0, y: 0, rotation: 0 } : deviceProp;
+
   // Planos de corte dinâmicos (Clipping Planes)
   const clippingPlanes = useMemo(() => {
     if (!clippingState.enabled) return [];
@@ -114,7 +117,6 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
   // Sombreado de constantes para que o switch/ifs original rode na origem se isInner for true
   const z = isInner ? 0 : computedZ;
   const rotationRad = isInner ? 0 : computedRotationRad;
-  const device = isInner ? { ...deviceProp, x: 0, y: 0, rotation: 0 } : deviceProp;
 
   // Lógica do Wrapper Pai (isInner === false)
   if (!isInner) {

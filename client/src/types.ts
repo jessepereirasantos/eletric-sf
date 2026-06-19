@@ -18,7 +18,8 @@ export type DeviceType =
   | 'box_octogonal' | 'box_4x2' | 'box_4x4'
   | 'motor' | 'bomba_agua' | 'torneira_eletrica' | 'fotocelula' | 'campainha'
   | 'gerador' | 'nobreak' | 'maquina_lavar'
-  | 'sofa' | 'geladeira' | 'fogao' | 'cama' | 'mesa_jantar';
+  | 'sofa' | 'geladeira' | 'fogao' | 'cama' | 'mesa_jantar'
+  | 'ground_rod' | 'device_dr';
 
 export interface SheetViewport {
   id: string;

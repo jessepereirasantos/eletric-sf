@@ -759,7 +759,7 @@ export const useCadStore = create<CadState>()(
       if (type.startsWith('box_') || type === 'qdc' || type === 'qgbt' || type === 'poste' || type === 'medidor' || type === 'caixa_passagem') {
         return 'infraestrutura';
       }
-      if (type === 'disjuntor' || type === 'dr' || type === 'idr' || type === 'dps' || type === 'aterramento' || type === 'spda') {
+      if (type === 'disjuntor' || type === 'dr' || type === 'idr' || type === 'device_dr' || type === 'dps' || type === 'aterramento' || type === 'ground_rod' || type === 'spda') {
         return 'protecao';
       }
       return 'dispositivos';
@@ -834,8 +834,10 @@ export const useCadStore = create<CadState>()(
       disjuntor: 18.00,
       dr: 120.00,
       idr: 135.00,
+      device_dr: 125.00,
       dps: 55.00,
       aterramento: 45.00,
+      ground_rod: 45.00,
       spda: 350.00,
       caixa_passagem: 8.00,
       qgbt: 250.00,
@@ -874,8 +876,10 @@ export const useCadStore = create<CadState>()(
       disjuntor: 'Disjuntor Termomagnético',
       dr: 'Interruptor Diferencial Residual (DR)',
       idr: 'IDR (DR + Disjuntor Combinado)',
+      device_dr: 'Dispositivo DR Local 30mA',
       dps: 'DPS Proteção Surtos Class II',
       aterramento: 'Haste de Aterramento',
+      ground_rod: 'Haste de Aterramento PE',
       spda: 'SPDA (Para-Raios)',
       caixa_passagem: 'Caixa de Passagem',
       qgbt: 'Quadro Geral de Baixa Tensão (QGBT)',
@@ -931,11 +935,16 @@ export const useCadStore = create<CadState>()(
       qdcs.forEach(q => {
         // Disjuntor Geral
         if (q.qdcGeralBreaker && q.qdcGeralBreaker > 0) {
+          const barType = q.qdcBusbarType || 'monofasico';
+          const isTri = barType === 'trifasico';
+          const isBi = barType === 'bifasico';
+          const desc = isTri ? 'Tripolar' : isBi ? 'Bipolar' : 'Monopolar';
+          const price = isTri ? 85.00 : isBi ? 55.00 : 35.00;
           materialsList.push({
-            name: `Disjuntor Geral Termomagnético Din ${q.qdcGeralBreaker}A (QDC)`,
+            name: `Disjuntor Geral Termomagnético ${desc} Din ${q.qdcGeralBreaker}A (QDC)`,
             qty: 1,
             unit: 'un',
-            price: 45.00,
+            price,
             category: 'protecao'
           });
         }
@@ -994,8 +1003,8 @@ export const useCadStore = create<CadState>()(
       console.error('Erro ao calcular componentes internos do QDC:', errQdc);
     }
 
-    // 3. Disjuntores (Agrupados por corrente de dimensionamento e categorizados como Proteção)
-    const breakerCounts: Record<number, number> = {};
+    // 3. Disjuntores (Agrupados por corrente de dimensionamento e polos, categorizados como Proteção)
+    const breakerCounts: Record<string, { count: number; price: number; amp: number; poles: string }> = {};
     if (circuits && circuits.length > 0) {
       circuits.forEach(c => {
         try {
@@ -1012,21 +1021,37 @@ export const useCadStore = create<CadState>()(
 
           const res = dimensionateCircuit(cType, totalPower || 100, cVoltage, maxDist, cGrouped);
           const rating = res.circuitBreaker;
-          breakerCounts[rating] = (breakerCounts[rating] || 0) + 1;
+          
+          // NBR 5410: Determina número de polos com base na tensão do circuito
+          const isBipolar = cVoltage === 220; // 220V residencial é bifásico
+          const polesText = isBipolar ? 'Bipolar' : 'Monopolar';
+          const breakerKey = `${polesText}_${rating}`;
+          const price = isBipolar ? 28.00 : 18.00;
+
+          if (!breakerCounts[breakerKey]) {
+            breakerCounts[breakerKey] = { count: 0, price, amp: rating, poles: polesText };
+          }
+          breakerCounts[breakerKey].count++;
         } catch (err) {
           console.error("Erro no dimensionamento do disjuntor do circuito", c.id, err);
           const fallbackBreaker = c.type === 'iluminacao' ? 10 : 20;
-          breakerCounts[fallbackBreaker] = (breakerCounts[fallbackBreaker] || 0) + 1;
+          const polesText = c.voltage === 220 ? 'Bipolar' : 'Monopolar';
+          const breakerKey = `${polesText}_${fallbackBreaker}`;
+          const price = c.voltage === 220 ? 28.00 : 18.00;
+          if (!breakerCounts[breakerKey]) {
+            breakerCounts[breakerKey] = { count: 0, price, amp: fallbackBreaker, poles: polesText };
+          }
+          breakerCounts[breakerKey].count++;
         }
       });
     }
 
-    Object.entries(breakerCounts).forEach(([amp, count]) => {
+    Object.values(breakerCounts).forEach(({ poles, amp, count, price }) => {
       materialsList.push({
-        name: `Disjuntor Termomagnético Monopolar Din ${amp}A`,
+        name: `Disjuntor Termomagnético ${poles} Din ${amp}A`,
         qty: count,
         unit: 'un',
-        price: 18.00,
+        price,
         category: 'protecao'
       });
     });
@@ -1068,8 +1093,36 @@ export const useCadStore = create<CadState>()(
               const cGrouped = circuit.groupedCircuits || 1;
 
               const res = dimensionateCircuit(cType, totalPower || 100, cVoltage, maxDist, cGrouped);
-              const qtyWires = (w.phase || 0) + (w.neutral || 0) + (w.ground || 0) + (w.ret || 0);
-              cableLengths[res.selectedSection] = (cableLengths[res.selectedSection] || 0) + (distance * qtyWires);
+              
+              // Bitola do condutor de fase e neutro
+              const phaseSection = res.selectedSection;
+              
+              // Bitola do condutor de proteção (Terra - PE) conforme Tabela 58 da NBR 5410
+              let groundSection = phaseSection;
+              if (phaseSection > 16 && phaseSection <= 35) {
+                groundSection = 16.0;
+              } else if (phaseSection > 35) {
+                groundSection = phaseSection / 2;
+                // Arredonda para a seção comercial de cobre mais próxima maior ou igual
+                const commercialSections = [1.5, 2.5, 4.0, 6.0, 10.0, 16.0, 25.0, 35.0, 50.0];
+                const found = commercialSections.find(s => s >= groundSection);
+                if (found) {
+                  groundSection = found;
+                }
+              }
+
+              // Quantidade de condutores de fase, neutro e retorno
+              const qtyPhaseNeutralRet = (w.phase || 0) + (w.neutral || 0) + (w.ret || 0);
+              // Quantidade de condutores de terra
+              const qtyGround = w.ground || 0;
+
+              // Acumula os comprimentos de cabo por bitola
+              if (qtyPhaseNeutralRet > 0) {
+                cableLengths[phaseSection] = (cableLengths[phaseSection] || 0) + (distance * qtyPhaseNeutralRet);
+              }
+              if (qtyGround > 0) {
+                cableLengths[groundSection] = (cableLengths[groundSection] || 0) + (distance * qtyGround);
+              }
             } catch (errInner) {
               console.error("Erro ao dimensionar bitola para conduíte", c.id, errInner);
               const fallbackSection = 2.5;

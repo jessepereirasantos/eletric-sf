@@ -1049,6 +1049,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
       );
 
     // ─── INTERRUPTOR DIFERENCIAL RESIDUAL (DR) — NBR 5410 ─────────
+    case 'device_dr':
     case 'dr':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>
@@ -1094,6 +1095,7 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
       );
 
     // ─── ATERRAMENTO (Haste/Terra) — NBR 5410 ────────────────────
+    case 'ground_rod':
     case 'aterramento':
       return (
         <Group x={x} y={y} rotation={rotation} {...commonProps}>

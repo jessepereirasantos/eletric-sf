@@ -970,6 +970,150 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
                     );
                   })()}
 
+                  {(() => {
+                    // Lógica de Validação NBR 5410
+                    const mixedAlerts = (() => {
+                      const list: string[] = [];
+                      circuits.forEach(c => {
+                        const cd = devices.filter(d => d.circuitId === c.id);
+                        const hasLight = cd.some(d => ['ceiling_light', 'sconce', 'fluorescent', 'lampada'].includes(d.type));
+                        const hasSocket = cd.some(d => d.type.startsWith('tug_') || d.type.startsWith('tue_') || d.type === 'tomada_220');
+                        if (hasLight && hasSocket) {
+                          list.push(`Circuito ${c.number} (${c.name}): Misto. A NBR 5410 (Art. 9.5.3) exige circuitos separados para iluminação e tomadas.`);
+                        }
+                      });
+                      return list;
+                    })();
+
+                    const drAlerts = (() => {
+                      const list: string[] = [];
+                      const qdc = devices.find(d => d.type === 'qdc');
+                      const hasDRInQDC = qdc && qdc.qdcDRType && qdc.qdcDRType !== 'none';
+                      
+                      circuits.forEach(c => {
+                        const cd = devices.filter(d => d.circuitId === c.id);
+                        const isWetArea = cd.some(d => {
+                          const nameLower = (d.name || '').toLowerCase();
+                          return nameLower.includes('cozinha') ||
+                                 nameLower.includes('banheiro') ||
+                                 nameLower.includes('serviço') ||
+                                 nameLower.includes('lavanderia') ||
+                                 nameLower.includes('copa') ||
+                                 nameLower.includes('molhada') ||
+                                 nameLower.includes('wc');
+                        });
+                        
+                        if (isWetArea && !hasDRInQDC) {
+                          const hasLocalDR = cd.some(d => ['device_dr', 'dr', 'idr'].includes(d.type));
+                          if (!hasLocalDR) {
+                            list.push(`Circuito ${c.number} (${c.name}): Falta DR. Áreas molhadas exigem obrigatoriamente dispositivo DR de 30mA (Art. 5.1.3.2.2).`);
+                          }
+                        }
+                      });
+                      return list;
+                    })();
+
+                    const dpsAlerts = (() => {
+                      const list: string[] = [];
+                      const qdc = devices.find(d => d.type === 'qdc');
+                      if (!qdc || !qdc.qdcHasDPS) {
+                        list.push("Aterramento / Entrada: Falta proteção contra surtos elétricos (DPS) no Quadro de Distribuição (Art. 5.4.2.1).");
+                      }
+                      return list;
+                    })();
+
+                    const groundAlerts = (() => {
+                      const list: string[] = [];
+                      const hasGround = devices.some(d => d.type === 'ground_rod' || d.type === 'aterramento');
+                      if (!hasGround) {
+                        list.push("Aterramento: Haste de Aterramento (PE) não localizada. Toda instalação deve dispor de aterramento normativo (Art. 6.4.1).");
+                      }
+                      return list;
+                    })();
+
+                    const overloadAlerts = (() => {
+                      const list: string[] = [];
+                      circuits.forEach(c => {
+                        const cd = devices.filter(d => d.circuitId === c.id);
+                        const totalPower = cd.reduce((sum, d) => sum + (d.power || 0), 0);
+                        const qdc = devices.find(d => d.type === 'qdc');
+                        let maxDist = 10.0;
+                        if (qdc && cd.length > 0) {
+                          maxDist = Math.max(...cd.map(d => Math.sqrt(Math.pow(d.x - qdc.x, 2) + Math.pow(d.y - qdc.y, 2)) + 2.0));
+                        }
+                        const res = dimensionateCircuit(c.type, totalPower || 100, c.voltage, maxDist, c.groupedCircuits);
+                        if (res.currentProject > 16 && c.type === 'tug') {
+                          list.push(`Circuito ${c.number} (${c.name}): Corrente de projeto (${res.currentProject.toFixed(1)}A) excede 16A. Risco de sobrecarga.`);
+                        }
+                        if (res.voltageDropPercent > 4.0) {
+                          list.push(`Circuito ${c.number} (${c.name}): Queda de tensão elevada (${res.voltageDropPercent.toFixed(1)}%). Máximo normativo é 4.0%.`);
+                        }
+                      });
+                      return list;
+                    })();
+
+                    const allAlerts = [...mixedAlerts, ...drAlerts, ...dpsAlerts, ...groundAlerts, ...overloadAlerts];
+
+                    return (
+                      <div className="nbr-diagnosis-card" style={{
+                        background: '#ffffff',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '8px',
+                        padding: '16px',
+                        marginBottom: '16px',
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          borderBottom: '1px solid #f1f5f9',
+                          paddingBottom: '8px',
+                          marginBottom: '12px'
+                        }}>
+                          <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 'bold', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            🛡️ Diagnóstico Técnico & Validações NBR 5410
+                          </h4>
+                          <span style={{
+                            background: allAlerts.length === 0 ? '#dcfce7' : '#fee2e2',
+                            color: allAlerts.length === 0 ? '#15803d' : '#b91c1c',
+                            padding: '3px 8px',
+                            borderRadius: '12px',
+                            fontSize: '0.7rem',
+                            fontWeight: 'bold'
+                          }}>
+                            {allAlerts.length === 0 ? '✓ CONFORME' : `✗ ${allAlerts.length} ALERTA(S)`}
+                          </span>
+                        </div>
+
+                        {allAlerts.length === 0 ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#16a34a', fontSize: '0.8rem' }}>
+                            <span>🎉</span>
+                            <span><strong>Conformidade Total:</strong> Todos os testes normativos básicos da NBR 5410 passaram com sucesso neste projeto!</span>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {allAlerts.map((alert, idx) => (
+                              <div key={idx} style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '8px',
+                                background: '#fff1f1',
+                                border: '1px solid #fecaca',
+                                padding: '8px 12px',
+                                borderRadius: '6px',
+                                fontSize: '0.78rem',
+                                color: '#991b1b'
+                              }}>
+                                <span style={{ marginTop: '1px' }}>⚠️</span>
+                                <span>{alert}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   <div className="dimensioning-table-wrapper">
                     <table className="dimensioning-table">
                       <thead>
