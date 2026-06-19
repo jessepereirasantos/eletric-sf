@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef } from 'react';
 import * as THREE from 'three';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
 import { useCadStore } from '../store/useCadStore';
 import { TextureGenerator } from '../utils/textureGenerator';
@@ -11,8 +11,6 @@ import { BottomBar } from '../components/BottomBar';
 
 const Laje3D: React.FC = () => {
   const { walls, clippingState, showLaje3D } = useCadStore();
-
-  if (!showLaje3D) return null;
 
   const clippingPlanes = useMemo(() => {
     if (!clippingState.enabled) return [];
@@ -48,7 +46,7 @@ const Laje3D: React.FC = () => {
     return { cx, cy, w, h };
   }, [walls]);
 
-  if (!geometry) return null;
+  if (!showLaje3D || !geometry) return null;
 
   return (
     <mesh position={[geometry.cx, geometry.cy, 2.80 + 0.05]} raycast={() => null}>
@@ -153,42 +151,7 @@ const OriginAxes3D: React.FC = () => {
   );
 };
 
-interface CameraTourProps {
-  center: { x: number; y: number };
-  duration: number; // em segundos
-  onComplete: () => void;
-}
 
-const CameraTour: React.FC<CameraTourProps> = ({ center, duration, onComplete }) => {
-  const { camera } = useThree();
-  const startTimeRef = useRef<number | null>(null);
-
-  useFrame((state) => {
-    if (startTimeRef.current === null) {
-      startTimeRef.current = state.clock.getElapsedTime();
-    }
-    const elapsed = state.clock.getElapsedTime() - startTimeRef.current;
-    const progress = Math.min(elapsed / duration, 1);
-
-    // Ângulo de órbita 360°
-    const angle = progress * Math.PI * 2;
-    const radius = 8; // distância orbital padrão
-
-    // Posição orbital com oscilação em Z (altura)
-    const x = center.x + Math.cos(angle) * radius;
-    const y = center.y + Math.sin(angle) * radius;
-    const z = 2.2 + Math.sin(progress * Math.PI) * 1.5; // varia suavemente
-
-    camera.position.set(x, y, z);
-    camera.lookAt(center.x, center.y, 1.10);
-
-    if (progress >= 1) {
-      onComplete();
-    }
-  });
-
-  return null;
-};
 
 interface Render3DViewProps {
   activeTab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets';
@@ -602,15 +565,6 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
            {/* Renderização da Laje de Cobertura */}
           <Laje3D />
 
-          {/* Componente de Tour Virtual 360 Graus */}
-          {isTouring && (
-            <CameraTour
-              center={projectCenter}
-              duration={6}
-              onComplete={handleTourComplete}
-            />
-          )}
-
           {/* Renderização das Paredes */}
           <group>
             {walls.map((wall) => (
@@ -650,7 +604,7 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
 
           {/* Controles de Câmera e Órbita centralizada */}
           <OrbitControls
-            enabled={orbitControlsEnabled && !isTouring}
+            enabled={orbitControlsEnabled}
             enableDamping
             dampingFactor={0.05}
             maxPolarAngle={Math.PI / 2 - 0.05} // impede a câmera de passar para debaixo do chão

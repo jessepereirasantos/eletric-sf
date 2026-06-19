@@ -155,86 +155,6 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
   const z = isInner ? 0 : computedZ;
   const rotationRad = isInner ? 0 : computedRotationRad;
 
-  // Lógica do Wrapper Pai (isInner === false)
-  if (!isInner) {
-    const isSelected = selectedDeviceId === deviceProp.id;
-    const groupRef = useRef<THREE.Group>(null);
-
-    const handleTransform = () => {
-      if (!groupRef.current) return;
-      const { x, y, z: curZ } = groupRef.current.position;
-      const newPeitoril = curZ - height / 2;
-
-      updateDeviceProperties(deviceProp.id, {
-        x: Number(x.toFixed(3)),
-        y: Number((-y).toFixed(3)), // Reinverte para a coordenada Y do CAD 2D
-        peitoril: Number(newPeitoril.toFixed(3))
-      });
-    };
-
-    const transformRef = useRef<any>(null);
-
-    useEffect(() => {
-      if (!transformRef.current) return;
-      const controls = transformRef.current;
-      const callback = (e: any) => {
-        useCadStore.getState().setOrbitControlsEnabled(!e.value);
-      };
-      controls.addEventListener('dragging-changed', callback);
-      return () => controls.removeEventListener('dragging-changed', callback);
-    }, [isSelected]);
-
-    const handleSelect = (e: any) => {
-      e.stopPropagation();
-      useCadStore.getState().setSelectedDeviceId(deviceProp.id);
-    };
-
-    if (isSelected && shadingMode !== 'wireframe') {
-      return (
-        <TransformControls
-          ref={transformRef}
-          mode="translate"
-          onObjectChange={handleTransform}
-        >
-          <group
-            ref={groupRef}
-            name={deviceProp.id}
-            position={[deviceProp.x, -deviceProp.y, computedZ]} // Usa Y invertido (-y)
-            rotation={[0, 0, computedRotationRad]}
-            onClick={handleSelect}
-          >
-            <Device3D device={deviceProp} isInner={true} />
-          </group>
-        </TransformControls>
-      );
-    }
-
-    return (
-      <group
-        ref={groupRef}
-        name={deviceProp.id}
-        position={[deviceProp.x, -deviceProp.y, computedZ]} // Usa Y invertido (-y)
-        rotation={[0, 0, computedRotationRad]}
-        onClick={handleSelect}
-      >
-        <Device3D device={deviceProp} isInner={true} />
-      </group>
-    );
-  }
-
-  // Propriedades comuns de material para os dispositivos de acabamento (sólidos e opacos)
-  // Conforme solicitação, aparecem sólidos tanto em modo "sólido" quanto em "raio-X" (transparente).
-  // Apenas em modo "arame" (wireframe) ficam em arame.
-  const matProps = {
-    wireframe: shadingMode === 'wireframe',
-    transparent: false,
-    opacity: 1.0,
-    clippingPlanes: clippingPlanes,
-  };
-
-  // Se for vão livre simples, não precisa de malha sólida
-  if (type === 'open_van') return null;
-
   // Lógica para detectar se o dispositivo é montado em parede
   // Se for parede, calculamos a espessura da parede mais próxima para aplicar o yOffset de faceamento
   const isWallMounted = !type.startsWith('door') && 
@@ -267,6 +187,213 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
     }
     return wallThickness / 2 + 0.002;
   }, [isWallMounted, type, wallThickness, depth]);
+
+  // Lógica do Wrapper Pai (isInner === false)
+  if (!isInner) {
+    const isSelected = selectedDeviceId === deviceProp.id;
+    const groupRef = useRef<THREE.Group>(null);
+    const transformRef = useRef<any>(null);
+
+    // Projetar portas, janelas e vãos livres na parede correspondente (auto-snap)
+    const isEsquadria = type.startsWith('door') || type === 'window' || type === 'open_van';
+    
+    let renderX = deviceProp.x;
+    let renderY = -deviceProp.y;
+    let renderRotation = computedRotationRad;
+
+    if (isEsquadria && walls && walls.length > 0) {
+      let closestWall = null;
+      let minDistance = Infinity;
+      let projPoint = { x: deviceProp.x, y: deviceProp.y };
+
+      for (const wall of walls) {
+        const L = Math.sqrt(Math.pow(wall.p2.x - wall.p1.x, 2) + Math.pow(wall.p2.y - wall.p1.y, 2));
+        if (L === 0) continue;
+        const dx = (wall.p2.x - wall.p1.x) / L;
+        const dy = (wall.p2.y - wall.p1.y) / L;
+        const wallAngle = Math.atan2(wall.p2.y - wall.p1.y, wall.p2.x - wall.p1.x) * (180 / Math.PI);
+
+        let angleDiff = Math.abs((deviceProp.rotation - wallAngle) % 180);
+        if (angleDiff > 90) angleDiff = 180 - angleDiff;
+        if (angleDiff > 25) continue; // Só considera se estiver relativamente paralela
+
+        const toDevX = deviceProp.x - wall.p1.x;
+        const toDevY = deviceProp.y - wall.p1.y;
+        const t = toDevX * dx + toDevY * dy;
+        const projX = wall.p1.x + t * dx;
+        const projY = wall.p1.y + t * dy;
+        const dist = Math.sqrt(Math.pow(deviceProp.x - projX, 2) + Math.pow(deviceProp.y - projY, 2));
+
+        if (dist < wall.thickness * 1.5 && t >= -0.1 && t <= L + 0.1) {
+          if (dist < minDistance) {
+            minDistance = dist;
+            closestWall = wall;
+            projPoint = { x: projX, y: projY };
+          }
+        }
+      }
+
+      if (closestWall) {
+        renderX = projPoint.x;
+        renderY = -projPoint.y;
+
+        const p1y = -closestWall.p1.y;
+        const p2y = -closestWall.p2.y;
+        const wallAngle3D = Math.atan2(p2y - p1y, closestWall.p2.x - closestWall.p1.x);
+
+        const diff1 = Math.abs((computedRotationRad - wallAngle3D) % (Math.PI * 2));
+        const diff1Norm = diff1 > Math.PI ? Math.PI * 2 - diff1 : diff1;
+
+        const angleAlternative = wallAngle3D + Math.PI;
+        const diff2 = Math.abs((computedRotationRad - angleAlternative) % (Math.PI * 2));
+        const diff2Norm = diff2 > Math.PI ? Math.PI * 2 - diff2 : diff2;
+
+        renderRotation = diff1Norm < diff2Norm ? wallAngle3D : angleAlternative;
+      }
+    }
+
+    const handleTransform = () => {
+      if (!groupRef.current) return;
+      const { x, y, z: curZ } = groupRef.current.position;
+      const newPeitoril = curZ - height / 2;
+
+      updateDeviceProperties(deviceProp.id, {
+        x: Number(x.toFixed(3)),
+        y: Number((-y).toFixed(3)), // Reinverte para a coordenada Y do CAD 2D
+        peitoril: Number(newPeitoril.toFixed(3))
+      });
+    };
+
+    useEffect(() => {
+      if (!transformRef.current) return;
+      const controls = transformRef.current;
+      const callback = (e: any) => {
+        useCadStore.getState().setOrbitControlsEnabled(!e.value);
+      };
+      controls.addEventListener('dragging-changed', callback);
+      return () => controls.removeEventListener('dragging-changed', callback);
+    }, [isSelected]);
+
+    const handleSelect = (e: any) => {
+      e.stopPropagation();
+      useCadStore.getState().setSelectedDeviceId(deviceProp.id);
+    };
+
+    // Caixa aramada amarela de destaque de seleção
+    const selectionBox = (() => {
+      if (!isSelected) return null;
+
+      let boxW = width + 0.01;
+      let boxD = depth + 0.01;
+      let boxH = height + 0.01;
+      let boxX = 0;
+      let boxY = yOffset;
+      let boxZ = 0;
+
+      if (type.startsWith('door')) {
+        const isGiro = type === 'door' || type === 'door_pivotante';
+        if (isGiro) {
+          boxW = width + 0.01;
+          boxD = 0.16 + 0.01;
+          boxH = height + 0.01;
+          boxX = width / 2;
+          boxY = 0;
+          boxZ = 0;
+        } else {
+          boxW = width + 0.01;
+          boxD = 0.16 + 0.01;
+          boxH = height + 0.01;
+          boxX = 0;
+          boxY = 0;
+          boxZ = 0;
+        }
+      } else if (type === 'window') {
+        boxW = width + 0.01;
+        boxD = 0.16 + 0.01;
+        boxH = height + 0.01;
+        boxX = 0;
+        boxY = 0;
+        boxZ = 0;
+      } else if (type === 'tue_chuveiro') {
+        boxW = 1.6;
+        boxD = 1.0;
+        boxH = 2.2;
+        boxX = 0.4;
+        boxY = -0.4;
+        boxZ = 1.0 - computedZ;
+      } else if (type === 'torneira_eletrica') {
+        boxW = 1.25;
+        boxD = 0.65;
+        boxH = 1.05;
+        boxX = 0;
+        boxY = -0.3;
+        boxZ = 0.4 - computedZ;
+      } else if (type === 'maquina_lavar') {
+        boxW = 1.25;
+        boxD = 0.65;
+        boxH = 0.95;
+        boxX = 0.325;
+        boxY = 0;
+        boxZ = 0.425 - computedZ;
+      }
+
+      return (
+        <mesh position={[boxX, boxY, boxZ]}>
+          <boxGeometry args={[boxW, boxD, boxH]} />
+          <meshBasicMaterial
+            color="#eab308"
+            wireframe={true}
+            transparent={true}
+            opacity={0.85}
+          />
+        </mesh>
+      );
+    })();
+
+    if (isSelected && shadingMode !== 'wireframe') {
+      return (
+        <TransformControls
+          ref={transformRef}
+          mode="translate"
+          onObjectChange={handleTransform}
+        >
+          <group
+            ref={groupRef}
+            name={deviceProp.id}
+            position={[renderX, renderY, computedZ]} // Usa posição projetada
+            rotation={[0, 0, renderRotation]} // Usa rotação projetada
+            onClick={handleSelect}
+          >
+            <Device3D device={deviceProp} isInner={true} />
+            {selectionBox}
+          </group>
+        </TransformControls>
+      );
+    }
+
+    return (
+      <group
+        ref={groupRef}
+        name={deviceProp.id}
+        position={[renderX, renderY, computedZ]} // Usa posição projetada
+        rotation={[0, 0, renderRotation]} // Usa rotação projetada
+        onClick={handleSelect}
+      >
+        <Device3D device={deviceProp} isInner={true} />
+        {selectionBox}
+      </group>
+    );
+  }
+
+  // Propriedades comuns de material para os dispositivos de acabamento (sólidos e opacos)
+  // Conforme solicitação, aparecem sólidos tanto em modo "sólido" quanto em "raio-X" (transparente).
+  // Apenas em modo "arame" (wireframe) ficam em arame.
+  const matProps = {
+    wireframe: shadingMode === 'wireframe',
+    transparent: false,
+    opacity: 1.0,
+    clippingPlanes: clippingPlanes,
+  };
 
   // 1. Desenhar portas realistas e fechadas
   if (type.startsWith('door')) {
