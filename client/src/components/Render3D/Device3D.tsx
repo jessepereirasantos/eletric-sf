@@ -97,24 +97,27 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
   if (device.type.startsWith('door')) {
     const portalThickness = 0.03;
     const frameDepth = 0.16; // espessura do batente cobrindo a parede
+    const isGiro = device.type === 'door' || device.type === 'door_pivotante';
+    const tx = isGiro ? (device.flip ? -width / 2 : width / 2) : 0;
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        {/* Batente/Portal da porta */}
-        {/* Batente Esquerdo */}
-        <mesh position={[-width / 2 + portalThickness / 2, 0, 0]}>
-          <boxGeometry args={[portalThickness, frameDepth, height]} />
-          <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
-        </mesh>
-        {/* Batente Direito */}
-        <mesh position={[width / 2 - portalThickness / 2, 0, 0]}>
-          <boxGeometry args={[portalThickness, frameDepth, height]} />
-          <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
-        </mesh>
-        {/* Batente Superior */}
-        <mesh position={[0, 0, height / 2 - portalThickness / 2]}>
-          <boxGeometry args={[width, frameDepth, portalThickness]} />
-          <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
-        </mesh>
+        <group position={[tx, 0, 0]}>
+          {/* Batente/Portal da porta */}
+          {/* Batente Esquerdo */}
+          <mesh position={[-width / 2 + portalThickness / 2, 0, 0]}>
+            <boxGeometry args={[portalThickness, frameDepth, height]} />
+            <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
+          </mesh>
+          {/* Batente Direito */}
+          <mesh position={[width / 2 - portalThickness / 2, 0, 0]}>
+            <boxGeometry args={[portalThickness, frameDepth, height]} />
+            <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
+          </mesh>
+          {/* Batente Superior */}
+          <mesh position={[0, 0, height / 2 - portalThickness / 2]}>
+            <boxGeometry args={[width, frameDepth, portalThickness]} />
+            <meshStandardMaterial color="#78350f" roughness={0.7} clippingPlanes={clippingPlanes} />
+          </mesh>
 
         {/* Folha da porta - FECHADA e alinhada localmente */}
         <group position={[device.flip ? width / 2 - portalThickness : -width / 2 + portalThickness, 0, 0]}>
@@ -152,7 +155,8 @@ export const Device3D: React.FC<Device3DProps> = ({ device }) => {
           </group>
         </group>
       </group>
-    );
+    </group>
+  );
   }
 
   // Desenhar janelas realistas

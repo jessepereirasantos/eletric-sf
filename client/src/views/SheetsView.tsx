@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useCadStore } from '../store/useCadStore';
 import { BottomBar } from '../components/BottomBar';
 import { dimensionateCircuit } from '../utils/nbr5410';
@@ -50,6 +50,23 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
   ]);
 
   const [activeSheetId, setActiveSheetId] = useState<string>('sheet_1');
+  const [containerSize, setContainerSize] = useState({ w: 800, h: 600 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Observador de tamanho do contêiner para aplicar transform: scale automática
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        setContainerSize({
+          w: entry.contentRect.width - 60, // margem de segurança de 30px nas laterais
+          h: entry.contentRect.height - 60
+        });
+      }
+    });
+    resizeObserver.observe(containerRef.current);
+    return () => resizeObserver.disconnect();
+  }, []);
 
   // Adicionar uma nova folha técnica
   const handleAddSheet = () => {
@@ -94,10 +111,13 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
 
   const dimMM = getSheetDimensionsMM(activeSheet.size, activeSheet.orientation);
   
-  // Fator de escala clássico para pixels de tela
-  const scaleMultiplier = 2.2;
+  // Fator de escala dinâmico de alta resolução
+  const scaleMultiplier = 3.2;
   const sheetPixelW = dimMM.w * scaleMultiplier;
   const sheetPixelH = dimMM.h * scaleMultiplier;
+
+  // Escala final de exibição para caber no contêiner do monitor
+  const fitScale = Math.min(containerSize.w / sheetPixelW, containerSize.h / sheetPixelH);
 
   // Alterar tipos de conteúdo alocados na folha técnica
   const toggleContent = (type: 'planta' | 'cargas' | 'materiais' | 'unifilar') => {
@@ -432,8 +452,9 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
           </button>
         </div>
 
-        {/* Simulador da Folha ABNT (Paper Space) Clássico com Rolagem Natural */}
+        {/* Simulador da Folha ABNT (Paper Space) com Redimensionamento e Escalonamento Dinâmico */}
         <div
+          ref={containerRef}
           style={{
             flex: 1,
             backgroundColor: '#0b0f19',
@@ -448,21 +469,33 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
           }}
         >
           
-          {/* Folha Física Simulada (W3C ABNT) */}
+          {/* Div Wrapper que consome exatamente o tamanho da folha escalada */}
           <div style={{
-            width: `${sheetPixelW}px`,
-            height: `${sheetPixelH}px`,
-            backgroundColor: '#ffffff',
-            border: '2.5px solid #0f172a',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
-            color: '#0f172a',
-            padding: '25px',
+            width: `${sheetPixelW * fitScale}px`,
+            height: `${sheetPixelH * fitScale}px`,
             display: 'flex',
-            flexDirection: 'column',
-            position: 'relative',
-            transition: 'all 0.2s ease',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
             flexShrink: 0
           }}>
+            {/* Folha Física Simulada (W3C ABNT) */}
+            <div style={{
+              width: `${sheetPixelW}px`,
+              height: `${sheetPixelH}px`,
+              transform: `scale(${fitScale})`,
+              transformOrigin: 'center center',
+              backgroundColor: '#ffffff',
+              border: '2.5px solid #0f172a',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+              color: '#0f172a',
+              padding: '25px',
+              display: 'flex',
+              flexDirection: 'column',
+              position: 'relative',
+              transition: 'all 0.2s ease',
+              flexShrink: 0
+            }}>
             {/* Margens de Borda da Folha */}
             <div style={{
               border: '1.5px solid #0f172a',
@@ -490,24 +523,166 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
               }}>
                 {activeSheet.contentTypes.map((type) => {
                   if (type === 'planta') {
+                    // Calcular limites reais do projeto
+                    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                    walls.forEach(w => {
+                      minX = Math.min(minX, w.p1.x, w.p2.x);
+                      maxX = Math.max(maxX, w.p1.x, w.p2.x);
+                      minY = Math.min(minY, w.p1.y, w.p2.y);
+                      maxY = Math.max(maxY, w.p1.y, w.p2.y);
+                    });
+                    devices.forEach(d => {
+                      minX = Math.min(minX, d.x);
+                      maxX = Math.max(maxX, d.x);
+                      minY = Math.min(minY, d.y);
+                      maxY = Math.max(maxY, d.y);
+                    });
+
+                    const hasElements = walls.length > 0 || devices.length > 0;
+                    if (!hasElements) {
+                      minX = 0; maxX = 10; minY = 0; maxY = 10;
+                    }
+
+                    const margin = 1;
+                    const wSVG = (maxX - minX) + margin * 2;
+                    const hSVG = (maxY - minY) + margin * 2;
+                    const vb = `${minX - margin} ${minY - margin} ${wSVG} ${hSVG}`;
+
+                    const { conduits } = useCadStore.getState();
+
                     return (
-                      <div key={type} style={{ border: '1px dashed #cbd5e1', padding: '12px', borderRadius: '4px', backgroundColor: '#fcfcfc', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#475569' }}>PLANTA BAIXA DE DISTRIBUIÇÃO</span>
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: '#94a3b8' }}>
-                          <span>[ Vista 2D da Planta do Projeto ]</span>
-                          <span style={{ fontSize: '9px', marginTop: '4px' }}>{walls.length} paredes, {devices.length} pontos lançados</span>
-                        </div>
+                      <div key={type} style={{ border: '1px dashed #cbd5e1', padding: '12px', borderRadius: '4px', backgroundColor: '#fcfcfc', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#475569', marginBottom: '8px', display: 'block' }}>PLANTA BAIXA DE DISTRIBUIÇÃO</span>
+                        {hasElements ? (
+                          <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%', minHeight: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <svg viewBox={vb} style={{ width: '100%', height: '100%', maxHeight: '100%', objectFit: 'contain' }}>
+                              {/* Desenhar paredes */}
+                              {walls.map(w => (
+                                <line
+                                  key={w.id}
+                                  x1={w.p1.x}
+                                  y1={w.p1.y}
+                                  x2={w.p2.x}
+                                  y2={w.p2.y}
+                                  stroke="#334155"
+                                  strokeWidth={w.thickness || 0.15}
+                                  strokeLinecap="round"
+                                />
+                              ))}
+                              
+                              {/* Desenhar conduítes */}
+                              {conduits.map(c => {
+                                const from = devices.find(d => d.id === c.fromDeviceId);
+                                const to = devices.find(d => d.id === c.toDeviceId);
+                                if (!from || !to) return null;
+                                if (c.waypoints && c.waypoints.length > 0) {
+                                  const pts = [from, ...c.waypoints, to].map(p => `${p.x},${p.y}`).join(' ');
+                                  return <polyline key={c.id} points={pts} fill="none" stroke="#94a3b8" strokeWidth="0.04" strokeDasharray="0.1, 0.08" />;
+                                }
+                                return <line key={c.id} x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#94a3b8" strokeWidth="0.04" strokeDasharray="0.1, 0.08" />;
+                              })}
+
+                              {/* Desenhar esquadrias (portas e janelas) */}
+                              {devices.filter(d => d.type.startsWith('door') || d.type === 'window' || d.type === 'open_van').map(d => {
+                                const isDoor = d.type.startsWith('door');
+                                const color = isDoor ? '#b45309' : '#38bdf8';
+                                const w = d.width ?? 0.8;
+                                return (
+                                  <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
+                                    <rect x={isDoor && d.flip ? -w : -w/2} y={-0.06} width={w} height={0.12} fill={color} stroke="#1e293b" strokeWidth="0.02" opacity={0.8} />
+                                    {isDoor && (
+                                      <line x1={0} y1={0} x2={0} y2={d.flip ? w : -w} stroke="#b45309" strokeWidth="0.03" />
+                                    )}
+                                  </g>
+                                );
+                              })}
+
+                              {/* Desenhar dispositivos elétricos */}
+                              {devices.filter(d => !d.type.startsWith('door') && d.type !== 'window' && d.type !== 'open_van').map(d => {
+                                let color = '#3b82f6';
+                                let r = 0.12;
+                                if (d.type.includes('box')) { color = '#fbbf24'; r = 0.10; }
+                                else if (d.type.includes('tomada') || d.type.includes('tue')) { color = '#ef4444'; r = 0.09; }
+                                else if (d.type.includes('interruptor')) { color = '#a855f7'; r = 0.08; }
+                                else if (d.type.includes('light') || d.type === 'lampada' || d.type === 'fluorescent') { color = '#f59e0b'; r = 0.15; }
+                                
+                                return (
+                                  <g key={d.id}>
+                                    <circle cx={d.x} cy={d.y} r={r} fill={color} stroke="#0f172a" strokeWidth="0.02" />
+                                    <text x={d.x} y={d.y - r - 0.06} fontSize="0.16" fill="#475569" textAnchor="middle" fontWeight="bold">
+                                      {d.name}
+                                    </text>
+                                  </g>
+                                );
+                              })}
+                            </svg>
+                          </div>
+                        ) : (
+                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: '#94a3b8' }}>
+                            <span>Nenhum elemento no projeto</span>
+                          </div>
+                        )}
                       </div>
                     );
                   }
 
                   if (type === 'unifilar') {
+                    const hasCircuits = circuits.length > 0;
+                    const hSVG = Math.max(160, circuits.length * 35 + 50);
+
                     return (
-                      <div key={type} style={{ border: '1px dashed #cbd5e1', padding: '12px', borderRadius: '4px', backgroundColor: '#fcfcfc', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#475569' }}>DIAGRAMA UNIFILAR AUXILIAR</span>
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
-                          <span>[ Relação de Circuitos R, S, T ]</span>
-                        </div>
+                      <div key={type} style={{ border: '1px dashed #cbd5e1', padding: '12px', borderRadius: '4px', backgroundColor: '#fcfcfc', overflow: 'auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#475569', marginBottom: '8px', display: 'block' }}>DIAGRAMA UNIFILAR DE DISTRIBUIÇÃO</span>
+                        {hasCircuits ? (
+                          <div style={{ flex: 1, position: 'relative', width: '100%' }}>
+                            <svg viewBox={`0 0 450 ${hSVG}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+                              {/* Disjuntor Geral / Origem */}
+                              <rect x="10" y="15" width="60" height="25" rx="3" fill="#3b4252" stroke="#2e3440" strokeWidth="1.5" />
+                              <text x="40" y="31" fontSize="8" fill="#ffffff" textAnchor="middle" fontWeight="bold">QDC GERAL</text>
+                              
+                              {/* Barramento Principal Vertical */}
+                              <line x1="70" y1="27" x2="90" y2="27" stroke="#2e3440" strokeWidth="2" />
+                              <line x1="90" y1="27" x2="90" y2={`${hSVG - 25}`} stroke="#2e3440" strokeWidth="2" />
+                              
+                              {/* Desenhar cada circuito */}
+                              {circuits.map((c, idx) => {
+                                const y = 45 + idx * 35;
+                                const cd = devices.filter(d => d.circuitId === c.id);
+                                const totalPower = cd.reduce((sum, d) => sum + (d.power || 0), 0);
+                                const res = dimensionateCircuit(c.type, totalPower || 100, c.voltage, 10, c.groupedCircuits);
+                                
+                                return (
+                                  <g key={c.id}>
+                                    <line x1="90" y1={y} x2="110" y2={y} stroke="#4c566a" strokeWidth="1.5" />
+                                    
+                                    <rect x="110" y={y - 8} width="35" height="16" rx="2" fill="#e5e9f0" stroke="#4c566a" strokeWidth="1.2" />
+                                    <text x="127.5" y={y + 3} fontSize="8" fill="#2e3440" textAnchor="middle" fontWeight="bold">{res.circuitBreaker}A</text>
+                                    
+                                    <line x1="145" y1={y} x2="230" y2={y} stroke="#4c566a" strokeWidth="1.5" />
+                                    
+                                    <text x="150" y={y - 12} fontSize="9" fill="#2e3440" fontWeight="bold">Circuito {c.number} ({c.type.toUpperCase()})</text>
+                                    
+                                    {/* Simbologia Unifilar (Fase, Neutro, Terra) */}
+                                    <line x1="165" y1={y - 6} x2="165" y2={y + 6} stroke="#4c566a" strokeWidth="1.2" />
+                                    <line x1="175" y1={y} x2="175" y2={y - 6} stroke="#4c566a" strokeWidth="1.2" />
+                                    <line x1="175" y1={y - 6} x2="179" y2={y - 6} stroke="#4c566a" strokeWidth="1.2" />
+                                    <line x1="185" y1={y} x2="185" y2={y - 6} stroke="#4c566a" strokeWidth="1.2" />
+                                    <line x1="181" y1={y - 6} x2="189" y2={y - 6} stroke="#4c566a" strokeWidth="1.2" />
+                                    
+                                    <text x="200" y={y + 11} fontSize="7.5" fill="#4c566a" fontWeight="bold">{res.selectedSection} mm²</text>
+                                    
+                                    <line x1="230" y1={y} x2="250" y2={y} stroke="#4c566a" strokeWidth="1.5" />
+                                    <text x="255" y={y + 3} fontSize="8" fill="#3b4252" fontWeight="bold">{c.name} ({totalPower}W)</text>
+                                  </g>
+                                );
+                              })}
+                            </svg>
+                          </div>
+                        ) : (
+                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: '#94a3b8' }}>
+                            <span>Nenhum circuito cadastrado para gerar o diagrama</span>
+                          </div>
+                        )}
                       </div>
                     );
                   }
@@ -605,6 +780,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
               </div>
             </div>
           </div>
+        </div>
 
         </div>
 

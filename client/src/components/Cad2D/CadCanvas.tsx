@@ -215,6 +215,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
   } = useCadStore();
 
   const stageRef = useRef<any>(null);
+  const draggedWpIndexRef = useRef<{ conduitId: string; wpIndex: number } | null>(null);
   const transformerRef = useRef<any>(null);
   const [imageObj, setImageObj] = useState<HTMLImageElement | null>(null);
   const [conduitStartDeviceId, setConduitStartDeviceId] = useState<string | null>(null);
@@ -2078,28 +2079,101 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                  />
                )}
                <Line
-                 points={curve.points}
-                 stroke={conduitColor}
-                 strokeWidth={conduitWidth}
-                 tension={curve.inWall ? undefined : 0.4}
-                 opacity={0.85}
-                 hitStrokeWidth={18}
-                 dash={isConduitSelected ? [8, 4] : undefined}
-                 onClick={(e) => {
-                   e.cancelBubble = true;
-                   if (currentTool === 'select') {
-                     setSelectedConduitId(conduit.id);
-                   }
-                 }}
-                 onTap={(e) => {
-                   e.cancelBubble = true;
-                   if (currentTool === 'select') {
-                     setSelectedConduitId(conduit.id);
-                   }
-                 }}
-                 onMouseEnter={(e) => { e.target.getStage()!.container().style.cursor = 'pointer'; }}
-                 onMouseLeave={(e) => { e.target.getStage()!.container().style.cursor = cursorStyle; }}
-               />
+                  points={curve.points}
+                  stroke={conduitColor}
+                  strokeWidth={conduitWidth}
+                  tension={curve.inWall ? undefined : 0.4}
+                  opacity={0.85}
+                  hitStrokeWidth={18}
+                  dash={isConduitSelected ? [8, 4] : undefined}
+                  draggable={isConduitSelected && currentTool === 'select'}
+                  onDragStart={(e) => {
+                    e.cancelBubble = true;
+                    const stage = stageRef.current;
+                    if (!stage) return;
+                    const pointer = stage.getPointerPosition();
+                    if (!pointer) return;
+                    
+                    const clickX = (pointer.x - stage.x()) / stage.scaleX() / ppm;
+                    const clickY = (pointer.y - stage.y()) / stage.scaleY() / ppm;
+                    
+                    const currentWps = [...(conduit.waypoints || [])];
+                    let targetIdx = -1;
+                    
+                    if (currentWps.length === 0) {
+                      currentWps.push({ x: clickX, y: clickY });
+                      targetIdx = 0;
+                    } else {
+                      let minDist = Infinity;
+                      for (let i = 0; i < currentWps.length; i++) {
+                        const dx = currentWps[i].x - clickX;
+                        const dy = currentWps[i].y - clickY;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < minDist) {
+                          minDist = dist;
+                          targetIdx = i;
+                        }
+                      }
+                      if (minDist > 0.4) {
+                        currentWps.push({ x: clickX, y: clickY });
+                        targetIdx = currentWps.length - 1;
+                      }
+                    }
+                    
+                    draggedWpIndexRef.current = { conduitId: conduit.id, wpIndex: targetIdx };
+                    useCadStore.setState((s) => ({
+                      conduits: s.conduits.map(c => c.id === conduit.id ? { ...c, waypoints: currentWps } : c)
+                    }));
+                  }}
+                  onDragMove={(e) => {
+                    e.cancelBubble = true;
+                    e.target.position({ x: 0, y: 0 });
+                    
+                    const stage = stageRef.current;
+                    const dragInfo = draggedWpIndexRef.current;
+                    if (!stage || !dragInfo || dragInfo.conduitId !== conduit.id) return;
+                    
+                    const pointer = stage.getPointerPosition();
+                    if (!pointer) return;
+                    
+                    const newWpX = Math.round(((pointer.x - stage.x()) / stage.scaleX() / ppm) / 0.01) * 0.01;
+                    const newWpY = Math.round(((pointer.y - stage.y()) / stage.scaleY() / ppm) / 0.01) * 0.01;
+                    
+                    const currentWps = [...(conduit.waypoints || [])];
+                    if (dragInfo.wpIndex >= 0 && dragInfo.wpIndex < currentWps.length) {
+                      currentWps[dragInfo.wpIndex] = { x: newWpX, y: newWpY };
+                      useCadStore.setState((s) => ({
+                        conduits: s.conduits.map(c => c.id === conduit.id ? { ...c, waypoints: currentWps } : c)
+                      }));
+                    }
+                  }}
+                  onDragEnd={(e) => {
+                    e.cancelBubble = true;
+                    e.target.position({ x: 0, y: 0 });
+                    const dragInfo = draggedWpIndexRef.current;
+                    if (dragInfo && dragInfo.conduitId === conduit.id) {
+                      const cond = useCadStore.getState().conduits.find(c => c.id === conduit.id);
+                      if (cond && cond.waypoints) {
+                        updateConduitWaypoints(conduit.id, cond.waypoints);
+                      }
+                    }
+                    draggedWpIndexRef.current = null;
+                  }}
+                  onClick={(e) => {
+                    e.cancelBubble = true;
+                    if (currentTool === 'select') {
+                      setSelectedConduitId(conduit.id);
+                    }
+                  }}
+                  onTap={(e) => {
+                    e.cancelBubble = true;
+                    if (currentTool === 'select') {
+                      setSelectedConduitId(conduit.id);
+                    }
+                  }}
+                  onMouseEnter={(e) => { e.target.getStage()!.container().style.cursor = 'pointer'; }}
+                  onMouseLeave={(e) => { e.target.getStage()!.container().style.cursor = cursorStyle; }}
+                />
               {activeViewFilter !== 'infraestrutura' && wires.length > 0 && (
                 <Group x={curve.midPoint.x} y={curve.midPoint.y} rotation={curve.angle}>
                   <Circle radius={10 * Math.max(1, wires.length)} fill="rgba(240,240,240,0.9)" opacity={0.9} listening={false} />
