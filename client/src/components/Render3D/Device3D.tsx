@@ -1603,41 +1603,91 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
      if (type === 'carro_hatch') {
         model = (
           <group position={[0, 0, 0]}>
-             <mesh position={[0, 0.4, 0]}>
-               <boxGeometry args={[1.6, 0.8, 3.8]} />
-               <meshStandardMaterial color="#94a3b8" roughness={0.4} metalness={0.6} />
-             </mesh>
-             {/* Cabine (vidro translúcido) */}
-             <mesh position={[0, 1.1, -0.2]}>
-               <boxGeometry args={[1.4, 0.6, 2.0]} />
-               <meshPhysicalMaterial color="#020617" transmission={0.9} roughness={0.1} opacity={1} transparent={true} />
-             </mesh>
+            {/* Rodas */}
+            {[-1.0, 1.0].map((zPos, i) => (
+              <group key={i}>
+                 <mesh position={[0.75, 0.35, zPos]} rotation={[Math.PI / 2, 0, Math.PI / 2]}>
+                    <cylinderGeometry args={[0.35, 0.35, 0.2, 32]} />
+                    <meshStandardMaterial color="#0f172a" roughness={0.9} />
+                 </mesh>
+                 <mesh position={[-0.75, 0.35, zPos]} rotation={[Math.PI / 2, 0, Math.PI / 2]}>
+                    <cylinderGeometry args={[0.35, 0.35, 0.2, 32]} />
+                    <meshStandardMaterial color="#0f172a" roughness={0.9} />
+                 </mesh>
+              </group>
+            ))}
+            {/* Chassi Base */}
+            <mesh position={[0, 0.55, 0]}>
+              <boxGeometry args={[1.5, 0.5, 3.6]} />
+              <meshStandardMaterial color="#94a3b8" roughness={0.3} metalness={0.6} />
+            </mesh>
+            {/* Cabine Central Chanfrada */}
+            <mesh position={[0, 1.05, -0.3]}>
+              <boxGeometry args={[1.35, 0.6, 2.0]} />
+              <meshStandardMaterial color="#94a3b8" roughness={0.3} metalness={0.6} />
+            </mesh>
+            {/* Vidro translúcido da cabine */}
+            <mesh position={[0, 1.05, -0.3]}>
+              <boxGeometry args={[1.4, 0.55, 1.9]} />
+              <meshPhysicalMaterial color="#020617" transmission={0.9} roughness={0.1} opacity={1} />
+            </mesh>
           </group>
         );
      } else if (type === 'caminhonete') {
         model = (
           <group position={[0, 0, 0]}>
-             <mesh position={[0, 0.5, 0]}>
-               <boxGeometry args={[1.8, 0.9, 5.0]} />
-               <meshStandardMaterial color="#334155" roughness={0.5} metalness={0.7} />
+             {/* Rodas Grandes */}
+             {[-1.5, 1.3].map((zPos, i) => (
+               <group key={i}>
+                  <mesh position={[0.85, 0.45, zPos]} rotation={[Math.PI / 2, 0, Math.PI / 2]}>
+                     <cylinderGeometry args={[0.45, 0.45, 0.25, 32]} />
+                     <meshStandardMaterial color="#0f172a" roughness={0.9} />
+                  </mesh>
+                  <mesh position={[-0.85, 0.45, zPos]} rotation={[Math.PI / 2, 0, Math.PI / 2]}>
+                     <cylinderGeometry args={[0.45, 0.45, 0.25, 32]} />
+                     <meshStandardMaterial color="#0f172a" roughness={0.9} />
+                  </mesh>
+               </group>
+             ))}
+             {/* Chassi Base Alongado */}
+             <mesh position={[0, 0.65, 0]}>
+               <boxGeometry args={[1.8, 0.6, 4.8]} />
+               <meshStandardMaterial color="#334155" roughness={0.4} metalness={0.7} />
              </mesh>
-             {/* Cabine */}
-             <mesh position={[0, 1.25, 0.5]}>
-               <boxGeometry args={[1.6, 0.7, 2.0]} />
-               <meshPhysicalMaterial color="#020617" transmission={0.9} roughness={0.1} opacity={1} transparent={true} />
+             {/* Cabine Frontal */}
+             <mesh position={[0, 1.4, 0.6]}>
+               <boxGeometry args={[1.7, 0.9, 2.0]} />
+               <meshStandardMaterial color="#334155" roughness={0.4} metalness={0.7} />
+             </mesh>
+             {/* Vidros da Cabine */}
+             <mesh position={[0, 1.4, 0.6]}>
+               <boxGeometry args={[1.75, 0.8, 1.9]} />
+               <meshPhysicalMaterial color="#020617" transmission={0.9} roughness={0.1} opacity={1} />
+             </mesh>
+             {/* Buraco interior Caçamba */}
+             <mesh position={[0, 0.8, -1.1]}>
+               <boxGeometry args={[1.5, 0.4, 1.8]} />
+               <meshStandardMaterial color="#0f172a" roughness={0.8} />
              </mesh>
           </group>
         );
      } else if (type === 'vaso_sanitario') {
         model = (
           <group position={[0, 0, 0]}>
-            <mesh position={[0, 0.2, 0.15]}>
-              <cylinderGeometry args={[0.2, 0.15, 0.4, 16]} />
-              <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.1} />
+            {/* Coluna da base */}
+            <mesh position={[0, 0.2, 0.1]}>
+              <cylinderGeometry args={[0.15, 0.12, 0.4, 32]} />
+              <meshStandardMaterial color="#ffffff" roughness={0.05} metalness={0.1} />
             </mesh>
-            <mesh position={[0, 0.6, -0.15]}>
-              <boxGeometry args={[0.4, 0.4, 0.2]} />
-              <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.1} />
+            {/* Bacia oval da patente */}
+            <mesh position={[0, 0.42, -0.05]} rotation={[Math.PI / 2, 0, 0]}>
+               <cylinderGeometry args={[0.18, 0.22, 0.45, 32]} />
+               <meshStandardMaterial color="#ffffff" roughness={0.05} metalness={0.1} />
+            </mesh>
+            {/* Caixa acoplada (tanque) */}
+            <mesh position={[0, 0.6, 0.18]}>
+              <boxGeometry args={[0.4, 0.45, 0.2]} />
+              <meshStandardMaterial color="#ffffff" roughness={0.05} metalness={0.1} />
             </mesh>
           </group>
         );
@@ -1646,32 +1696,54 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
           <group position={[0, 0.85, 0]}>
              <mesh>
                <boxGeometry args={[0.8, 0.15, 0.45]} />
-               <meshStandardMaterial color="#f8fafc" roughness={0.2} metalness={0.1} />
+               <meshStandardMaterial color="#f8fafc" roughness={0.1} metalness={0.05} />
              </mesh>
-             <mesh position={[0, 0.08, 0.15]}>
-               <cylinderGeometry args={[0.02, 0.02, 0.15]} />
-               <meshStandardMaterial color="#94a3b8" roughness={0.2} metalness={0.8} />
+             {/* Bacia da cuba redonda central vazada */}
+             <mesh position={[0, -0.02, 0]}>
+               <cylinderGeometry args={[0.15, 0.12, 0.14, 32]} />
+               <meshStandardMaterial color="#e2e8f0" roughness={0.2} metalness={0.1} />
+             </mesh>
+             {/* Torneira */}
+             <mesh position={[0, 0.15, 0.15]}>
+               <cylinderGeometry args={[0.02, 0.02, 0.15, 16]} />
+               <meshStandardMaterial color="#94a3b8" roughness={0.1} metalness={0.9} />
+             </mesh>
+             <mesh position={[0, 0.22, 0.1]} rotation={[Math.PI / 2, 0, 0]}>
+               <cylinderGeometry args={[0.02, 0.02, 0.1, 16]} />
+               <meshStandardMaterial color="#94a3b8" roughness={0.1} metalness={0.9} />
              </mesh>
           </group>
         );
      } else if (type === 'arvore_palmeira') {
         model = (
           <group position={[0, 0, 0]}>
+             {/* Tronco canelado */}
              <mesh position={[0, 2.0, 0]}>
-               <cylinderGeometry args={[0.1, 0.2, 4.0, 8]} />
+               <cylinderGeometry args={[0.08, 0.25, 4.0, 16]} />
                <meshStandardMaterial color="#78350f" roughness={0.9} />
              </mesh>
-             <mesh position={[0, 4.0, 0]}>
-               <sphereGeometry args={[1.2, 8, 8]} />
-               <meshStandardMaterial color="#15803d" roughness={0.8} />
-             </mesh>
+             {/* Folhagens tipo coroa/fatias */}
+             {Array.from({ length: 7 }).map((_, i) => (
+               <mesh key={i} position={[0, 4.2, 0]} rotation={[0, (i * Math.PI * 2) / 7, 0]}>
+                  <sphereGeometry args={[1.5, 12, 12, 0, Math.PI, 0, Math.PI/2]} />
+                  <meshStandardMaterial color="#15803d" roughness={0.8} side={2} /> {/* side={2} is THREE.DoubleSide */}
+               </mesh>
+             ))}
           </group>
         );
      } else if (type === 'arbusto') {
         model = (
           <group position={[0, 0.4, 0]}>
              <mesh>
-               <sphereGeometry args={[0.4, 8, 8]} />
+               <sphereGeometry args={[0.5, 16, 16]} />
+               <meshStandardMaterial color="#16a34a" roughness={0.9} />
+             </mesh>
+             <mesh position={[0.2, 0.1, 0.2]}>
+               <sphereGeometry args={[0.3, 16, 16]} />
+               <meshStandardMaterial color="#16a34a" roughness={0.9} />
+             </mesh>
+             <mesh position={[-0.2, 0.2, -0.2]}>
+               <sphereGeometry args={[0.35, 16, 16]} />
                <meshStandardMaterial color="#16a34a" roughness={0.9} />
              </mesh>
           </group>
@@ -1680,11 +1752,12 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
         model = (
           <group position={[0, 0, 0]}>
              <mesh position={[0, 1.25, 0]}>
-               <cylinderGeometry args={[0.02, 0.02, 2.5, 8]} />
+               <cylinderGeometry args={[0.02, 0.02, 2.5, 16]} />
                <meshStandardMaterial color="#cbd5e1" metalness={0.8} roughness={0.2} />
              </mesh>
+             {/* Cobertura inclinada em cone */}
              <mesh position={[0, 2.5, 0]}>
-               <cylinderGeometry args={[1.5, 0.05, 0.3, 16]} />
+               <cylinderGeometry args={[0.05, 1.5, 0.4, 16]} />
                <meshStandardMaterial color="#fef08a" roughness={0.8} />
              </mesh>
           </group>

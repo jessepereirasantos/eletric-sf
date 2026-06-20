@@ -1502,7 +1502,113 @@ export const DeviceSymbol: React.FC<DeviceSymbolProps> = ({
       );
     }
 
-    default:
+    case 'carro_hatch': {
+      const carW = 1.6 * ppm;
+      const carH = 3.8 * ppm;
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          {/* Chassi principal */}
+          <Rect x={-carW/2} y={-carH/2} width={carW} height={carH} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={8} />
+          {/* Para-brisas frontal e traseiro */}
+          <Rect x={-carW*0.4} y={-carH*0.25} width={carW*0.8} height={carH*0.5} fill={'#e2e8f0'} stroke={stroke} strokeWidth={sw} rx={5} />
+          <Line points={[-carW*0.4, -carH*0.1, carW*0.4, -carH*0.1]} stroke={stroke} strokeWidth={sw} />
+          <Line points={[-carW*0.4, carH*0.15, carW*0.4, carH*0.15]} stroke={stroke} strokeWidth={sw} />
+          {/* Espelhos */}
+          <Circle x={-carW/2 - 2} y={-carH*0.1} radius={4} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
+          <Circle x={carW/2 + 2} y={-carH*0.1} radius={4} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
+          <Text text="CAR" x={-carW/2} y={carH*0.25} width={carW} align="center" fontSize={10} fill={stroke} fontStyle="bold" />
+          <SelectionRing r={carH * 0.55} />
+        </Group>
+      );
+    }
+
+    case 'caminhonete': {
+      const picW = 1.8 * ppm;
+      const picH = 5.0 * ppm;
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <Rect x={-picW/2} y={-picH/2} width={picW} height={picH} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={6} />
+          {/* Cabine */}
+          <Rect x={-picW*0.45} y={-picH*0.2} width={picW*0.9} height={picH*0.3} fill={'#e2e8f0'} stroke={stroke} strokeWidth={sw} rx={5} />
+          {/* Caçamba cruz */}
+          <Line points={[-picW*0.4, picH*0.15, picW*0.4, picH*0.45]} stroke={stroke} strokeWidth={sw} />
+          <Line points={[-picW*0.4, picH*0.45, picW*0.4, picH*0.15]} stroke={stroke} strokeWidth={sw} />
+          <Rect x={-picW*0.4} y={picH*0.15} width={picW*0.8} height={picH*0.3} stroke={stroke} strokeWidth={sw} />
+          <Text text="4X4" x={-picW/2} y={-picH*0.1} width={picW} align="center" fontSize={12} fill={stroke} fontStyle="bold" />
+          <SelectionRing r={picH * 0.55} />
+        </Group>
+      );
+    }
+
+    case 'vaso_sanitario': {
+      const vW = 0.4 * ppm;
+      const vH = 0.6 * ppm;
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          {/* Caixa acoplada */}
+          <Rect x={-vW/2} y={-vH/2} width={vW} height={vH*0.35} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={2} />
+          <Circle x={0} y={-vH/2 + vH*0.17} radius={vH*0.05} stroke={stroke} strokeWidth={sw} />
+          {/* Bacia elíptica usando Rect bem arredondado */}
+          <Rect x={-vW*0.4} y={-vH*0.15} width={vW*0.8} height={vH*0.65} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={vW*0.4} />
+          <Rect x={-vW*0.3} y={0} width={vW*0.6} height={vH*0.4} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} rx={vW*0.3} />
+          <SelectionRing r={vH * 0.7} />
+        </Group>
+      );
+    }
+
+    case 'pia_esculpida': {
+      const pW = 0.8 * ppm;
+      const pH = 0.45 * ppm;
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <Rect x={-pW/2} y={-pH/2} width={pW} height={pH} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
+          <Circle x={0} y={0} radius={pH*0.3} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
+          <Circle x={0} y={pH*0.05} radius={pH*0.05} fill={stroke} />
+          <SelectionRing r={pW * 0.6} />
+        </Group>
+      );
+    }
+
+    case 'arvore_palmeira':
+    case 'arbusto': {
+      const rOuter = (type === 'arvore_palmeira' ? 1.2 : 0.4) * ppm;
+      const color = type === 'arvore_palmeira' ? '#15803d' : '#16a34a';
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <Circle x={0} y={0} radius={rOuter} fill={color} stroke={stroke} strokeWidth={sw} opacity={0.6} />
+          {/* Desenho orgânico estelar */}
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Line 
+              key={i} 
+              points={[0, 0, Math.cos(i * Math.PI/4) * rOuter, Math.sin(i * Math.PI/4) * rOuter]} 
+              stroke={stroke} 
+              strokeWidth={sw} 
+            />
+          ))}
+          <Circle x={0} y={0} radius={rOuter*0.2} fill={'#78350f'} stroke={stroke} strokeWidth={sw} />
+          <SelectionRing r={rOuter * 1.1} />
+        </Group>
+      );
+    }
+
+    case 'guarda_sol': {
+      const gsR = 1.5 * ppm;
+      return (
+        <Group x={x} y={y} rotation={rotation} {...commonProps}>
+          <Circle x={0} y={0} radius={gsR} fill={'#fef08a'} stroke={stroke} strokeWidth={sw} opacity={0.8} />
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Line 
+              key={i} 
+              points={[0, 0, Math.cos(i * Math.PI/4) * gsR, Math.sin(i * Math.PI/4) * gsR]} 
+              stroke={stroke} 
+              strokeWidth={sw} 
+            />
+          ))}
+          <Circle x={0} y={0} radius={gsR*0.1} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
+          <SelectionRing r={gsR * 1.1} />
+        </Group>
+      );
+    }
       return (
         <Group x={x} y={y} {...commonProps}>
           <Circle x={0} y={0} radius={H} fill={FILL_WHITE} stroke={stroke} strokeWidth={sw} />
