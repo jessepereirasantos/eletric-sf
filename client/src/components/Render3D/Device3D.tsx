@@ -390,8 +390,8 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
         <group
           ref={groupRef}
           name={deviceProp.id}
-          position={[renderX, renderY, computedZ]} // Usa posição projetada
-          rotation={[0, 0, renderRotation]} // Usa rotação projetada
+          position={isDragging ? undefined : [renderX, renderY, computedZ]} // Usa posição projetada, solta durante drag
+          rotation={isDragging ? undefined : [0, 0, renderRotation]} // Usa rotação projetada, solta durante drag
           onClick={handleSelect}
         >
           <Device3D device={deviceProp} isInner={true} />
@@ -1288,25 +1288,34 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
         {/* Assento Principal */}
-        <mesh position={[0, 0, -sofaH * 0.15]}>
-          <boxGeometry args={[sofaW * 0.8, sofaD * 0.8, sofaH * 0.4]} />
-          <meshStandardMaterial color="#475569" roughness={0.9} {...matProps} />
+        <mesh position={[0, 0, -sofaH * 0.2]} castShadow receiveShadow>
+          <boxGeometry args={[sofaW * 0.8, sofaD * 0.8, sofaH * 0.3]} />
+          <meshStandardMaterial color={color || "#475569"} roughness={0.9} {...matProps} />
         </mesh>
         {/* Encosto Traseiro */}
-        <mesh position={[0, sofaD * 0.35, sofaH * 0.15]}>
+        <mesh position={[0, sofaD * 0.35, sofaH * 0.15]} castShadow receiveShadow>
           <boxGeometry args={[sofaW * 0.8, sofaD * 0.2, sofaH * 0.7]} />
-          <meshStandardMaterial color="#475569" roughness={0.9} {...matProps} />
+          <meshStandardMaterial color={color || "#475569"} roughness={0.9} {...matProps} />
         </mesh>
         {/* Braço Esquerdo */}
-        <mesh position={[-sofaW * 0.45, 0, 0]}>
-          <boxGeometry args={[sofaW * 0.1, sofaD * 0.9, sofaH * 0.7]} />
-          <meshStandardMaterial color="#334155" roughness={0.9} {...matProps} />
+        <mesh position={[-sofaW * 0.45, 0, -sofaH * 0.05]} castShadow receiveShadow>
+          <boxGeometry args={[sofaW * 0.1, sofaD * 0.9, sofaH * 0.6]} />
+          <meshStandardMaterial color={color || "#334155"} roughness={0.9} {...matProps} />
         </mesh>
         {/* Braço Direito */}
-        <mesh position={[sofaW * 0.45, 0, 0]}>
-          <boxGeometry args={[sofaW * 0.1, sofaD * 0.9, sofaH * 0.7]} />
-          <meshStandardMaterial color="#334155" roughness={0.9} {...matProps} />
+        <mesh position={[sofaW * 0.45, 0, -sofaH * 0.05]} castShadow receiveShadow>
+          <boxGeometry args={[sofaW * 0.1, sofaD * 0.9, sofaH * 0.6]} />
+          <meshStandardMaterial color={color || "#334155"} roughness={0.9} {...matProps} />
         </mesh>
+        {/* Pés do Sofá (4 pés) */}
+        {[-sofaW * 0.45, sofaW * 0.45].map(px => 
+          [-sofaD * 0.35, sofaD * 0.35].map(py => (
+            <mesh key={`${px}-${py}`} position={[px, py, -sofaH * 0.425]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
+              <cylinderGeometry args={[0.03, 0.02, sofaH * 0.15, 8]} />
+              <meshStandardMaterial color="#0f172a" roughness={0.8} />
+            </mesh>
+          ))
+        )}
       </group>
     );
   }
@@ -1399,26 +1408,26 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
         {/* Colchão */}
-        <mesh position={[0, 0, camaH * 0.1]}>
+        <mesh position={[0, 0, camaH * 0.1]} castShadow receiveShadow>
           <boxGeometry args={[camaW, camaD, camaH * 0.6]} />
-          <meshStandardMaterial color="#ffffff" roughness={0.9} {...matProps} />
+          <meshStandardMaterial color={color || "#ffffff"} roughness={0.9} {...matProps} />
         </mesh>
-        {/* Base de madeira */}
-        <mesh position={[0, 0, -camaH * 0.3]}>
-          <boxGeometry args={[camaW * 0.98, camaD * 0.98, camaH * 0.4]} />
+        {/* Base de madeira aterrada no chão */}
+        <mesh position={[0, 0, -camaH * 0.25]} castShadow receiveShadow>
+          <boxGeometry args={[camaW * 0.98, camaD * 0.98, camaH * 0.5]} />
           <meshStandardMaterial color="#7c2d12" roughness={0.8} {...matProps} />
         </mesh>
-        {/* Cabeceira */}
-        <mesh position={[0, camaD * 0.48, camaH * 0.6]}>
-          <boxGeometry args={[camaW * 1.02, 0.06, camaH * 1.4]} />
+        {/* Cabeceira alta e encostada */}
+        <mesh position={[0, camaD * 0.48, camaH * 0.4]} castShadow receiveShadow>
+          <boxGeometry args={[camaW * 1.02, 0.08, camaH * 1.8]} />
           <meshStandardMaterial color="#7c2d12" roughness={0.8} {...matProps} />
         </mesh>
         {/* Travesseiros */}
-        <mesh position={[-camaW * 0.22, camaD * 0.35, camaH * 0.45]} rotation={[-0.1, 0, 0]}>
+        <mesh position={[-camaW * 0.22, camaD * 0.35, camaH * 0.45]} rotation={[-0.1, 0, 0]} castShadow receiveShadow>
           <boxGeometry args={[camaW * 0.35, 0.4, 0.1]} />
           <meshStandardMaterial color="#e2e8f0" roughness={0.9} />
         </mesh>
-        <mesh position={[camaW * 0.22, camaD * 0.35, camaH * 0.45]} rotation={[-0.1, 0, 0]}>
+        <mesh position={[camaW * 0.22, camaD * 0.35, camaH * 0.45]} rotation={[-0.1, 0, 0]} castShadow receiveShadow>
           <boxGeometry args={[camaW * 0.35, 0.4, 0.1]} />
           <meshStandardMaterial color="#e2e8f0" roughness={0.9} />
         </mesh>
@@ -1433,24 +1442,20 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
     const mesaH = height;
     return (
       <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        {/* Tampo */}
-        <mesh position={[0, 0, mesaH * 0.48]}>
-          <boxGeometry args={[mesaW, mesaD, 0.04]} />
-          <meshStandardMaterial color="#a16207" roughness={0.6} {...matProps} />
+        {/* Tampo da Mesa */}
+        <mesh position={[0, 0, mesaH * 0.45]} castShadow receiveShadow>
+          <boxGeometry args={[mesaW, mesaD, 0.05]} />
+          <meshStandardMaterial color={color || "#a16207"} roughness={0.6} {...matProps} />
         </mesh>
-        {/* Pernas */}
-        {[-mesaW * 0.45, mesaW * 0.45].map((px) => (
-          <group key={px}>
-            <mesh position={[px, -mesaD * 0.42, 0]}>
-              <cylinderGeometry args={[0.02, 0.02, mesaH - 0.04, 8]} />
+        {/* Pernas da mesa (tocando o chão z = -mesaH/2) */}
+        {[-mesaW * 0.45, mesaW * 0.45].map((px) => 
+          [-mesaD * 0.4, mesaD * 0.4].map((py) => (
+            <mesh key={`${px}-${py}`} position={[px, py, -0.025]} rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
+              <cylinderGeometry args={[0.02, 0.015, mesaH - 0.05, 8]} />
               <meshStandardMaterial color="#1e293b" metalness={0.9} roughness={0.2} />
             </mesh>
-            <mesh position={[px, mesaD * 0.42, 0]}>
-              <cylinderGeometry args={[0.02, 0.02, mesaH - 0.04, 8]} />
-              <meshStandardMaterial color="#1e293b" metalness={0.9} roughness={0.2} />
-            </mesh>
-          </group>
-        ))}
+          ))
+        )}
       </group>
     );
   }

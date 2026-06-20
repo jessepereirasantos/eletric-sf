@@ -117,6 +117,8 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
           position={[x, y, wall.height / 2]} 
           rotation={[0, 0, angle]}
           onClick={handleWallClick}
+          castShadow
+          receiveShadow
         >
           <boxGeometry args={[segL, wall.thickness, wall.height]} />
           <meshStandardMaterial
@@ -216,32 +218,54 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
     } else {
       const doorH = dev?.height3d ?? 2.10;
       const aboveHeight = Math.max(0.01, wall.height - doorH);
+      const topFillH = aboveHeight;
+      const topFillCenterZ = wall.height - topFillH / 2;
+      const bottomFillH = 0;
+      const bottomFillCenterZ = 0;
       return (
-        aboveHeight > 0.01 ? (
-          <group key={`cutout-fill-${idx}`}>
-            <mesh 
-              position={[x, y, wall.height - aboveHeight / 2]} 
-              rotation={[0, 0, angle]}
-              onClick={handleWallClick}
-            >
-              <boxGeometry args={[cL, wall.thickness, aboveHeight]} />
-              <meshStandardMaterial
-                {...matProps}
-                wireframe={shadingMode === 'wireframe'}
-                transparent={shadingMode === 'transparent' || matProps.transparent}
-                opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
-                clippingPlanes={clippingPlanes}
-                clipShadows={true}
-              />
+        <group key={`cutout-fill-${idx}`}>
+          {/* Parte superior (acima do vão/porta) */}
+          <mesh position={[x, y, topFillCenterZ]} rotation={[0, 0, angle]} onClick={handleWallClick} castShadow receiveShadow>
+            <boxGeometry args={[cL, wall.thickness, topFillH]} />
+            <meshStandardMaterial
+              {...matProps}
+              wireframe={shadingMode === 'wireframe'}
+              transparent={shadingMode === 'transparent' || matProps.transparent}
+              opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
+              clippingPlanes={clippingPlanes}
+              clipShadows={true}
+            />
+          </mesh>
+          {isSelected && (
+            <mesh position={[x, y, topFillCenterZ]} rotation={[0, 0, angle]}>
+              <boxGeometry args={[cL + 0.02, wall.thickness + 0.02, topFillH + 0.02]} />
+              <meshBasicMaterial color="#eab308" wireframe={true} transparent={true} opacity={0.8} />
             </mesh>
-            {isSelected && (
-              <mesh position={[x, y, wall.height - aboveHeight / 2]} rotation={[0, 0, angle]}>
-                <boxGeometry args={[cL + 0.02, wall.thickness + 0.02, aboveHeight + 0.02]} />
-                <meshBasicMaterial color="#eab308" wireframe={true} transparent={true} opacity={0.8} />
+          )}
+
+          {/* Parte inferior (abaixo da janela), se houver peitoril */}
+          {bottomFillH > 0 && (
+            <>
+              <mesh position={[x, y, bottomFillCenterZ]} rotation={[0, 0, angle]} onClick={handleWallClick} castShadow receiveShadow>
+                <boxGeometry args={[cL, wall.thickness, bottomFillH]} />
+                <meshStandardMaterial
+                  {...matProps}
+                  wireframe={shadingMode === 'wireframe'}
+                  transparent={shadingMode === 'transparent' || matProps.transparent}
+                  opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
+                  clippingPlanes={clippingPlanes}
+                  clipShadows={true}
+                />
               </mesh>
-            )}
-          </group>
-        ) : null
+              {isSelected && (
+                <mesh position={[x, y, bottomFillCenterZ]} rotation={[0, 0, angle]}>
+                  <boxGeometry args={[cL + 0.02, wall.thickness + 0.02, bottomFillH + 0.02]} />
+                  <meshBasicMaterial color="#eab308" wireframe={true} transparent={true} opacity={0.8} />
+                </mesh>
+              )}
+            </>
+          )}
+        </group>
       );
     }
   });

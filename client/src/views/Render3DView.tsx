@@ -986,11 +986,22 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
           {/* Fundo do Espaço 3D */}
           <color attach="background" args={['#090d16']} />
           
-          {/* Iluminação Premium */}
-          <ambientLight intensity={0.6} />
-          <pointLight position={[10, 10, 10]} intensity={1.2} castShadow />
-          <pointLight position={[-10, -10, 8]} intensity={0.6} />
-          <directionalLight position={[0, 0, 15]} intensity={0.8} />
+          {/* Iluminação Premium e Sombras */}
+          <ambientLight intensity={0.5} />
+          <pointLight position={[10, 10, 10]} intensity={0.6} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-bias={-0.0001} />
+          <pointLight position={[-10, -10, 8]} intensity={0.4} />
+          <directionalLight 
+            position={[10, -10, 15]} 
+            intensity={1.2} 
+            castShadow 
+            shadow-mapSize-width={2048} 
+            shadow-mapSize-height={2048} 
+            shadow-camera-left={-20} 
+            shadow-camera-right={20} 
+            shadow-camera-top={20} 
+            shadow-camera-bottom={-20} 
+            shadow-bias={-0.0005} 
+          />
 
           {/* Piso de Porcelanato sob o projeto */}
           <Piso3D />
