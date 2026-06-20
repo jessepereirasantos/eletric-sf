@@ -43,6 +43,10 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
         texture = TextureGenerator.getAzulejo(wallCol);
       } else if (wallTex === 'concreto') {
         texture = TextureGenerator.getConcretoAparente();
+      } else if (wallTex === 'madeira') {
+        texture = TextureGenerator.getWood(wallCol, '#451a03');
+      } else if (wallTex === 'porcelanato') {
+        texture = TextureGenerator.getPorcelanato(wallCol);
       } else {
         texture = TextureGenerator.getWallPaint(wallCol);
       }
@@ -54,8 +58,8 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
 
     return {
       color: shadingMode === 'realistic' ? undefined : wallCol,
-      roughness: wallTex === 'concreto' ? 0.8 : 0.6,
-      metalness: wallTex === 'concreto' ? 0.15 : 0.05,
+      roughness: wallTex === 'concreto' ? 0.8 : wallTex === 'porcelanato' ? 0.2 : wallTex === 'madeira' ? 0.7 : 0.6,
+      metalness: wallTex === 'concreto' ? 0.15 : wallTex === 'porcelanato' ? 0.3 : 0.05,
       map: texture
     };
   };

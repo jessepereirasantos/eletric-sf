@@ -64,7 +64,7 @@ const Laje3D: React.FC = () => {
 };
 
 const Piso3D: React.FC = () => {
-  const { walls, floorTextureType, shadingMode } = useCadStore();
+  const { walls, floorTextureType, shadingMode, clearSelection } = useCadStore();
 
   const geometry = useMemo(() => {
     if (walls.length === 0) return null;
@@ -102,7 +102,14 @@ const Piso3D: React.FC = () => {
   if (!geometry) return null;
 
   return (
-    <mesh position={[geometry.cx, geometry.cy, -0.005]} receiveShadow raycast={() => null}>
+    <mesh 
+      position={[geometry.cx, geometry.cy, -0.005]} 
+      receiveShadow 
+      onClick={(e) => {
+        e.stopPropagation();
+        clearSelection();
+      }}
+    >
       <planeGeometry args={[geometry.w, geometry.h]} />
       <meshStandardMaterial
         color={shadingMode === 'realistic' ? undefined : '#e2e8f0'}
@@ -183,13 +190,6 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
     updateCustomColor
   } = useCadStore();
 
-  const catalogTexturas = [
-    { id: 'gesso', name: 'Gesso Liso' },
-    { id: 'tijolo', name: 'Tijolo Vermelho' },
-    { id: 'azulejo', name: 'Azulejo Branco' },
-    { id: 'concreto', name: 'Concreto Aparente' }
-  ];
-
   const [hiddenDeviceIds, setHiddenDeviceIds] = useState<Set<string>>(new Set());
   const [isTouring, setIsTouring] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -200,6 +200,75 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
   const [selectedPaletteColor, setSelectedPaletteColor] = useState<{ name: string; value: string } | null>(null);
   const [materialName, setMaterialName] = useState('');
   const [materialColor, setMaterialColor] = useState('#3b82f6');
+  const [activeCategory, setActiveCategory] = useState('cores');
+
+  const categories = useMemo(() => [
+    {
+      id: 'cores',
+      name: '🎨 Cores Sólidas',
+      items: [
+        { name: 'Branco Neve', value: '#ffffff', texture: 'gesso' },
+        { name: 'Cinza Gelo', value: '#e2e8f0', texture: 'gesso' },
+        { name: 'Cinza Chumbo', value: '#475569', texture: 'gesso' },
+        { name: 'Preto Absoluto', value: '#090d16', texture: 'gesso' },
+        { name: 'Azul Petróleo', value: '#1e3a8a', texture: 'gesso' },
+        { name: 'Verde Floresta', value: '#14532d', texture: 'gesso' },
+        { name: 'Vermelho Terracota', value: '#991b1b', texture: 'gesso' },
+        { name: 'Amarelo Mostarda', value: '#eab308', texture: 'gesso' },
+        { name: 'Bege Palha', value: '#fef08a', texture: 'gesso' }
+      ]
+    },
+    {
+      id: 'madeira',
+      name: '🪵 Pisos de Madeira',
+      items: [
+        { name: 'Carvalho Real', value: '#d97706', texture: 'madeira' },
+        { name: 'Ipê Escuro', value: '#7c2d12', texture: 'madeira' },
+        { name: 'Marfim Claro', value: '#f59e0b', texture: 'madeira' },
+        { name: 'Imbuia Nobre', value: '#451a03', texture: 'madeira' }
+      ]
+    },
+    {
+      id: 'porcelanato',
+      name: '✨ Porcelanato',
+      items: [
+        { name: 'Carrara Polido', value: '#f8fafc', texture: 'porcelanato' },
+        { name: 'Bege Carrara', value: '#f5f5f4', texture: 'porcelanato' },
+        { name: 'Cinza Polido', value: '#cbd5e1', texture: 'porcelanato' },
+        { name: 'Nero Mármore', value: '#1e293b', texture: 'porcelanato' }
+      ]
+    },
+    {
+      id: 'azulejo',
+      name: '🧱 Azulejos',
+      items: [
+        { name: 'Azulejo Branco', value: '#ffffff', texture: 'azulejo' },
+        { name: 'Pastilha Azul', value: '#38bdf8', texture: 'azulejo' },
+        { name: 'Azulejo Menta', value: '#a7f3d0', texture: 'azulejo' },
+        { name: 'Azulejo Retro Amarelo', value: '#fef08a', texture: 'azulejo' }
+      ]
+    },
+    {
+      id: 'pedras',
+      name: '🪨 Pedras e Tijolo',
+      items: [
+        { name: 'Concreto Aparente', value: '#94a3b8', texture: 'concreto' },
+        { name: 'Concreto Escuro', value: '#475569', texture: 'concreto' },
+        { name: 'Tijolo Vermelho', value: '#b91c1c', texture: 'tijolo' },
+        { name: 'Tijolo Rústico', value: '#7c2d12', texture: 'tijolo' }
+      ]
+    },
+    {
+      id: 'custom',
+      name: '⚙️ Personalizados',
+      items: customColors.map(c => ({ name: c.name, value: c.value, texture: 'gesso' }))
+    }
+  ], [customColors]);
+
+  const activeCategoryItems = useMemo(() => {
+    const cat = categories.find(c => c.id === activeCategory);
+    return cat ? cat.items : [];
+  }, [activeCategory, categories]);
 
   const projectCenter = useMemo(() => {
     if (walls.length === 0) return { x: 0, y: 0 };
@@ -553,29 +622,9 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
               return (
                 <div>
                   <div style={{ fontSize: '0.75rem', color: '#cbd5e1', marginBottom: '8px', lineHeight: '1.4' }}>
-                    <strong>🧱 Parede ({selWall.material})</strong><br />
+                    <strong>🧱 Parede ({selWall.material || 'Gesso'})</strong><br />
+                    <span>Cor: {selWall.color || 'Padrão'} | Textura: {selWall.texture || 'Nenhuma'}</span><br />
                     <span>Espessura: {selWall.thickness}m | Altura: {selWall.height}m</span>
-                  </div>
-
-                  {/* Texturas e Revestimentos de Parede */}
-                  <div style={{ marginBottom: '8px' }}>
-                    <label style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Revestimento/Textura:</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                      {catalogTexturas.map(t => (
-                        <button
-                          key={t.id}
-                          onClick={() => updateWall(selectedWallId, { texture: t.id })}
-                          style={{
-                            padding: '4px 6px', borderRadius: '4px', border: selWall.texture === t.id ? '1px solid #d97706' : '1px solid #334155',
-                            backgroundColor: selWall.texture === t.id ? 'rgba(217, 119, 6, 0.15)' : '#1e293b',
-                            color: selWall.texture === t.id ? '#f59e0b' : '#cbd5e1',
-                            fontSize: '0.7rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', cursor: 'pointer', transition: 'all 0.15s'
-                          }}
-                        >
-                          {t.name}
-                        </button>
-                      ))}
-                    </div>
                   </div>
 
                   <button
@@ -624,36 +673,57 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
           {/* Seção 2: Biblioteca de Materiais (SketchUp) */}
           <div style={{ borderTop: '1px solid #334155', paddingTop: '12px' }}>
             <h4 style={{ fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#f59e0b', margin: '0 0 10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>🎨 Biblioteca de Cores</span>
-              <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 'normal' }}>({customColors.length} materiais)</span>
+              <span>🎨 Biblioteca de Materiais</span>
             </h4>
 
-            {/* Paleta de Cores em Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px', marginBottom: '12px' }}>
-              {customColors.map(c => {
-                const isSelected = selectedPaletteColor?.value === c.value;
+            {/* Seletor de Categoria */}
+            <select
+              value={activeCategory}
+              onChange={(e) => setActiveCategory(e.target.value)}
+              style={{
+                width: '100%',
+                backgroundColor: '#090d16',
+                border: '1px solid #d97706',
+                color: '#fff',
+                padding: '6px 10px',
+                borderRadius: '6px',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                outline: 'none',
+                marginBottom: '10px'
+              }}
+            >
+              {categories.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
+
+            {/* Paleta de Cores/Materiais em Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', marginBottom: '12px' }}>
+              {activeCategoryItems.map(item => {
+                const isSelected = selectedPaletteColor?.value === item.value && (selectedWallId ? (walls.find(w => w.id === selectedWallId)?.texture === item.texture) : true);
                 return (
-                  <div key={c.value} style={{ position: 'relative', width: '100%', aspectRatio: '1' }}>
+                  <div key={`${item.value}_${item.texture}`} style={{ position: 'relative', width: '100%', aspectRatio: '1' }}>
                     <button
                       onClick={() => {
-                        setSelectedPaletteColor(c);
-                        setMaterialName(c.name);
-                        setMaterialColor(c.value);
+                        setSelectedPaletteColor({ name: item.name, value: item.value });
+                        setMaterialName(item.name);
+                        setMaterialColor(item.value);
 
-                        // Aplica cor imediatamente se houver elemento selecionado
+                        // Aplica cor e textura imediatamente
                         if (selectedWallId) {
-                          updateWall(selectedWallId, { color: c.value });
+                          updateWall(selectedWallId, { color: item.value, texture: item.texture });
                         } else if (selectedDeviceId) {
-                          updateDeviceProperties(selectedDeviceId, { color: c.value });
+                          updateDeviceProperties(selectedDeviceId, { color: item.value });
                         }
                       }}
-                      title={`${c.name} (${c.value})`}
+                      title={`${item.name} (${item.value})`}
                       style={{
                         width: '100%',
                         height: '100%',
                         borderRadius: '4px',
                         border: isSelected ? '2px solid #f59e0b' : '1px solid #475569',
-                        backgroundColor: c.value,
+                        backgroundColor: item.value,
                         cursor: 'pointer',
                         outline: 'none',
                         boxShadow: isSelected ? '0 0 6px #f59e0b' : 'none',
@@ -671,194 +741,194 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
               })}
             </div>
 
-            {/* Gerenciamento de Cores */}
-            <div style={{ backgroundColor: '#1e293b', borderRadius: '6px', padding: '10px', border: '1px solid #334155' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#cbd5e1' }}>
-                  {selectedPaletteColor ? '✏️ Editar Material' : '➕ Novo Material'}
-                </span>
-                {selectedPaletteColor && (
-                  <button
-                    onClick={() => {
-                      setSelectedPaletteColor(null);
-                      setMaterialName('');
-                      setMaterialColor('#3b82f6');
-                    }}
-                    style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.7rem', cursor: 'pointer' }}
-                  >
-                    Novo
-                  </button>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {/* Nome do Material */}
-                <div>
-                  <label style={{ fontSize: '0.65rem', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Nome:</label>
-                  <input
-                    type="text"
-                    value={materialName}
-                    onChange={(e) => setMaterialName(e.target.value)}
-                    placeholder="Ex: Tinta Parede"
-                    style={{
-                      width: '100%',
-                      backgroundColor: '#090d16',
-                      border: '1px solid #475569',
-                      borderRadius: '4px',
-                      color: '#fff',
-                      padding: '4px 6px',
-                      fontSize: '0.75rem',
-                      outline: 'none'
-                    }}
-                  />
+            {/* Gerenciamento de Cores Personalizadas (Aparece apenas na categoria Personalizados) */}
+            {activeCategory === 'custom' && (
+              <div style={{ backgroundColor: '#1e293b', borderRadius: '6px', padding: '10px', border: '1px solid #334155' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#cbd5e1' }}>
+                    {selectedPaletteColor ? '✏️ Editar Material' : '➕ Novo Material'}
+                  </span>
+                  {selectedPaletteColor && (
+                    <button
+                      onClick={() => {
+                        setSelectedPaletteColor(null);
+                        setMaterialName('');
+                        setMaterialColor('#3b82f6');
+                      }}
+                      style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.7rem', cursor: 'pointer' }}
+                    >
+                      Novo
+                    </button>
+                  )}
                 </div>
 
-                {/* Seleção de Cor */}
-                <div>
-                  <label style={{ fontSize: '0.65rem', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Cor (HEX):</label>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <input
-                      type="color"
-                      value={materialColor}
-                      onChange={(e) => setMaterialColor(e.target.value)}
-                      style={{
-                        width: '32px',
-                        height: '24px',
-                        border: 'none',
-                        padding: '0',
-                        backgroundColor: 'transparent',
-                        cursor: 'pointer'
-                      }}
-                    />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {/* Nome do Material */}
+                  <div>
+                    <label style={{ fontSize: '0.65rem', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Nome:</label>
                     <input
                       type="text"
-                      value={materialColor}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val.startsWith('#') && val.length <= 7) {
-                          setMaterialColor(val);
-                        }
-                      }}
-                      placeholder="#3b82f6"
+                      value={materialName}
+                      onChange={(e) => setMaterialName(e.target.value)}
+                      placeholder="Ex: Tinta Parede"
                       style={{
-                        flex: 1,
+                        width: '100%',
                         backgroundColor: '#090d16',
                         border: '1px solid #475569',
                         borderRadius: '4px',
                         color: '#fff',
-                        padding: '2px 6px',
+                        padding: '4px 6px',
                         fontSize: '0.75rem',
-                        outline: 'none',
-                        textTransform: 'uppercase'
+                        outline: 'none'
                       }}
                     />
                   </div>
-                </div>
 
-                {/* Botões */}
-                <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-                  {selectedPaletteColor ? (
-                    <>
+                  {/* Seleção de Cor */}
+                  <div>
+                    <label style={{ fontSize: '0.65rem', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Cor (HEX):</label>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <input
+                        type="color"
+                        value={materialColor}
+                        onChange={(e) => setMaterialColor(e.target.value)}
+                        style={{
+                          width: '32px',
+                          height: '24px',
+                          border: 'none',
+                          padding: '0',
+                          backgroundColor: 'transparent',
+                          cursor: 'pointer'
+                        }}
+                      />
+                      <input
+                        type="text"
+                        value={materialColor}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val.startsWith('#') && val.length <= 7) {
+                            setMaterialColor(val);
+                          }
+                        }}
+                        placeholder="#3b82f6"
+                        style={{
+                          flex: 1,
+                          backgroundColor: '#090d16',
+                          border: '1px solid #475569',
+                          borderRadius: '4px',
+                          color: '#fff',
+                          padding: '2px 6px',
+                          fontSize: '0.75rem',
+                          outline: 'none',
+                          textTransform: 'uppercase'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Botões */}
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                    {selectedPaletteColor ? (
+                      <>
+                        <button
+                          onClick={() => {
+                            if (!selectedPaletteColor) return;
+                            if (!materialName.trim()) {
+                              alert('Insira um nome para o material.');
+                              return;
+                            }
+                            const oldValue = selectedPaletteColor.value;
+                            const newValue = materialColor;
+                            const newName = materialName;
+
+                            // 1. Atualizar paleta na store
+                            updateCustomColor(oldValue, newValue, newName);
+
+                            // 2. Cascata nas paredes
+                            walls.forEach(w => {
+                              if (w.color === oldValue) {
+                                updateWall(w.id, { color: newValue });
+                              }
+                            });
+
+                            // 3. Cascata nos objetos
+                            devices.forEach(d => {
+                              if (d.color === oldValue) {
+                                updateDeviceProperties(d.id, { color: newValue });
+                              }
+                            });
+
+                            setSelectedPaletteColor({ name: newName, value: newValue });
+                            alert('Material atualizado com sucesso!');
+                          }}
+                          style={{
+                            flex: 1, backgroundColor: '#f59e0b', color: '#000', border: 'none',
+                            borderRadius: '4px', padding: '6px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer'
+                          }}
+                        >
+                          Salvar
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (!selectedPaletteColor) return;
+                            const oldValue = selectedPaletteColor.value;
+
+                            // 1. Remover da store
+                            removeCustomColor(oldValue);
+
+                            // 2. Cascata: remover cor dos elementos afetados
+                            walls.forEach(w => {
+                              if (w.color === oldValue) {
+                                updateWall(w.id, { color: undefined });
+                              }
+                            });
+                            devices.forEach(d => {
+                              if (d.color === oldValue) {
+                                updateDeviceProperties(d.id, { color: undefined });
+                              }
+                            });
+
+                            setSelectedPaletteColor(null);
+                            setMaterialName('');
+                            setMaterialColor('#3b82f6');
+                            alert('Material excluído!');
+                          }}
+                          style={{
+                            backgroundColor: '#ef4444', color: '#fff', border: 'none',
+                            borderRadius: '4px', padding: '6px 10px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer'
+                          }}
+                        >
+                          Excluir
+                        </button>
+                      </>
+                    ) : (
                       <button
                         onClick={() => {
-                          if (!selectedPaletteColor) return;
                           if (!materialName.trim()) {
                             alert('Insira um nome para o material.');
                             return;
                           }
-                          const oldValue = selectedPaletteColor.value;
-                          const newValue = materialColor;
-                          const newName = materialName;
+                          if (customColors.some(c => c.value.toLowerCase() === materialColor.toLowerCase())) {
+                            alert('Já existe um material com esta cor na paleta.');
+                            return;
+                          }
 
-                          // 1. Atualizar paleta na store
-                          updateCustomColor(oldValue, newValue, newName);
-
-                          // 2. Cascata nas paredes
-                          walls.forEach(w => {
-                            if (w.color === oldValue) {
-                              updateWall(w.id, { color: newValue });
-                            }
-                          });
-
-                          // 3. Cascata nos objetos
-                          devices.forEach(d => {
-                            if (d.color === oldValue) {
-                              updateDeviceProperties(d.id, { color: newValue });
-                            }
-                          });
-
-                          setSelectedPaletteColor({ name: newName, value: newValue });
-                          alert('Material atualizado com sucesso!');
+                          addCustomColor({ name: materialName, value: materialColor });
+                          setMaterialName('');
+                          setMaterialColor('#3b82f6');
                         }}
                         style={{
-                          flex: 1, backgroundColor: '#f59e0b', color: '#000', border: 'none',
+                          width: '100%', backgroundColor: '#10b981', color: '#fff', border: 'none',
                           borderRadius: '4px', padding: '6px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer'
                         }}
                       >
-                        Salvar
+                        Criar Material
                       </button>
-                      <button
-                        onClick={() => {
-                          if (!selectedPaletteColor) return;
-                          const oldValue = selectedPaletteColor.value;
-
-                          // 1. Remover da store
-                          removeCustomColor(oldValue);
-
-                          // 2. Cascata: remover cor dos elementos afetados
-                          walls.forEach(w => {
-                            if (w.color === oldValue) {
-                              updateWall(w.id, { color: undefined });
-                            }
-                          });
-                          devices.forEach(d => {
-                            if (d.color === oldValue) {
-                              updateDeviceProperties(d.id, { color: undefined });
-                            }
-                          });
-
-                          setSelectedPaletteColor(null);
-                          setMaterialName('');
-                          setMaterialColor('#3b82f6');
-                          alert('Material excluído!');
-                        }}
-                        style={{
-                          backgroundColor: '#ef4444', color: '#fff', border: 'none',
-                          borderRadius: '4px', padding: '6px 10px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer'
-                        }}
-                      >
-                        Excluir
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        if (!materialName.trim()) {
-                          alert('Insira um nome para o material.');
-                          return;
-                        }
-                        // Verifica se já existe um material com o mesmo valor HEX ou nome para evitar duplicados
-                        if (customColors.some(c => c.value.toLowerCase() === materialColor.toLowerCase())) {
-                          alert('Já existe um material com esta cor na paleta.');
-                          return;
-                        }
-
-                        addCustomColor({ name: materialName, value: materialColor });
-                        setMaterialName('');
-                        setMaterialColor('#3b82f6');
-                      }}
-                      style={{
-                        width: '100%', backgroundColor: '#10b981', color: '#fff', border: 'none',
-                        borderRadius: '4px', padding: '6px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer'
-                      }}
-                    >
-                      Criar Material
-                    </button>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-
+            )}
           </div>
 
         </div>

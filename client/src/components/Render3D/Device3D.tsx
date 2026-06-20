@@ -385,38 +385,27 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
       );
     })();
 
-    if (isSelected && shadingMode !== 'wireframe') {
-      return (
-        <TransformControls
-          ref={transformRef}
-          mode="translate"
-          onObjectChange={handleTransform}
-        >
-          <group
-            ref={groupRef}
-            name={deviceProp.id}
-            position={[renderX, renderY, computedZ]} // Usa posição projetada
-            rotation={[0, 0, renderRotation]} // Usa rotação projetada
-            onClick={handleSelect}
-          >
-            <Device3D device={deviceProp} isInner={true} />
-            {selectionBox}
-          </group>
-        </TransformControls>
-      );
-    }
-
     return (
-      <group
-        ref={groupRef}
-        name={deviceProp.id}
-        position={[renderX, renderY, computedZ]} // Usa posição projetada
-        rotation={[0, 0, renderRotation]} // Usa rotação projetada
-        onClick={handleSelect}
-      >
-        <Device3D device={deviceProp} isInner={true} />
-        {selectionBox}
-      </group>
+      <>
+        <group
+          ref={groupRef}
+          name={deviceProp.id}
+          position={[renderX, renderY, computedZ]} // Usa posição projetada
+          rotation={[0, 0, renderRotation]} // Usa rotação projetada
+          onClick={handleSelect}
+        >
+          <Device3D device={deviceProp} isInner={true} />
+          {selectionBox}
+        </group>
+        {isSelected && shadingMode !== 'wireframe' && (
+          <TransformControls
+            ref={transformRef}
+            object={groupRef as any}
+            mode="translate"
+            onObjectChange={handleTransform}
+          />
+        )}
+      </>
     );
   }
 

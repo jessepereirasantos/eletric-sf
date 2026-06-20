@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useCadStore } from '../store/useCadStore';
 import { BottomBar } from '../components/BottomBar';
 import { dimensionateCircuit } from '../utils/nbr5410';
+import { calculateWiringRouting } from '../utils/pathfinding';
 import type { Sheet } from '../types';
 
 interface SheetsViewProps {
@@ -205,10 +206,23 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
     const vb = `${minX - margin} ${minY - margin} ${wSVG} ${hSVG}`;
 
     const { conduits } = useCadStore.getState();
+    const wiringRouting = calculateWiringRouting(devices, conduits, circuits) || {};
 
     return (
       <svg viewBox={vb} style={{ width: '100%', height: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}>
-        {/* Paredes - Duas linhas paralelas sem cor interna */}
+        <style>
+          {`
+            text {
+              font-family: Arial, Helvetica, sans-serif;
+              font-weight: bold;
+            }
+            line, polyline, path, rect, circle, polygon {
+              vector-effect: non-scaling-stroke;
+            }
+          `}
+        </style>
+
+        {/* Paredes - Polígonos Fechados com Preenchimento Branco para Ocultar Fiação */}
         {walls.map(w => {
           const dx = w.p2.x - w.p1.x;
           const dy = w.p2.y - w.p1.y;
@@ -231,27 +245,120 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
           const p2b_x = w.p2.x - halfT * nx;
           const p2b_y = w.p2.y - halfT * ny;
 
+          const pts = `${p1a_x},${p1a_y} ${p2a_x},${p2a_y} ${p2b_x},${p2b_y} ${p1b_x},${p1b_y}`;
           return (
-            <g key={w.id}>
-              <line x1={p1a_x} y1={p1a_y} x2={p2a_x} y2={p2a_y} stroke="#000000" strokeWidth="0.02" />
-              <line x1={p1b_x} y1={p1b_y} x2={p2b_x} y2={p2b_y} stroke="#000000" strokeWidth="0.02" />
-            </g>
+            <polygon
+              key={w.id}
+              points={pts}
+              fill="#ffffff"
+              stroke="#000000"
+              strokeWidth="0.015"
+            />
           );
         })}
         
-        {/* Conduítes */}
+        {/* Conduítes e Anotações de Fiações Reais */}
         {conduits.map(c => {
           const from = devices.find(d => d.id === c.fromDeviceId);
           const to = devices.find(d => d.id === c.toDeviceId);
           if (!from || !to) return null;
+          
+          let conduitMarkup = null;
+          let ptsList: { x: number; y: number }[] = [{ x: from.x, y: from.y }, { x: to.x, y: to.y }];
           if (c.waypoints && c.waypoints.length > 0) {
-            const pts = [from, ...c.waypoints, to].map(p => `${p.x},${p.y}`).join(' ');
-            return <polyline key={c.id} points={pts} fill="none" stroke="#64748b" strokeWidth="0.04" strokeDasharray="0.1, 0.08" />;
+            ptsList = [{ x: from.x, y: from.y }, ...c.waypoints, { x: to.x, y: to.y }];
+            const ptsStr = ptsList.map(p => `${p.x},${p.y}`).join(' ');
+            conduitMarkup = <polyline points={ptsStr} fill="none" stroke="#64748b" strokeWidth="0.03" strokeDasharray="0.1, 0.08" />;
+          } else {
+            conduitMarkup = <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#64748b" strokeWidth="0.03" strokeDasharray="0.1, 0.08" />;
           }
-          return <line key={c.id} x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#64748b" strokeWidth="0.04" strokeDasharray="0.1, 0.08" />;
+
+          // Ponto médio e ângulo do segmento central
+          const midIdx = Math.floor(ptsList.length / 2);
+          const P1 = ptsList[midIdx - 1];
+          const P2 = ptsList[midIdx];
+          const midX = (P1.x + P2.x) / 2;
+          const midY = (P1.y + P2.y) / 2;
+          const dx = P2.x - P1.x;
+          const dy = P2.y - P1.y;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          let angleDeg = 0;
+          if (len > 0) {
+            angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
+          }
+
+          const wires = wiringRouting[c.id] || [];
+          if (wires.length === 0) {
+            return <g key={c.id}>{conduitMarkup}</g>;
+          }
+
+          return (
+            <g key={c.id}>
+              {conduitMarkup}
+              <g transform={`translate(${midX}, ${midY}) rotate(${angleDeg})`}>
+                <circle cx={0} cy={0} r={0.12 * Math.max(1, wires.length)} fill="#ffffff" opacity={0.95} stroke="#cbd5e1" strokeWidth="0.01" />
+                {wires.map((wire: any, wIdx: number) => {
+                  const elements: React.ReactNode[] = [];
+                  const xOffset = (wIdx - (wires.length - 1) / 2) * 0.14;
+                  
+                  const totalWires = wire.phase + wire.neutral + wire.ground + wire.ret;
+                  const traceSpacing = 0.03;
+                  let off = -((totalWires - 1) * traceSpacing) / 2;
+
+                  // Fase
+                  for (let i = 0; i < wire.phase; i++) {
+                    elements.push(<line key={`f-${wIdx}-${i}`} x1={xOffset + off} y1={-0.06} x2={xOffset + off} y2={0.06} stroke="#dc2626" strokeWidth="0.012" />);
+                    off += traceSpacing;
+                  }
+                  // Neutro
+                  for (let i = 0; i < wire.neutral; i++) {
+                    elements.push(
+                      <g key={`n-${wIdx}-${i}`}>
+                        <line x1={xOffset + off} y1={0} x2={xOffset + off} y2={-0.06} stroke="#2563eb" strokeWidth="0.012" />
+                        <line x1={xOffset + off} y1={-0.06} x2={xOffset + off + 0.02} y2={-0.06} stroke="#2563eb" strokeWidth="0.012" />
+                      </g>
+                    );
+                    off += traceSpacing;
+                  }
+                  // Terra
+                  for (let i = 0; i < wire.ground; i++) {
+                    elements.push(
+                      <g key={`g-${wIdx}-${i}`}>
+                        <line x1={xOffset + off} y1={0} x2={xOffset + off} y2={-0.06} stroke="#16a34a" strokeWidth="0.012" />
+                        <line x1={xOffset + off - 0.015} y1={-0.06} x2={xOffset + off + 0.015} y2={-0.06} stroke="#16a34a" strokeWidth="0.012" />
+                      </g>
+                    );
+                    off += traceSpacing;
+                  }
+                  // Retorno
+                  for (let i = 0; i < wire.ret; i++) {
+                    elements.push(<line key={`r-${wIdx}-${i}`} x1={xOffset + off} y1={0} x2={xOffset + off} y2={-0.04} stroke="#ca8a04" strokeWidth="0.012" />);
+                    off += traceSpacing;
+                  }
+
+                  // Número de circuito horizontalizado
+                  elements.push(
+                    <text
+                      key={`lbl-${wIdx}`}
+                      x={xOffset}
+                      y={0.13}
+                      fontSize="0.08"
+                      fontWeight="bold"
+                      textAnchor="middle"
+                      fill="#374151"
+                      transform={`rotate(${-angleDeg})`}
+                    >
+                      {wire.circuitNumber.toString()}
+                    </text>
+                  );
+                  return elements;
+                })}
+              </g>
+            </g>
+          );
         })}
 
-        {/* Portas/Janelas */}
+        {/* Portas e Janelas */}
         {devices.filter(d => d.type.startsWith('door') || d.type === 'window' || d.type === 'open_van').map(d => {
           const isDoor = d.type.startsWith('door');
           const isGiro = d.type === 'door' || d.type === 'door_pivotante';
@@ -262,19 +369,19 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
               <g transform={isGiro && d.flip ? 'scale(-1, 1)' : undefined}>
                 {isGiro ? (
                   <>
-                    <rect x={0} y={-0.03} width={w} height={0.06} fill={color} stroke="#000000" strokeWidth="0.015" opacity={0.8} />
-                    <line x1={0} y1={0} x2={0} y2={-w} stroke="#000000" strokeWidth="0.02" />
+                    <rect x={0} y={-0.03} width={w} height={0.06} fill={color} stroke="#000000" strokeWidth="0.015" opacity={0.85} />
+                    <line x1={0} y1={0} x2={0} y2={-w} stroke="#000000" strokeWidth="0.015" />
                     <path d={`M 0,${-w} A ${w},${w} 0 0,1 ${w},0`} fill="none" stroke="#000000" strokeWidth="0.01" strokeDasharray="0.04, 0.04" />
                   </>
                 ) : (
-                  <rect x={-w / 2} y={-0.03} width={w} height={0.06} fill={color} stroke="#000000" strokeWidth="0.015" opacity={0.8} />
+                  <rect x={-w / 2} y={-0.03} width={w} height={0.06} fill={color} stroke="#000000" strokeWidth="0.015" opacity={0.85} />
                 )}
               </g>
             </g>
           );
         })}
 
-        {/* Dispositivos elétricos técnicos (NBR 5444 / 5410) */}
+        {/* Dispositivos Técnicos (NBR 5444 / NBR 5410) */}
         {devices.filter(d => !d.type.startsWith('door') && d.type !== 'window' && d.type !== 'open_van').map(d => {
           const S = 0.20;
           const H = S / 2;
@@ -287,11 +394,11 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
           if (['sofa', 'geladeira', 'fogao', 'cama', 'mesa_jantar'].includes(d.type)) {
             let boxW = 1.0, boxD = 1.0;
             let fillColor = '#ffffff';
-            if (d.type === 'sofa') { boxW = d.width ?? 1.8; boxD = 0.85; fillColor = '#f3f4f6'; }
-            else if (d.type === 'geladeira') { boxW = d.width ?? 0.7; boxD = 0.7; fillColor = '#f3f4f6'; }
-            else if (d.type === 'fogao') { boxW = d.width ?? 0.7; boxD = 0.6; fillColor = '#f3f4f6'; }
-            else if (d.type === 'cama') { boxW = d.width ?? 1.6; boxD = 2.0; fillColor = '#f3f4f6'; }
-            else if (d.type === 'mesa_jantar') { boxW = d.width ?? 1.2; boxD = 0.8; fillColor = '#f3f4f6'; }
+            if (d.type === 'sofa') { boxW = d.width ?? 1.8; boxD = 0.85; fillColor = '#f8fafc'; }
+            else if (d.type === 'geladeira') { boxW = d.width ?? 0.7; boxD = 0.7; fillColor = '#f8fafc'; }
+            else if (d.type === 'fogao') { boxW = d.width ?? 0.7; boxD = 0.6; fillColor = '#f8fafc'; }
+            else if (d.type === 'cama') { boxW = d.width ?? 1.6; boxD = 2.0; fillColor = '#f8fafc'; }
+            else if (d.type === 'mesa_jantar') { boxW = d.width ?? 1.2; boxD = 0.8; fillColor = '#f8fafc'; }
             
             return (
               <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
@@ -300,7 +407,8 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
             );
           }
 
-          const isTomadaBaixa = d.type === 'tomada_baixa' || d.type === 'tug_baixa';
+          // Tomadas
+          const isTomadaBaixa = d.type === 'tomada_baixa' || d.type === 'tug_baixa' || d.type === 'tomada_10a_nbr' || d.type === 'tomada_20a';
           const isTomadaMedia = d.type === 'tomada_media' || d.type === 'tug_media';
           const isTomadaAlta = d.type === 'tomada_alta' || d.type === 'tug_alta' || d.type === 'tue_chuveiro' || d.type === 'tue_ar' || d.type === 'tomada_220';
 
@@ -342,10 +450,14 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
             );
           }
 
+          // Interruptores
           const isInterruptor = d.type.includes('switch') || d.type.includes('interruptor') || d.type === 'sensor_presenca';
           if (isInterruptor) {
             const isParallel = d.type === 'switch_parallel';
             const isIntermediate = d.type === 'switch_intermediate';
+            const isDuplo = d.type === 'interruptor_duplo';
+            const isTriplo = d.type === 'interruptor_triplo';
+            
             let circleFill = '#ffffff';
             if (isParallel) circleFill = '#000000';
 
@@ -353,13 +465,33 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
               <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
                 <g transform={`translate(0, ${wallOffset})`}>
                   <line x1={-H * 1.3} y1={0} x2={H * 1.3} y2={0} stroke="#000000" strokeWidth="0.02" />
-                  <line x1={0} y1={0} x2={0} y2={-H * 1.5} stroke="#000000" strokeWidth="0.015" />
-                  <circle cx={0} cy={-H * 1.5} r={H * 0.5} fill={circleFill} stroke="#000000" strokeWidth="0.015" />
                   
-                  {isIntermediate && (
-                    <path d={`M 0,${-H * 2.0} A ${H * 0.5},${H * 0.5} 0 0,1 0,${-H}`} fill="#000000" stroke="#000000" strokeWidth="0.015" />
+                  {isDuplo ? (
+                    <>
+                      <line x1={-H * 0.3} y1={0} x2={-H * 0.3} y2={-H * 1.5} stroke="#000000" strokeWidth="0.015" />
+                      <line x1={H * 0.3} y1={0} x2={H * 0.3} y2={-H * 1.5} stroke="#000000" strokeWidth="0.015" />
+                      <circle cx={-H * 0.3} cy={-H * 1.5} r={H * 0.4} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+                      <circle cx={H * 0.3} cy={-H * 1.5} r={H * 0.4} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+                    </>
+                  ) : isTriplo ? (
+                    <>
+                      <line x1={-H * 0.5} y1={0} x2={-H * 0.5} y2={-H * 1.5} stroke="#000000" strokeWidth="0.015" />
+                      <line x1={0} y1={0} x2={0} y2={-H * 1.5} stroke="#000000" strokeWidth="0.015" />
+                      <line x1={H * 0.5} y1={0} x2={H * 0.5} y2={-H * 1.5} stroke="#000000" strokeWidth="0.015" />
+                      <circle cx={-H * 0.5} cy={-H * 1.5} r={H * 0.35} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+                      <circle cx={0} cy={-H * 1.5} r={H * 0.35} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+                      <circle cx={H * 0.5} cy={-H * 1.5} r={H * 0.35} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+                    </>
+                  ) : (
+                    <>
+                      <line x1={0} y1={0} x2={0} y2={-H * 1.5} stroke="#000000" strokeWidth="0.015" />
+                      <circle cx={0} cy={-H * 1.5} r={H * 0.5} fill={circleFill} stroke="#000000" strokeWidth="0.015" />
+                      {isIntermediate && (
+                        <path d={`M 0,${-H * 2.0} A ${H * 0.5},${H * 0.5} 0 0,1 0,${-H}`} fill="#000000" stroke="#000000" strokeWidth="0.015" />
+                      )}
+                    </>
                   )}
-
+                  
                   <text x={H * 0.7} y={-H * 1.6} fontSize="0.10" fontWeight="bold" fill="#000000">
                     {`${d.commandLetter ?? 'a'}${circNum}`}
                   </text>
@@ -368,6 +500,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
             );
           }
 
+          // Lâmpadas no Teto
           if (d.type === 'ceiling_light' || d.type === 'lampada') {
             return (
               <g key={d.id} transform={`translate(${d.x}, ${d.y})`}>
@@ -382,6 +515,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
             );
           }
 
+          // Arandelas
           if (d.type === 'sconce' || d.type === 'lampada_parede') {
             return (
               <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
@@ -398,6 +532,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
             );
           }
 
+          // Fluorescentes
           if (d.type === 'fluorescent') {
             return (
               <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
@@ -412,18 +547,20 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
             );
           }
 
+          // QDC
           if (d.type === 'qdc') {
             return (
               <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
                 <rect x={-S} y={-H} width={S * 2} height={S} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
-                <line x1={-S * 0.4} y1={-H} x2={-S * 0.4} y2={H * 0} stroke="#000000" strokeWidth="0.01" />
-                <line x1={0} y1={-H} x2={0} y2={H * 0} stroke="#000000" strokeWidth="0.01" />
-                <line x1={S * 0.4} y1={-H} x2={S * 0.4} y2={H * 0} stroke="#000000" strokeWidth="0.01" />
+                <line x1={-S * 0.4} y1={-H} x2={-S * 0.4} y2={H * 0} stroke="#000000" strokeWidth="0.015" />
+                <line x1={0} y1={-H} x2={0} y2={H * 0} stroke="#000000" strokeWidth="0.015" />
+                <line x1={S * 0.4} y1={-H} x2={S * 0.4} y2={H * 0} stroke="#000000" strokeWidth="0.015" />
                 <text x="0" y={H * 1.5} fontSize="0.10" fontWeight="bold" textAnchor="middle" fill="#000000">QDC</text>
               </g>
             );
           }
 
+          // Caixas de Passagem (Octogonal, 4x2, 4x4)
           if (d.type === 'box_octogonal') {
             const octR = H;
             const octPoints = Array.from({ length: 8 }).map((_, i) => {
@@ -434,18 +571,53 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
             return (
               <g key={d.id} transform={`translate(${d.x}, ${d.y})`}>
                 <polygon points={octPoints} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+                <line x1={-H * 0.7} y1={-H * 0.7} x2={H * 0.7} y2={H * 0.7} stroke="#475569" strokeWidth="0.01" strokeDasharray="0.02, 0.02" />
+                <line x1={-H * 0.7} y1={H * 0.7} x2={H * 0.7} y2={-H * 0.7} stroke="#475569" strokeWidth="0.01" strokeDasharray="0.02, 0.02" />
               </g>
             );
           }
-
           if (d.type === 'box_4x2') {
             return (
               <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
                 <rect x={-H} y={-thickness / 2} width={S} height={thickness} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+                <line x1={-H} y1={-thickness / 2} x2={H} y2={thickness / 2} stroke="#475569" strokeWidth="0.01" strokeDasharray="0.02, 0.02" />
+                <line x1={-H} y1={thickness / 2} x2={H} y2={-thickness / 2} stroke="#475569" strokeWidth="0.01" strokeDasharray="0.02, 0.02" />
+              </g>
+            );
+          }
+          if (d.type === 'box_4x4') {
+            return (
+              <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
+                <rect x={-H} y={-H} width={S} height={S} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+                <line x1={-H} y1={-H} x2={H} y2={H} stroke="#475569" strokeWidth="0.01" strokeDasharray="0.02, 0.02" />
+                <line x1={-H} y1={H} x2={H} y2={-H} stroke="#475569" strokeWidth="0.01" strokeDasharray="0.02, 0.02" />
               </g>
             );
           }
 
+          // Poste
+          if (d.type === 'poste') {
+            return (
+              <g key={d.id} transform={`translate(${d.x}, ${d.y})`}>
+                <circle cx={0} cy={0} r={H} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+                <circle cx={0} cy={0} r={H * 0.6} fill="#ffffff" stroke="#000000" strokeWidth="0.01" />
+                <text x="0" y={H * 0.25} fontSize="0.10" fontWeight="bold" textAnchor="middle" fill="#000000">R</text>
+              </g>
+            );
+          }
+
+          // Medidor
+          if (d.type === 'meter') {
+            return (
+              <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
+                <rect x={-H} y={-H} width={S} height={S} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+                <circle cx={0} cy={0} r={H * 0.45} fill="#ffffff" stroke="#000000" strokeWidth="0.01" />
+                <text x="0" y={H * 0.7} fontSize="0.07" fontWeight="bold" textAnchor="middle" fill="#000000">kWh</text>
+              </g>
+            );
+          }
+
+          // Outros Dispositivos / Default
           return (
             <circle key={d.id} cx={d.x} cy={d.y} r="0.08" fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
           );
