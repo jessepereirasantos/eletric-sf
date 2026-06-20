@@ -9,7 +9,14 @@ interface Wall3DProps {
 }
 
 export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
-  const { shadingMode, clippingState, wallColor } = useCadStore();
+  const { 
+    shadingMode, 
+    clippingState, 
+    wallColor, 
+    selectedWallId, 
+    setSelectedWallId, 
+    setSelectedDeviceId 
+  } = useCadStore();
 
   const p1y = -wall.p1.y;
   const p2y = -wall.p2.y;
@@ -23,29 +30,34 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
   // Obter vãos livres (cutouts) ordenados
   const cutouts = wall.cutouts || [];
 
-  // Definir materiais com base nas propriedades da parede
+  // Definir materiais com base nas propriedades individuais ou globais da parede
   const getMaterialProperties = () => {
+    const wallCol = wall.color || wallColor || '#cbd5e1';
+    const wallTex = wall.texture || 'gesso';
+    
     let texture = undefined;
-    if (shadingMode === 'realistic' && wall.material === 'alvenaria') {
-      texture = TextureGenerator.getWallPaint(wallColor || '#ffffff');
+    if (shadingMode === 'realistic') {
+      if (wallTex === 'tijolo') {
+        texture = TextureGenerator.getTijolo(wallCol);
+      } else if (wallTex === 'azulejo') {
+        texture = TextureGenerator.getAzulejo(wallCol);
+      } else if (wallTex === 'concreto') {
+        texture = TextureGenerator.getConcretoAparente();
+      } else {
+        texture = TextureGenerator.getWallPaint(wallCol);
+      }
     }
 
-    switch (wall.material) {
-      case 'concreto':
-        return { color: '#64748b', roughness: 0.8, metalness: 0.2, map: undefined };
-      case 'drywall':
-        return { color: '#f8fafc', roughness: 0.9, metalness: 0.0, map: undefined };
-      case 'vidro':
-        return { color: '#93c5fd', roughness: 0.1, metalness: 0.9, transparent: true, opacity: 0.4, map: undefined };
-      case 'alvenaria':
-      default:
-        return {
-          color: shadingMode === 'realistic' ? (wallColor || '#cbd5e1') : '#cbd5e1',
-          roughness: 0.7,
-          metalness: 0.1,
-          map: texture
-        };
+    if (wall.material === 'vidro') {
+      return { color: '#93c5fd', roughness: 0.1, metalness: 0.9, transparent: true, opacity: 0.4, map: undefined };
     }
+
+    return {
+      color: shadingMode === 'realistic' ? undefined : wallCol,
+      roughness: wallTex === 'concreto' ? 0.8 : 0.6,
+      metalness: wallTex === 'concreto' ? 0.15 : 0.05,
+      map: texture
+    };
   };
 
   const matProps = getMaterialProperties();
@@ -53,15 +65,24 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
   // Planos de corte dinâmicos (Clipping Planes)
   const clippingPlanes = useMemo(() => {
     if (!clippingState.enabled) return [];
-    let normal = new THREE.Vector3(0, 0, -1); // Cortar acima de Z
-    if (clippingState.axis === 'X') normal = new THREE.Vector3(-1, 0, 0); // Corta lado X+
-    if (clippingState.axis === '-X') normal = new THREE.Vector3(1, 0, 0); // Corta lado X-
-    if (clippingState.axis === 'Y') normal = new THREE.Vector3(0, -1, 0); // Corta lado Y+
-    if (clippingState.axis === '-Y') normal = new THREE.Vector3(0, 1, 0);  // Corta lado Y-
-    if (clippingState.axis === 'Z') normal = new THREE.Vector3(0, 0, -1);  // Corta topo Z
-    if (clippingState.axis === '-Z') normal = new THREE.Vector3(0, 0, 1);  // Corta base Z
+    let normal = new THREE.Vector3(0, 0, -1);
+    if (clippingState.axis === 'X') normal = new THREE.Vector3(-1, 0, 0);
+    if (clippingState.axis === '-X') normal = new THREE.Vector3(1, 0, 0);
+    if (clippingState.axis === 'Y') normal = new THREE.Vector3(0, -1, 0);
+    if (clippingState.axis === '-Y') normal = new THREE.Vector3(0, 1, 0);
+    if (clippingState.axis === 'Z') normal = new THREE.Vector3(0, 0, -1);
+    if (clippingState.axis === '-Z') normal = new THREE.Vector3(0, 0, 1);
     return [new THREE.Plane(normal, clippingState.value)];
   }, [clippingState]);
+
+  // Função genérica de clique na parede
+  const handleWallClick = (e: any) => {
+    e.stopPropagation();
+    setSelectedWallId(wall.id);
+    setSelectedDeviceId(null); // desmarca dispositivo
+  };
+
+  const isSelected = selectedWallId === wall.id;
 
   // 1. Calcular os segmentos cheios da parede (onde não há vãos)
   const segments: { start: number; end: number }[] = [];
@@ -87,21 +108,34 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
     const y = p1y + centerDist * dy;
 
     return (
-      <mesh key={`full-${idx}`} position={[x, y, wall.height / 2]} rotation={[0, 0, angle]} raycast={() => null}>
-        <boxGeometry args={[segL, wall.thickness, wall.height]} />
-        <meshStandardMaterial
-          {...matProps}
-          wireframe={shadingMode === 'wireframe'}
-          transparent={shadingMode === 'transparent' || matProps.transparent}
-          opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
-          clippingPlanes={clippingPlanes}
-          clipShadows={true}
-        />
-      </mesh>
+      <group key={`full-group-${idx}`}>
+        <mesh 
+          position={[x, y, wall.height / 2]} 
+          rotation={[0, 0, angle]}
+          onClick={handleWallClick}
+        >
+          <boxGeometry args={[segL, wall.thickness, wall.height]} />
+          <meshStandardMaterial
+            {...matProps}
+            wireframe={shadingMode === 'wireframe'}
+            transparent={shadingMode === 'transparent' || matProps.transparent}
+            opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
+            clippingPlanes={clippingPlanes}
+            clipShadows={true}
+          />
+        </mesh>
+        {/* Contorno de Seleção Aramado */}
+        {isSelected && (
+          <mesh position={[x, y, wall.height / 2]} rotation={[0, 0, angle]}>
+            <boxGeometry args={[segL + 0.02, wall.thickness + 0.02, wall.height + 0.02]} />
+            <meshBasicMaterial color="#eab308" wireframe={true} transparent={true} opacity={0.8} />
+          </mesh>
+        )}
+      </group>
     );
   });
 
-  // 3. Renderizar as partes acima de portas/vãos livres (lintéis/headers) e acima/abaixo de janelas
+  // 3. Renderizar as partes acima de portas/vãos livres e acima/abaixo de janelas
   const { devices } = useCadStore();
 
   const cutoutFills = cutouts.map((c, idx) => {
@@ -110,13 +144,10 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
     const x = wall.p1.x + centerDist * dx;
     const y = p1y + centerDist * dy;
 
-    // Buscar o dispositivo correspondente ao cutout para ler dimensões dinâmicas
     const dev = devices.find(d => d.id === c.deviceId);
-
     const isWindow = c.deviceId.includes('window') || (dev && dev.type === 'window');
 
     if (isWindow) {
-      // Para janela, lê peitoril e altura paramétrica
       const peitoril = dev?.peitoril ?? 1.00;
       const windowH = dev?.height3d ?? 1.10;
       const belowHeight = peitoril;
@@ -126,21 +157,69 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
         <React.Fragment key={`cutout-fill-${idx}`}>
           {/* Parede abaixo da janela */}
           {belowHeight > 0.01 && (
-            <mesh position={[x, y, belowHeight / 2]} rotation={[0, 0, angle]} raycast={() => null}>
-              <boxGeometry args={[cL, wall.thickness, belowHeight]} />
-              <meshStandardMaterial
-                {...matProps}
-                wireframe={shadingMode === 'wireframe'}
-                transparent={shadingMode === 'transparent' || matProps.transparent}
-                opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
-                clippingPlanes={clippingPlanes}
-                clipShadows={true}
-              />
-            </mesh>
+            <group>
+              <mesh 
+                position={[x, y, belowHeight / 2]} 
+                rotation={[0, 0, angle]}
+                onClick={handleWallClick}
+              >
+                <boxGeometry args={[cL, wall.thickness, belowHeight]} />
+                <meshStandardMaterial
+                  {...matProps}
+                  wireframe={shadingMode === 'wireframe'}
+                  transparent={shadingMode === 'transparent' || matProps.transparent}
+                  opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
+                  clippingPlanes={clippingPlanes}
+                  clipShadows={true}
+                />
+              </mesh>
+              {isSelected && (
+                <mesh position={[x, y, belowHeight / 2]} rotation={[0, 0, angle]}>
+                  <boxGeometry args={[cL + 0.02, wall.thickness + 0.02, belowHeight + 0.02]} />
+                  <meshBasicMaterial color="#eab308" wireframe={true} transparent={true} opacity={0.8} />
+                </mesh>
+              )}
+            </group>
           )}
           {/* Parede acima da janela */}
           {aboveHeight > 0.01 && (
-            <mesh position={[x, y, wall.height - aboveHeight / 2]} rotation={[0, 0, angle]} raycast={() => null}>
+            <group>
+              <mesh 
+                position={[x, y, wall.height - aboveHeight / 2]} 
+                rotation={[0, 0, angle]}
+                onClick={handleWallClick}
+              >
+                <boxGeometry args={[cL, wall.thickness, aboveHeight]} />
+                <meshStandardMaterial
+                  {...matProps}
+                  wireframe={shadingMode === 'wireframe'}
+                  transparent={shadingMode === 'transparent' || matProps.transparent}
+                  opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
+                  clippingPlanes={clippingPlanes}
+                  clipShadows={true}
+                />
+              </mesh>
+              {isSelected && (
+                <mesh position={[x, y, wall.height - aboveHeight / 2]} rotation={[0, 0, angle]}>
+                  <boxGeometry args={[cL + 0.02, wall.thickness + 0.02, aboveHeight + 0.02]} />
+                  <meshBasicMaterial color="#eab308" wireframe={true} transparent={true} opacity={0.8} />
+                </mesh>
+              )}
+            </group>
+          )}
+        </React.Fragment>
+      );
+    } else {
+      const doorH = dev?.height3d ?? 2.10;
+      const aboveHeight = Math.max(0.01, wall.height - doorH);
+      return (
+        aboveHeight > 0.01 ? (
+          <group key={`cutout-fill-${idx}`}>
+            <mesh 
+              position={[x, y, wall.height - aboveHeight / 2]} 
+              rotation={[0, 0, angle]}
+              onClick={handleWallClick}
+            >
               <boxGeometry args={[cL, wall.thickness, aboveHeight]} />
               <meshStandardMaterial
                 {...matProps}
@@ -151,26 +230,13 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
                 clipShadows={true}
               />
             </mesh>
-          )}
-        </React.Fragment>
-      );
-    } else {
-      // Para portas e vãos livres, lê a altura da porta paramétrica
-      const doorH = dev?.height3d ?? 2.10;
-      const aboveHeight = Math.max(0.01, wall.height - doorH);
-      return (
-        aboveHeight > 0.01 ? (
-          <mesh key={`cutout-fill-${idx}`} position={[x, y, wall.height - aboveHeight / 2]} rotation={[0, 0, angle]} raycast={() => null}>
-            <boxGeometry args={[cL, wall.thickness, aboveHeight]} />
-            <meshStandardMaterial
-              {...matProps}
-              wireframe={shadingMode === 'wireframe'}
-              transparent={shadingMode === 'transparent' || matProps.transparent}
-              opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
-              clippingPlanes={clippingPlanes}
-              clipShadows={true}
-            />
-          </mesh>
+            {isSelected && (
+              <mesh position={[x, y, wall.height - aboveHeight / 2]} rotation={[0, 0, angle]}>
+                <boxGeometry args={[cL + 0.02, wall.thickness + 0.02, aboveHeight + 0.02]} />
+                <meshBasicMaterial color="#eab308" wireframe={true} transparent={true} opacity={0.8} />
+              </mesh>
+            )}
+          </group>
         ) : null
       );
     }

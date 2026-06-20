@@ -9,6 +9,39 @@ interface Device3DProps {
   isInner?: boolean;
 }
 
+const ModuloTomadaNBR: React.FC<{ position: [number, number, number]; matProps: any }> = ({ position, matProps }) => {
+  return (
+    <group position={position}>
+      {/* Corpo do módulo hexagonal em relevo */}
+      <mesh>
+        <boxGeometry args={[0.038, 0.006, 0.024]} />
+        <meshStandardMaterial color="#ffffff" roughness={0.4} {...matProps} />
+      </mesh>
+      {/* Rebaixo hexagonal padrão NBR 14136 */}
+      <mesh position={[0, 0.0031, 0]} rotation={[Math.PI / 2, Math.PI / 6, 0]}>
+        <cylinderGeometry args={[0.009, 0.009, 0.002, 6]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.6} {...matProps} />
+      </mesh>
+      {/* Três furos de pinos pretos */}
+      {/* Furo esquerdo */}
+      <mesh position={[-0.005, 0.0042, 0]}>
+        <boxGeometry args={[0.002, 0.001, 0.002]} />
+        <meshBasicMaterial color="#000000" />
+      </mesh>
+      {/* Furo direito */}
+      <mesh position={[0.005, 0.0042, 0]}>
+        <boxGeometry args={[0.002, 0.001, 0.002]} />
+        <meshBasicMaterial color="#000000" />
+      </mesh>
+      {/* Furo terra central ligeiramente deslocado em Z */}
+      <mesh position={[0, 0.0042, -0.004]}>
+        <boxGeometry args={[0.002, 0.001, 0.002]} />
+        <meshBasicMaterial color="#000000" />
+      </mesh>
+    </group>
+  );
+};
+
 const getClosestPointOnSegment = (pt: { x: number; y: number }, p1: { x: number; y: number }, p2: { x: number; y: number }) => {
   const dx = p2.x - p1.x;
   const dy = p2.y - p1.y;
@@ -395,60 +428,208 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
     clippingPlanes: clippingPlanes,
   };
 
+  // Se for vão livre (open_van), ele apenas fura a parede (cutout) e não desenha nada no 3D
+  if (isInner && type === 'open_van') {
+    return null;
+  }
+
   // 1. Desenhar portas realistas e fechadas
+  // 1. Desenhar portas realistas diferenciadas e brancas por padrão (ou cor customizada)
   if (type.startsWith('door')) {
     const portalThickness = 0.03;
     const frameDepth = 0.16; // batente cobrindo a parede
-    const isGiro = type === 'door' || type === 'door_pivotante';
+    const leafColor = device.color || '#ffffff'; // branca por padrão, ou pintada individualmente
 
-    return (
-      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
-        <group scale={[isGiro && device.flip ? -1 : 1, 1, 1]}>
-          {/* Batente Esquerdo */}
-          <mesh position={[isGiro ? portalThickness / 2 : -width / 2 + portalThickness / 2, 0, 0]}>
+    if (type === 'door') {
+      const W = width - portalThickness * 2;
+      const H = height - portalThickness;
+      const openAngle = Math.PI / 4; // 45 graus aberta
+
+      return (
+        <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+          <group scale={[device.flip ? -1 : 1, 1, 1]}>
+            {/* Batente Esquerdo */}
+            <mesh position={[portalThickness / 2, 0, 0]}>
+              <boxGeometry args={[portalThickness, frameDepth, height]} />
+              <meshStandardMaterial color="#e2e8f0" roughness={0.5} {...matProps} />
+            </mesh>
+            {/* Batente Direito */}
+            <mesh position={[width - portalThickness / 2, 0, 0]}>
+              <boxGeometry args={[portalThickness, frameDepth, height]} />
+              <meshStandardMaterial color="#e2e8f0" roughness={0.5} {...matProps} />
+            </mesh>
+            {/* Batente Superior */}
+            <mesh position={[width / 2, 0, height / 2 - portalThickness / 2]}>
+              <boxGeometry args={[width, frameDepth, portalThickness]} />
+              <meshStandardMaterial color="#e2e8f0" roughness={0.5} {...matProps} />
+            </mesh>
+
+            {/* Grupo Pivotado no batente esquerdo (x = portalThickness) */}
+            <group position={[portalThickness, 0, 0]} rotation={[0, 0, openAngle]}>
+              {/* Folha da porta */}
+              <mesh position={[W / 2, 0, 0]}>
+                <boxGeometry args={[W, depth, H]} />
+                <meshStandardMaterial color={leafColor} roughness={0.7} {...matProps} />
+              </mesh>
+
+              {/* Maçaneta Metálica Cromada na extremidade livre da folha (x = W - 0.07) */}
+              <group position={[W - 0.07, 0, 0]}>
+                <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                  <cylinderGeometry args={[0.008, 0.008, 0.08, 8]} />
+                  <meshStandardMaterial color="#d1d5db" metalness={0.9} roughness={0.1} />
+                </mesh>
+                <mesh position={[0, 0.04, 0]}>
+                  <boxGeometry args={[0.02, 0.015, 0.12]} />
+                  <meshStandardMaterial color="#cbd5e1" metalness={0.95} roughness={0.05} />
+                </mesh>
+                <mesh position={[0, -0.04, 0]}>
+                  <boxGeometry args={[0.02, 0.015, 0.12]} />
+                  <meshStandardMaterial color="#cbd5e1" metalness={0.95} roughness={0.05} />
+                </mesh>
+              </group>
+            </group>
+          </group>
+        </group>
+      );
+    }
+
+    if (type === 'door_correr') {
+      const W = (width - portalThickness * 2) / 2;
+      const H = height - portalThickness;
+      const overlap = 0.04;
+      const leafW = W + overlap;
+
+      return (
+        <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+          {/* Batente Lateral Esquerdo */}
+          <mesh position={[-width / 2 + portalThickness / 2, 0, 0]}>
             <boxGeometry args={[portalThickness, frameDepth, height]} />
-            <meshStandardMaterial color="#78350f" roughness={0.7} {...matProps} />
+            <meshStandardMaterial color="#e2e8f0" roughness={0.5} {...matProps} />
           </mesh>
-          {/* Batente Direito */}
-          <mesh position={[isGiro ? width - portalThickness / 2 : width / 2 - portalThickness / 2, 0, 0]}>
+          {/* Batente Lateral Direito */}
+          <mesh position={[width / 2 - portalThickness / 2, 0, 0]}>
             <boxGeometry args={[portalThickness, frameDepth, height]} />
-            <meshStandardMaterial color="#78350f" roughness={0.7} {...matProps} />
+            <meshStandardMaterial color="#e2e8f0" roughness={0.5} {...matProps} />
           </mesh>
           {/* Batente Superior */}
-          <mesh position={[isGiro ? width / 2 : 0, 0, height / 2 - portalThickness / 2]}>
+          <mesh position={[0, 0, height / 2 - portalThickness / 2]}>
             <boxGeometry args={[width, frameDepth, portalThickness]} />
-            <meshStandardMaterial color="#78350f" roughness={0.7} {...matProps} />
+            <meshStandardMaterial color="#e2e8f0" roughness={0.5} {...matProps} />
           </mesh>
 
-          {/* Folha da porta - FECHADA */}
-          <mesh position={[isGiro ? width / 2 : 0, 0, 0]}>
-            <boxGeometry args={[width - portalThickness * 2, depth, height - portalThickness]} />
-            <meshStandardMaterial color="#a16207" roughness={0.6} {...matProps} />
+          {/* Trilho Metálico Cromado Superior */}
+          <mesh position={[0, 0, height / 2 - portalThickness - 0.01]} rotation={[0, Math.PI / 2, 0]}>
+            <cylinderGeometry args={[0.012, 0.012, width - portalThickness * 2, 8]} />
+            <meshStandardMaterial color="#cbd5e1" metalness={0.95} roughness={0.05} />
           </mesh>
 
-          {/* Maçaneta Metálica */}
-          {isGiro && (
-            <group position={[width - 0.10, 0, 0]}>
-              {/* Haste interna */}
-              <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                <cylinderGeometry args={[0.008, 0.008, 0.08, 8]} />
-                <meshStandardMaterial color="#d1d5db" metalness={0.9} roughness={0.1} />
-              </mesh>
-              {/* Maçaneta externa */}
-              <mesh position={[0, 0.04, 0]}>
-                <boxGeometry args={[0.02, 0.015, 0.12]} />
-                <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
-              </mesh>
-              {/* Maçaneta interna */}
-              <mesh position={[0, -0.04, 0]}>
-                <boxGeometry args={[0.02, 0.015, 0.12]} />
-                <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
-              </mesh>
-            </group>
-          )}
+          {/* Folha 1 (Esquerda, mais interna, ligeiramente aberta/corrida para a esquerda) */}
+          <mesh position={[-width / 4 - 0.1, -0.02, -portalThickness / 2]}>
+            <boxGeometry args={[leafW, depth, H]} />
+            <meshStandardMaterial color={leafColor} roughness={0.7} {...matProps} />
+          </mesh>
+
+          {/* Folha 2 (Direita, mais externa, ligeiramente aberta/corrida para a direita) */}
+          <mesh position={[width / 4 + 0.1, 0.02, -portalThickness / 2]}>
+            <boxGeometry args={[leafW, depth, H]} />
+            <meshStandardMaterial color={leafColor} roughness={0.7} {...matProps} />
+          </mesh>
+
+          {/* Puxadores tipo concha embutidos */}
+          <group position={[-width / 4 - 0.1 + leafW / 2 - 0.04, -0.02 - depth / 2 - 0.001, 0]}>
+            <mesh>
+              <boxGeometry args={[0.03, 0.002, 0.15]} />
+              <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
+            </mesh>
+          </group>
+          <group position={[width / 4 + 0.1 - leafW / 2 + 0.04, 0.02 + depth / 2 + 0.001, 0]}>
+            <mesh>
+              <boxGeometry args={[0.03, 0.002, 0.15]} />
+              <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
+            </mesh>
+          </group>
         </group>
-      </group>
-    );
+      );
+    }
+
+    if (type === 'door_pivotante') {
+      const W = width - portalThickness * 2;
+      const H = height - portalThickness;
+      const pivotDist = 0.15 * width; // 15% do vão
+      const openAngle = Math.PI / 6; // 30 graus aberta
+
+      return (
+        <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+          <group scale={[device.flip ? -1 : 1, 1, 1]}>
+            {/* Batente Esquerdo */}
+            <mesh position={[portalThickness / 2, 0, 0]}>
+              <boxGeometry args={[portalThickness, frameDepth, height]} />
+              <meshStandardMaterial color="#e2e8f0" roughness={0.5} {...matProps} />
+            </mesh>
+            {/* Batente Direito */}
+            <mesh position={[width - portalThickness / 2, 0, 0]}>
+              <boxGeometry args={[portalThickness, frameDepth, height]} />
+              <meshStandardMaterial color="#e2e8f0" roughness={0.5} {...matProps} />
+            </mesh>
+            {/* Batente Superior */}
+            <mesh position={[width / 2, 0, height / 2 - portalThickness / 2]}>
+              <boxGeometry args={[width, frameDepth, portalThickness]} />
+              <meshStandardMaterial color="#e2e8f0" roughness={0.5} {...matProps} />
+            </mesh>
+
+            {/* Eixo de rotação no pivô (x = portalThickness + pivotDist) */}
+            <group position={[portalThickness + pivotDist, 0, 0]} rotation={[0, 0, openAngle]}>
+              {/* Folha da porta posicionada em relação ao pivô */}
+              <mesh position={[W / 2 - pivotDist, 0, 0]}>
+                <boxGeometry args={[W, depth, H]} />
+                <meshStandardMaterial color={leafColor} roughness={0.7} {...matProps} />
+              </mesh>
+
+              {/* Pino do pivô vertical (visível em cima e embaixo) */}
+              <mesh position={[0, 0, H / 2]} rotation={[Math.PI / 2, 0, 0]}>
+                <cylinderGeometry args={[0.015, 0.015, 0.04, 12]} />
+                <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
+              </mesh>
+              <mesh position={[0, 0, -H / 2]} rotation={[Math.PI / 2, 0, 0]}>
+                <cylinderGeometry args={[0.015, 0.015, 0.04, 12]} />
+                <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
+              </mesh>
+
+              {/* Puxador longo vertical de barra dupla cromado */}
+              <group position={[W - pivotDist - 0.08, 0, 0.1]}>
+                {/* Puxador Externo */}
+                <mesh position={[0, 0.03, 0]}>
+                  <boxGeometry args={[0.02, 0.02, 0.9]} />
+                  <meshStandardMaterial color="#cbd5e1" metalness={0.95} roughness={0.05} />
+                </mesh>
+                <mesh position={[0, 0.015, 0.4]} rotation={[Math.PI / 2, 0, 0]}>
+                  <cylinderGeometry args={[0.008, 0.008, 0.03, 8]} />
+                  <meshStandardMaterial color="#cbd5e1" metalness={0.95} />
+                </mesh>
+                <mesh position={[0, 0.015, -0.4]} rotation={[Math.PI / 2, 0, 0]}>
+                  <cylinderGeometry args={[0.008, 0.008, 0.03, 8]} />
+                  <meshStandardMaterial color="#cbd5e1" metalness={0.95} />
+                </mesh>
+
+                {/* Puxador Interno */}
+                <mesh position={[0, -0.03, 0]}>
+                  <boxGeometry args={[0.02, 0.02, 0.9]} />
+                  <meshStandardMaterial color="#cbd5e1" metalness={0.95} roughness={0.05} />
+                </mesh>
+                <mesh position={[0, -0.015, 0.4]} rotation={[Math.PI / 2, 0, 0]}>
+                  <cylinderGeometry args={[0.008, 0.008, 0.03, 8]} />
+                  <meshStandardMaterial color="#cbd5e1" metalness={0.95} />
+                </mesh>
+                <mesh position={[0, -0.015, -0.4]} rotation={[Math.PI / 2, 0, 0]}>
+                  <cylinderGeometry args={[0.008, 0.008, 0.03, 8]} />
+                  <meshStandardMaterial color="#cbd5e1" metalness={0.95} />
+                </mesh>
+              </group>
+            </group>
+          </group>
+        </group>
+      );
+    }
   }
 
   // 2. Desenhar janelas realistas (moldura branca, vidros duplos translúcidos)
@@ -1035,7 +1216,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
           </group>
 
           {/* Porta de Acrílico Fumê Translúcida (Aberta) */}
-          <group position={[-0.17, 0.008, 0]} rotation={[0, -0.6, 0]}>
+          <group position={[-0.17, 0.008, 0]} rotation={[0, 0, -0.8]}>
             <mesh position={[0.17, 0.002, 0]}>
               <boxGeometry args={[0.34, 0.006, 0.44]} />
               <meshStandardMaterial
@@ -1285,6 +1466,143 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
             </mesh>
           </group>
         ))}
+      </group>
+    );
+  }
+
+  // 19. Interruptores Realistas
+  if (type === 'switch_simple' || type === 'switch_parallel' || type === 'switch_intermediate' || type === 'dimmer') {
+    const isDimmer = type === 'dimmer';
+    const isSimple = type === 'switch_simple';
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        <group position={[0, yOffset, 0]}>
+          {/* Espelho / Placa 4x2 do Interruptor */}
+          <mesh>
+            <boxGeometry args={[0.08, 0.01, 0.12]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.2} {...matProps} />
+          </mesh>
+          {/* Borda interna */}
+          <mesh position={[0, 0.001, 0]}>
+            <boxGeometry args={[0.07, 0.01, 0.11]} />
+            <meshStandardMaterial color="#f1f5f9" roughness={0.3} {...matProps} />
+          </mesh>
+
+          {isDimmer ? (
+            /* Botão rotativo do dimmer */
+            <group position={[0, 0.006, 0]}>
+              <mesh rotation={[Math.PI / 2, 0, 0]}>
+                <cylinderGeometry args={[0.016, 0.016, 0.01, 16]} />
+                <meshStandardMaterial color="#cbd5e1" metalness={0.5} roughness={0.2} />
+              </mesh>
+              {/* Linha indicadora no dimmer */}
+              <mesh position={[0, 0.006, 0.01]}>
+                <boxGeometry args={[0.003, 0.002, 0.012]} />
+                <meshBasicMaterial color="#0f172a" />
+              </mesh>
+            </group>
+          ) : isSimple ? (
+            /* Uma Tecla simples gangorra inclinada */
+            <mesh position={[0, 0.006, 0]} rotation={[0.12, 0, 0]}>
+              <boxGeometry args={[0.022, 0.008, 0.045]} />
+              <meshStandardMaterial color="#ffffff" roughness={0.1} />
+            </mesh>
+          ) : (
+            /* Duas Teclas gangorra */
+            <group>
+              <mesh position={[0, 0.006, 0.02]} rotation={[0.12, 0, 0]}>
+                <boxGeometry args={[0.022, 0.008, 0.03]} />
+                <meshStandardMaterial color="#ffffff" roughness={0.1} />
+              </mesh>
+              <mesh position={[0, 0.006, -0.02]} rotation={[-0.12, 0, 0]}>
+                <boxGeometry args={[0.022, 0.008, 0.03]} />
+                <meshStandardMaterial color="#ffffff" roughness={0.1} />
+              </mesh>
+            </group>
+          )}
+        </group>
+      </group>
+    );
+  }
+
+  // 20. Tomadas NBR 14136 Realistas
+  if (type.startsWith('tug_') || type === 'tomada_10a_nbr' || type === 'tomada_20a' || type.startsWith('tomada_')) {
+    const nameLower = (device.name || '').toLowerCase();
+    const isDupla = nameLower.includes('dupl') || (device.modules && device.modules.length > 1);
+    const isTripla = nameLower.includes('tripl');
+
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        <group position={[0, yOffset, 0]}>
+          {/* Espelho / Placa 4x2 da Tomada */}
+          <mesh>
+            <boxGeometry args={[0.08, 0.01, 0.12]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.2} {...matProps} />
+          </mesh>
+          {/* Borda interna */}
+          <mesh position={[0, 0.001, 0]}>
+            <boxGeometry args={[0.07, 0.01, 0.11]} />
+            <meshStandardMaterial color="#f1f5f9" roughness={0.3} {...matProps} />
+          </mesh>
+
+          {isTripla ? (
+            <group>
+              <ModuloTomadaNBR position={[0, 0.006, 0.03]} matProps={matProps} />
+              <ModuloTomadaNBR position={[0, 0.006, 0]} matProps={matProps} />
+              <ModuloTomadaNBR position={[0, 0.006, -0.03]} matProps={matProps} />
+            </group>
+          ) : isDupla ? (
+            <group>
+              <ModuloTomadaNBR position={[0, 0.006, 0.02]} matProps={matProps} />
+              <ModuloTomadaNBR position={[0, 0.006, -0.02]} matProps={matProps} />
+            </group>
+          ) : (
+            <ModuloTomadaNBR position={[0, 0.006, 0]} matProps={matProps} />
+          )}
+        </group>
+      </group>
+    );
+  }
+
+  // 21. Câmera CFTV Dome Realista
+  if (type === 'cftv_camera') {
+    return (
+      <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+        <group position={[0, yOffset, 0]}>
+          {/* Suporte de Fixação na Parede */}
+          <mesh position={[0, 0.01, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.04, 0.04, 0.02, 16]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.4} {...matProps} />
+          </mesh>
+          {/* Haste articulada */}
+          <mesh position={[0, -0.03, -0.02]} rotation={[0.4, 0, 0]}>
+            <cylinderGeometry args={[0.01, 0.01, 0.08, 12]} />
+            <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.2} {...matProps} />
+          </mesh>
+          {/* Corpo principal da câmera Dome */}
+          <group position={[0, -0.07, -0.04]}>
+            {/* Base do Dome */}
+            <mesh rotation={[Math.PI / 2, 0, 0]}>
+              <cylinderGeometry args={[0.05, 0.05, 0.02, 24]} />
+              <meshStandardMaterial color="#ffffff" roughness={0.3} {...matProps} />
+            </mesh>
+            {/* Domo acrílico cinza escuro transparente */}
+            <mesh position={[0, -0.02, 0]} rotation={[Math.PI, 0, 0]}>
+              <sphereGeometry args={[0.042, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
+              <meshStandardMaterial color="#0f172a" transparent={true} opacity={0.65} roughness={0.1} metalness={0.9} />
+            </mesh>
+            {/* Lente cilíndrica preta interna */}
+            <mesh position={[0, -0.01, 0.01]} rotation={[Math.PI / 4, 0, 0]}>
+              <cylinderGeometry args={[0.01, 0.01, 0.03, 12]} />
+              <meshStandardMaterial color="#000000" metalness={0.8} roughness={0.1} />
+            </mesh>
+            {/* Lente de vidro reflexiva na ponta */}
+            <mesh position={[0, -0.025, 0.025]} rotation={[Math.PI / 4, 0, 0]}>
+              <sphereGeometry args={[0.008, 8, 8]} />
+              <meshBasicMaterial color="#3b82f6" />
+            </mesh>
+          </group>
+        </group>
       </group>
     );
   }

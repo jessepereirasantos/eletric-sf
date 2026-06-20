@@ -26,6 +26,8 @@ export interface Wall {
   height: number;
   material: 'alvenaria' | 'drywall' | 'concreto' | 'vidro';
   cutouts?: { deviceId: string; start: number; end: number }[];
+  color?: string;
+  texture?: string;
 }
 
 export interface Device {
@@ -49,6 +51,8 @@ export interface Device {
   qdcDRType?: 'none' | 'geral' | 'grupos'; // Tipo de DR
   qdcHasDPS?: boolean; // Presença de DPS
   qdcBusbarType?: 'none' | 'monofasico' | 'bifasico' | 'trifasico'; // Tipo de barramento
+  color?: string;
+  texture?: string;
 }
 
 export interface Circuit {

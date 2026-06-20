@@ -193,5 +193,133 @@ export const TextureGenerator = {
 
     textureCache[cacheKey] = texture;
     return texture;
+  },
+
+  /**
+   * Gera textura de tijolo vermelho tradicional
+   */
+  getTijolo: (brickColor = '#b91c1c', jointColor = '#cbd5e1'): THREE.CanvasTexture => {
+    const cacheKey = `tijolo_${brickColor}_${jointColor}`;
+    if (textureCache[cacheKey]) return textureCache[cacheKey];
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return new THREE.CanvasTexture(canvas);
+
+    // Fundo (cor do rejunte)
+    ctx.fillStyle = jointColor;
+    ctx.fillRect(0, 0, 256, 256);
+
+    // Desenha tijolos
+    ctx.fillStyle = brickColor;
+    const rows = 8;
+    const rowH = 256 / rows;
+    for (let r = 0; r < rows; r++) {
+      const y = r * rowH;
+      const isOffset = r % 2 === 1;
+      const cols = 4;
+      const colW = 256 / cols;
+      
+      for (let c = -1; c <= cols; c++) {
+        const x = c * colW + (isOffset ? colW / 2 : 0);
+        
+        // Retângulo do tijolo com espaçamento para o rejunte
+        ctx.fillRect(x + 2, y + 2, colW - 4, rowH - 4);
+
+        // Textura interna do tijolo (micro ruído de barro)
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+        for (let i = 0; i < 20; i++) {
+          const rx = x + 2 + Math.random() * (colW - 6);
+          const ry = y + 2 + Math.random() * (rowH - 6);
+          ctx.fillRect(rx, ry, 2, 2);
+        }
+        ctx.fillStyle = brickColor; // volta à cor do tijolo
+      }
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(4, 4);
+
+    textureCache[cacheKey] = texture;
+    return texture;
+  },
+
+  /**
+   * Gera textura de concreto aparente com marcas de fôrmas
+   */
+  getConcretoAparente: (): THREE.CanvasTexture => {
+    const cacheKey = 'concreto_aparente';
+    if (textureCache[cacheKey]) return textureCache[cacheKey];
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return new THREE.CanvasTexture(canvas);
+
+    // Cor base do concreto
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(0, 0, 256, 256);
+
+    // Adicionar textura rugosa fina de concreto
+    ctx.fillStyle = '#334155';
+    for (let i = 0; i < 4000; i++) {
+      const rx = Math.random() * 256;
+      const ry = Math.random() * 256;
+      ctx.globalAlpha = Math.random() * 0.05;
+      ctx.fillRect(rx, ry, 1 + Math.random() * 2, 1 + Math.random() * 2);
+    }
+
+    ctx.fillStyle = '#ffffff';
+    for (let i = 0; i < 3000; i++) {
+      const rx = Math.random() * 256;
+      const ry = Math.random() * 256;
+      ctx.globalAlpha = Math.random() * 0.04;
+      ctx.fillRect(rx, ry, 1, 1);
+    }
+    ctx.globalAlpha = 1.0;
+
+    // Linhas de fôrma de madeira
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.4;
+    // Divisão horizontal no meio
+    ctx.beginPath();
+    ctx.moveTo(0, 128);
+    ctx.lineTo(256, 128);
+    ctx.stroke();
+
+    // Divisões verticais
+    ctx.beginPath();
+    ctx.moveTo(128, 0);
+    ctx.lineTo(128, 256);
+    ctx.stroke();
+
+    // Furos de tensores nos cantos de cada placa (círculos escuros)
+    ctx.fillStyle = '#334155';
+    ctx.globalAlpha = 0.5;
+    const holes = [
+      [32, 32], [96, 32], [32, 96], [96, 96],
+      [160, 32], [224, 32], [160, 96], [224, 96],
+      [32, 160], [96, 160], [32, 224], [96, 224],
+      [160, 160], [224, 160], [160, 224], [224, 224]
+    ];
+    holes.forEach(([hx, hy]) => {
+      ctx.beginPath();
+      ctx.arc(hx, hy, 4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(2, 2);
+
+    textureCache[cacheKey] = texture;
+    return texture;
   }
 };
