@@ -222,7 +222,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
   const [mousePos, setMousePos] = useState<Point2D>({ x: 0, y: 0 });
   const [snappedMousePos, setSnappedMousePos] = useState<Point2D>({ x: 0, y: 0 });
   const [deviceSnapInfo, setDeviceSnapInfo] = useState<{
-    point: Point2D; rotation: number; isSnapped: boolean;
+    point: Point2D; rotation: number; isSnapped: boolean; flip?: boolean;
   } | null>(null);
   const [snappedWallPoint, setSnappedWallPoint] = useState<Point2D | null>(null);
   const [doorCycle, setDoorCycle] = useState<number>(0);
@@ -736,26 +736,60 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     let minDistance = Infinity;
     let snapPos: Point2D = mouseReal;
     let snapRotation = 0;
+    let finalFlip = false;
+    let closestWall: Wall | null = null;
+    let closestRes: any = null;
     const tolerance = (12 / (ppm * zoom)) * 2.5; // tolerância maior para grudar dispositivos facilmente
     
-    walls.forEach(wall => {
+    for (const wall of walls) {
       const res = getClosestPointOnSegment(mouseReal, wall.p1, wall.p2);
       if (res.distance < minDistance) {
         minDistance = res.distance;
         snapPos = res.point;
-        if (isEsquadria(selectedDeviceType!)) {
-          const isDoor = selectedDeviceType!.startsWith('door');
-          const rotationOffset = (isDoor && (doorCycle === 2 || doorCycle === 3)) ? 180 : 0;
-          snapRotation = (res.angle + rotationOffset) % 360;
-        } else {
-          const sideOffset = res.side > 0 ? 90 : -90;
-          snapRotation = res.angle + sideOffset;
-        }
+        closestWall = wall;
+        closestRes = res;
       }
-    });
-    // Para esquadrias (portas/janelas) e tomadas/interruptores, o snap só é considerado válido se estiver perto de uma parede
+    }
+
     const isSnapped = minDistance <= tolerance;
-    setDeviceSnapInfo({ point: isSnapped ? snapPos : mouseReal, rotation: isSnapped ? snapRotation : 0, isSnapped });
+    if (isSnapped && closestWall && closestRes) {
+      const wall = closestWall;
+      const res = closestRes;
+      if (isEsquadria(selectedDeviceType!)) {
+        const isDoor = selectedDeviceType!.startsWith('door');
+        const dx = wall.p2.x - wall.p1.x;
+        const dy = wall.p2.y - wall.p1.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const ux = len > 0 ? dx / len : 1;
+        const uy = len > 0 ? dy / len : 0;
+        const nx = -uy;
+        const ny = ux;
+        
+        const vmX = mouseReal.x - snapPos.x;
+        const vmY = mouseReal.y - snapPos.y;
+        
+        const projN = vmX * nx + vmY * ny;
+        const projT = vmX * ux + vmY * uy;
+        
+        const rotationOffset = projN < 0 ? 180 : 0;
+        snapRotation = (res.angle + rotationOffset) % 360;
+        if (isDoor) {
+          finalFlip = projT > 0;
+        }
+      } else {
+        const sideOffset = res.side > 0 ? 90 : -90;
+        snapRotation = res.angle + sideOffset;
+      }
+    } else {
+      snapRotation = 0;
+    }
+
+    setDeviceSnapInfo({
+      point: isSnapped ? snapPos : mouseReal,
+      rotation: snapRotation,
+      isSnapped,
+      flip: finalFlip
+    });
   };
 
   const handleStageClick = (e: any) => {
@@ -906,9 +940,9 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
         torneira_eletrica: 4400,
         maquina_lavar: 1500,
         // Iluminação
-        ceiling_light: 60, lampada: 60,
-        sconce: 40, lampada_parede: 40,
-        fluorescent: 40,
+        ceiling_light: 100, lampada: 100,
+        sconce: 100, lampada_parede: 100,
+        fluorescent: 100,
         // Interruptores e Comandos (0W)
         switch_simple: 0, interruptor: 0,
         switch_parallel: 0, switch_intermediate: 0,
@@ -2371,29 +2405,64 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
               let finalX = newX;
               let finalY = newY;
               let finalRotation = dev.rotation;
+              let finalFlip = dev.flip;
 
               if (!freeTypes.includes(dev.type)) {
                 let minDistance = Infinity;
                 let snapPos: Point2D = { x: newX, y: newY };
                 let snapRotation = dev.rotation;
+                let closestWall: Wall | null = null;
+                let closestRes: any = null;
                 const tolerance = (12 / (ppm * zoom)) * 2.5;
 
-                walls.forEach(wall => {
+                for (const wall of walls) {
                   const res = getClosestPointOnSegment({ x: newX, y: newY }, wall.p1, wall.p2);
                   if (res.distance < minDistance) {
                     minDistance = res.distance;
                     snapPos = res.point;
-                    if (isEsquadria(dev.type)) {
-                      // Preserva a rotação de abertura da porta (para dentro/fora)
-                      const diffNormal = Math.abs((dev.rotation - res.angle) % 360);
-                      const is180 = diffNormal > 90 && diffNormal < 270;
-                      snapRotation = (res.angle + (is180 ? 180 : 0)) % 360;
-                    } else {
-                      const sideOffset = res.side > 0 ? 90 : -90;
-                      snapRotation = res.angle + sideOffset;
-                    }
+                    closestWall = wall;
+                    closestRes = res;
                   }
-                });
+                }
+
+                if (closestWall && closestRes) {
+                  const wall = closestWall;
+                  const res = closestRes;
+                  if (isEsquadria(dev.type)) {
+                    const stage = e.target.getStage();
+                    const pointer = stage?.getPointerPosition();
+                    let mouseReal = { x: newX, y: newY };
+                    if (pointer && stage) {
+                      mouseReal = {
+                        x: (pointer.x - stage.x()) / stage.scaleX() / ppm,
+                        y: (pointer.y - stage.y()) / stage.scaleY() / ppm,
+                      };
+                    }
+                    
+                    const dx = wall.p2.x - wall.p1.x;
+                    const dy = wall.p2.y - wall.p1.y;
+                    const len = Math.sqrt(dx * dx + dy * dy);
+                    const ux = len > 0 ? dx / len : 1;
+                    const uy = len > 0 ? dy / len : 0;
+                    const nx = -uy;
+                    const ny = ux;
+                    
+                    const vmX = mouseReal.x - snapPos.x;
+                    const vmY = mouseReal.y - snapPos.y;
+                    
+                    const projN = vmX * nx + vmY * ny;
+                    const projT = vmX * ux + vmY * uy;
+                    
+                    const rotationOffset = projN < 0 ? 180 : 0;
+                    snapRotation = (res.angle + rotationOffset) % 360;
+                    if (dev.type.startsWith('door')) {
+                      finalFlip = projT > 0;
+                    }
+                  } else {
+                    const sideOffset = res.side > 0 ? 90 : -90;
+                    snapRotation = res.angle + sideOffset;
+                  }
+                }
 
                 if (isEsquadria(dev.type)) {
                   if (minDistance <= tolerance) {
@@ -2419,6 +2488,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                 x: finalX,
                 y: finalY,
                 rotation: finalRotation,
+                flip: finalFlip,
               });
             }}
           />

@@ -703,7 +703,10 @@ export const useCadStore = create<CadState>()(
             start = t - width / 2;
             end = t + width / 2;
           } else if (dev.type === 'door' || dev.type === 'door_pivotante') {
-            if (dev.flip) {
+            const diffAng = Math.abs((dev.rotation - wallAngle) % 360);
+            const isReversed = diffAng > 90 && diffAng < 270;
+            const effectiveFlip = isReversed ? !dev.flip : dev.flip;
+            if (effectiveFlip) {
               start = t - width;
               end = t;
             } else {
@@ -1359,12 +1362,51 @@ export const useCadStore = create<CadState>()(
     get().pushHistory();
     set((s) => {
       const isBox = dev.type.startsWith('box_');
+      const isLampada = dev.type.includes('light') || dev.type === 'lampada' || dev.type === 'fluorescent' || dev.type === 'sconce' || dev.type === 'lampada_parede';
+      const isInterruptor = dev.type.includes('switch') || dev.type.includes('interruptor') || dev.type === 'sensor_presenca';
+      
+      let nextCircuits = s.circuits;
+      let circuitId = dev.circuitId;
+      let power = dev.power;
+      let commandLetter = dev.commandLetter;
+
+      if (isLampada || isInterruptor) {
+        if (!commandLetter) {
+          commandLetter = 'a';
+        }
+        if (isLampada && (power === undefined || power === 60 || power === 40)) {
+          power = 100;
+        }
+        
+        let circ1 = s.circuits.find(c => c.number === 1);
+        if (!circ1) {
+          circ1 = {
+            id: `circ_1_${Date.now()}`,
+            number: 1,
+            name: 'Iluminação Geral',
+            type: 'iluminacao',
+            voltage: 127,
+            groupedCircuits: 1
+          };
+          nextCircuits = [...s.circuits, circ1];
+        }
+        if (!circuitId) {
+          circuitId = circ1.id;
+        }
+      }
+
       const newDevice: Device = {
         ...dev,
         id: `dev_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modules: isBox ? [] : [dev.type], // Caixas iniciam vazias (containers); demais com o tipo base
+        modules: isBox ? [] : [dev.type],
+        circuitId,
+        power: power ?? dev.power,
+        commandLetter,
       };
-      return { devices: [...s.devices, newDevice] };
+      return {
+        circuits: nextCircuits,
+        devices: [...s.devices, newDevice]
+      };
     });
     get().recomputeDerivedState();
   },

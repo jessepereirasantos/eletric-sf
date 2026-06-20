@@ -208,19 +208,36 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
 
     return (
       <svg viewBox={vb} style={{ width: '100%', height: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}>
-        {/* Paredes */}
-        {walls.map(w => (
-          <line
-            key={w.id}
-            x1={w.p1.x}
-            y1={w.p1.y}
-            x2={w.p2.x}
-            y2={w.p2.y}
-            stroke="#1e293b"
-            strokeWidth={w.thickness || 0.15}
-            strokeLinecap="round"
-          />
-        ))}
+        {/* Paredes - Duas linhas paralelas sem cor interna */}
+        {walls.map(w => {
+          const dx = w.p2.x - w.p1.x;
+          const dy = w.p2.y - w.p1.y;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          if (len === 0) return null;
+          const ux = dx / len;
+          const uy = dy / len;
+          const nx = -uy;
+          const ny = ux;
+          const t = w.thickness || 0.15;
+          const halfT = t / 2;
+
+          const p1a_x = w.p1.x + halfT * nx;
+          const p1a_y = w.p1.y + halfT * ny;
+          const p2a_x = w.p2.x + halfT * nx;
+          const p2a_y = w.p2.y + halfT * ny;
+
+          const p1b_x = w.p1.x - halfT * nx;
+          const p1b_y = w.p1.y - halfT * ny;
+          const p2b_x = w.p2.x - halfT * nx;
+          const p2b_y = w.p2.y - halfT * ny;
+
+          return (
+            <g key={w.id}>
+              <line x1={p1a_x} y1={p1a_y} x2={p2a_x} y2={p2a_y} stroke="#000000" strokeWidth="0.02" />
+              <line x1={p1b_x} y1={p1b_y} x2={p2b_x} y2={p2b_y} stroke="#000000" strokeWidth="0.02" />
+            </g>
+          );
+        })}
         
         {/* Conduítes */}
         {conduits.map(c => {
@@ -245,35 +262,192 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
               <g transform={isGiro && d.flip ? 'scale(-1, 1)' : undefined}>
                 {isGiro ? (
                   <>
-                    <rect x={0} y={-0.06} width={w} height={0.12} fill={color} stroke="#1e293b" strokeWidth="0.02" opacity={0.8} />
-                    <line x1={0} y1={0} x2={0} y2={-w} stroke="#78350f" strokeWidth="0.03" />
-                    <path d={`M 0,${-w} A ${w},${w} 0 0,1 ${w},0`} fill="none" stroke="#78350f" strokeWidth="0.015" strokeDasharray="0.05, 0.05" />
+                    <rect x={0} y={-0.03} width={w} height={0.06} fill={color} stroke="#000000" strokeWidth="0.015" opacity={0.8} />
+                    <line x1={0} y1={0} x2={0} y2={-w} stroke="#000000" strokeWidth="0.02" />
+                    <path d={`M 0,${-w} A ${w},${w} 0 0,1 ${w},0`} fill="none" stroke="#000000" strokeWidth="0.01" strokeDasharray="0.04, 0.04" />
                   </>
                 ) : (
-                  <rect x={-w / 2} y={-0.06} width={w} height={0.12} fill={color} stroke="#1e293b" strokeWidth="0.02" opacity={0.8} />
+                  <rect x={-w / 2} y={-0.03} width={w} height={0.06} fill={color} stroke="#000000" strokeWidth="0.015" opacity={0.8} />
                 )}
               </g>
             </g>
           );
         })}
 
-        {/* Dispositivos elétricos */}
+        {/* Dispositivos elétricos técnicos (NBR 5444 / 5410) */}
         {devices.filter(d => !d.type.startsWith('door') && d.type !== 'window' && d.type !== 'open_van').map(d => {
-          let color = '#3b82f6';
-          let r = 0.12;
-          if (d.type.includes('box')) { color = '#fbbf24'; r = 0.10; }
-          else if (d.type.includes('tomada') || d.type.includes('tue')) { color = '#ef4444'; r = 0.09; }
-          else if (d.type.includes('interruptor')) { color = '#a855f7'; r = 0.08; }
-          else if (d.type.includes('light') || d.type === 'lampada' || d.type === 'fluorescent') { color = '#f59e0b'; r = 0.15; }
-          else if (['sofa', 'geladeira', 'fogao', 'cama', 'mesa_jantar'].includes(d.type)) { color = '#94a3b8'; r = 0.22; }
+          const S = 0.20;
+          const H = S / 2;
+          const thickness = 0.15;
+          const wallOffset = -thickness / 2;
+          
+          const circ = circuits.find(c => c.id === d.circuitId);
+          const circNum = circ ? circ.number : '1';
+          
+          if (['sofa', 'geladeira', 'fogao', 'cama', 'mesa_jantar'].includes(d.type)) {
+            let boxW = 1.0, boxD = 1.0;
+            let fillColor = '#ffffff';
+            if (d.type === 'sofa') { boxW = d.width ?? 1.8; boxD = 0.85; fillColor = '#f3f4f6'; }
+            else if (d.type === 'geladeira') { boxW = d.width ?? 0.7; boxD = 0.7; fillColor = '#f3f4f6'; }
+            else if (d.type === 'fogao') { boxW = d.width ?? 0.7; boxD = 0.6; fillColor = '#f3f4f6'; }
+            else if (d.type === 'cama') { boxW = d.width ?? 1.6; boxD = 2.0; fillColor = '#f3f4f6'; }
+            else if (d.type === 'mesa_jantar') { boxW = d.width ?? 1.2; boxD = 0.8; fillColor = '#f3f4f6'; }
+            
+            return (
+              <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
+                <rect x={-boxW / 2} y={-boxD / 2} width={boxW} height={boxD} rx="0.04" ry="0.04" fill={fillColor} stroke="#475569" strokeWidth="0.015" />
+              </g>
+            );
+          }
+
+          const isTomadaBaixa = d.type === 'tomada_baixa' || d.type === 'tug_baixa';
+          const isTomadaMedia = d.type === 'tomada_media' || d.type === 'tug_media';
+          const isTomadaAlta = d.type === 'tomada_alta' || d.type === 'tug_alta' || d.type === 'tue_chuveiro' || d.type === 'tue_ar' || d.type === 'tomada_220';
+
+          if (isTomadaBaixa || isTomadaMedia || isTomadaAlta) {
+            let fillVal = '#ffffff';
+            if (isTomadaAlta) fillVal = '#000000';
+            
+            return (
+              <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
+                <g transform={`translate(0, ${wallOffset})`}>
+                  <line x1={-H * 1.3} y1={0} x2={H * 1.3} y2={0} stroke="#000000" strokeWidth="0.02" />
+                  
+                  {isTomadaMedia ? (
+                    <>
+                      <polygon points={`-${H},0 0,-${H * 1.5} 0,0`} fill="#000000" stroke="#000000" strokeWidth="0.015" />
+                      <polygon points={`0,0 0,-${H * 1.5} ${H},0`} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+                    </>
+                  ) : (
+                    <polygon points={`-${H},0 0,-${H * 1.5} ${H},0`} fill={fillVal} stroke="#000000" strokeWidth="0.015" />
+                  )}
+
+                  {d.type === 'tue_chuveiro' && (
+                    <text x={H * 1.2} y={-H * 1.2} fontSize="0.10" fontWeight="bold" fill="#000000">CH</text>
+                  )}
+                  {d.type === 'tue_ar' && (
+                    <text x={H * 1.2} y={-H * 1.2} fontSize="0.10" fontWeight="bold" fill="#000000">AR</text>
+                  )}
+                  {d.type === 'tomada_220' && (
+                    <>
+                      <line x1={0} y1={0} x2={0} y2={-H * 1.5} stroke="#000000" strokeWidth="0.015" />
+                      <text x={H * 1.2} y={-H * 1.2} fontSize="0.08" fontWeight="bold" fill="#000000">220</text>
+                    </>
+                  )}
+                  
+                  <text x="0" y={-H * 2.2} fontSize="0.09" fontWeight="bold" textAnchor="middle" fill="#000000">{d.power ?? 100}VA</text>
+                  <text x="0" y={H * 0.9} fontSize="0.09" fontWeight="bold" textAnchor="middle" fill="#000000">-{circNum}-</text>
+                </g>
+              </g>
+            );
+          }
+
+          const isInterruptor = d.type.includes('switch') || d.type.includes('interruptor') || d.type === 'sensor_presenca';
+          if (isInterruptor) {
+            const isParallel = d.type === 'switch_parallel';
+            const isIntermediate = d.type === 'switch_intermediate';
+            let circleFill = '#ffffff';
+            if (isParallel) circleFill = '#000000';
+
+            return (
+              <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
+                <g transform={`translate(0, ${wallOffset})`}>
+                  <line x1={-H * 1.3} y1={0} x2={H * 1.3} y2={0} stroke="#000000" strokeWidth="0.02" />
+                  <line x1={0} y1={0} x2={0} y2={-H * 1.5} stroke="#000000" strokeWidth="0.015" />
+                  <circle cx={0} cy={-H * 1.5} r={H * 0.5} fill={circleFill} stroke="#000000" strokeWidth="0.015" />
+                  
+                  {isIntermediate && (
+                    <path d={`M 0,${-H * 2.0} A ${H * 0.5},${H * 0.5} 0 0,1 0,${-H}`} fill="#000000" stroke="#000000" strokeWidth="0.015" />
+                  )}
+
+                  <text x={H * 0.7} y={-H * 1.6} fontSize="0.10" fontWeight="bold" fill="#000000">
+                    {`${d.commandLetter ?? 'a'}${circNum}`}
+                  </text>
+                </g>
+              </g>
+            );
+          }
+
+          if (d.type === 'ceiling_light' || d.type === 'lampada') {
+            return (
+              <g key={d.id} transform={`translate(${d.x}, ${d.y})`}>
+                <circle cx={0} cy={0} r={H} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+                <line x1={-H} y1={0} x2={H} y2={0} stroke="#000000" strokeWidth="0.015" />
+                <line x1={0} y1={0} x2={0} y2={H} stroke="#000000" strokeWidth="0.015" />
+                
+                <text x="0" y={-H * 0.2} fontSize="0.08" fontWeight="bold" textAnchor="middle" fill="#000000">{d.power ?? 100}W</text>
+                <text x={-H * 0.45} y={H * 0.7} fontSize="0.08" textAnchor="middle" fill="#000000">{d.commandLetter ?? 'a'}</text>
+                <text x={H * 0.45} y={H * 0.7} fontSize="0.08" fontWeight="bold" textAnchor="middle" fill="#000000">{circNum}</text>
+              </g>
+            );
+          }
+
+          if (d.type === 'sconce' || d.type === 'lampada_parede') {
+            return (
+              <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
+                <g transform={`translate(0, ${wallOffset})`}>
+                  <line x1={-H} y1={0} x2={H} y2={0} stroke="#000000" strokeWidth="0.015" />
+                  <path d={`M -${H},0 A ${H},${H} 0 0,1 ${H},0`} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+                  <line x1={-H * 0.5} y1={-H * 0.5} x2={H * 0.5} y2={0} stroke="#000000" strokeWidth="0.015" />
+                  
+                  <text x="0" y={-H * 1.3} fontSize="0.08" textAnchor="middle" fill="#000000">{d.power ?? 100}W</text>
+                  <text x={-H * 0.9} y={-H * 0.3} fontSize="0.08" textAnchor="middle" fill="#000000">{d.commandLetter ?? 'a'}</text>
+                  <text x={H * 0.9} y={-H * 0.3} fontSize="0.08" fontWeight="bold" textAnchor="middle" fill="#000000">{circNum}</text>
+                </g>
+              </g>
+            );
+          }
+
+          if (d.type === 'fluorescent') {
+            return (
+              <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
+                <rect x={-S * 0.9} y={-H * 0.3} width={S * 1.8} height={H * 0.6} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+                <line x1={-S * 0.9} y1={-H * 0.3} x2={S * 0.9} y2={H * 0.3} stroke="#000000" strokeWidth="0.01" />
+                <line x1={-S * 0.9} y1={H * 0.3} x2={S * 0.9} y2={-H * 0.3} stroke="#000000" strokeWidth="0.01" />
+                
+                <text x="0" y={-H * 0.9} fontSize="0.09" fontWeight="bold" textAnchor="middle" fill="#000000">{d.power ?? 100}W</text>
+                <text x={-S * 1.1} y={H * 0.15} fontSize="0.08" textAnchor="middle" fill="#000000">{d.commandLetter ?? 'a'}</text>
+                <text x={S * 1.1} y={H * 0.15} fontSize="0.08" fontWeight="bold" textAnchor="middle" fill="#000000">{circNum}</text>
+              </g>
+            );
+          }
+
+          if (d.type === 'qdc') {
+            return (
+              <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
+                <rect x={-S} y={-H} width={S * 2} height={S} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+                <line x1={-S * 0.4} y1={-H} x2={-S * 0.4} y2={H * 0} stroke="#000000" strokeWidth="0.01" />
+                <line x1={0} y1={-H} x2={0} y2={H * 0} stroke="#000000" strokeWidth="0.01" />
+                <line x1={S * 0.4} y1={-H} x2={S * 0.4} y2={H * 0} stroke="#000000" strokeWidth="0.01" />
+                <text x="0" y={H * 1.5} fontSize="0.10" fontWeight="bold" textAnchor="middle" fill="#000000">QDC</text>
+              </g>
+            );
+          }
+
+          if (d.type === 'box_octogonal') {
+            const octR = H;
+            const octPoints = Array.from({ length: 8 }).map((_, i) => {
+              const angle = (i * Math.PI) / 4 + Math.PI / 8;
+              return `${octR * Math.cos(angle)},${octR * Math.sin(angle)}`;
+            }).join(' ');
+
+            return (
+              <g key={d.id} transform={`translate(${d.x}, ${d.y})`}>
+                <polygon points={octPoints} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+              </g>
+            );
+          }
+
+          if (d.type === 'box_4x2') {
+            return (
+              <g key={d.id} transform={`translate(${d.x}, ${d.y}) rotate(${d.rotation})`}>
+                <rect x={-H} y={-thickness / 2} width={S} height={thickness} fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
+              </g>
+            );
+          }
 
           return (
-            <g key={d.id}>
-              <circle cx={d.x} cy={d.y} r={r} fill={color} stroke="#0f172a" strokeWidth="0.02" />
-              <text x={d.x} y={d.y - r - 0.06} fontSize="0.16" fill="#475569" textAnchor="middle" fontWeight="bold">
-                {d.name}
-              </text>
-            </g>
+            <circle key={d.id} cx={d.x} cy={d.y} r="0.08" fill="#ffffff" stroke="#000000" strokeWidth="0.015" />
           );
         })}
       </svg>
@@ -334,80 +508,102 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
   // Elementos estáticos de legenda
   const legendItems = [
     {
-      symbol: (
-        <svg width="14" height="14" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
-          <circle cx="8" cy="8" r="6" fill="#f59e0b" stroke="#000" strokeWidth="1" />
-          <line x1="8" y1="2" x2="8" y2="14" stroke="#000" strokeWidth="1" />
-          <line x1="2" y1="8" x2="14" y2="8" stroke="#000" strokeWidth="1" />
-        </svg>
-      ),
-      desc: 'Ponto de Luz no Teto (Luminária)',
+      svgMarkup: `<svg width="20" height="20" viewBox="0 0 24 24" style="display: block; margin: auto;">
+        <circle cx="12" cy="12" r="8" fill="#ffffff" stroke="#000" stroke-width="1.5" />
+        <line x1="4" y1="12" x2="20" y2="12" stroke="#000" stroke-width="1.5" />
+        <line x1="12" y1="12" x2="12" y2="20" stroke="#000" stroke-width="1.5" />
+        <text x="12" y="10" font-size="5.5" font-weight="bold" text-anchor="middle" fill="#000">100W</text>
+        <text x="8.5" y="17.5" font-size="5.5" font-style="italic" text-anchor="middle" fill="#000">a</text>
+        <text x="15.5" y="17.5" font-size="5.5" font-weight="bold" text-anchor="middle" fill="#000">1</text>
+      </svg>`,
+      desc: 'Ponto de Luz no Teto (100VA / Circ. 1 / Com. a)',
       install: 'Teto (2.80m)'
     },
     {
-      symbol: (
-        <svg width="14" height="14" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
-          <path d="M 8,14 L 3,6 L 13,6 Z" fill="none" stroke="#000" strokeWidth="1" />
-        </svg>
-      ),
+      svgMarkup: `<svg width="20" height="20" viewBox="0 0 24 24" style="display: block; margin: auto;">
+        <line x1="4" y1="16" x2="20" y2="16" stroke="#000" stroke-width="1.8" />
+        <polygon points="12,5 6,16 18,16" fill="#ffffff" stroke="#000" stroke-width="1.5" />
+        <text x="12" y="3" font-size="5.5" font-weight="bold" text-anchor="middle" fill="#000">100VA</text>
+        <text x="12" y="21" font-size="5.5" font-weight="bold" text-anchor="middle" fill="#000">-1-</text>
+      </svg>`,
       desc: 'Tomada Baixa 10A (NBR 14136)',
       install: 'Parede (0.30m)'
     },
     {
-      symbol: (
-        <svg width="14" height="14" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
-          <path d="M 8,14 L 3,6 L 13,6 Z" fill="#94a3b8" stroke="#000" strokeWidth="1" />
-        </svg>
-      ),
+      svgMarkup: `<svg width="20" height="20" viewBox="0 0 24 24" style="display: block; margin: auto;">
+        <line x1="4" y1="16" x2="20" y2="16" stroke="#000" stroke-width="1.8" />
+        <polygon points="12,5 6,16 12,16" fill="#000" stroke="#000" stroke-width="1.5" />
+        <polygon points="12,5 12,16 18,16" fill="#ffffff" stroke="#000" stroke-width="1.5" />
+        <text x="12" y="3" font-size="5.5" font-weight="bold" text-anchor="middle" fill="#000">100VA</text>
+        <text x="12" y="21" font-size="5.5" font-weight="bold" text-anchor="middle" fill="#000">-1-</text>
+      </svg>`,
       desc: 'Tomada Média 10A (NBR 14136)',
-      install: 'Parede (1.10m)'
+      install: 'Parede (1.30m)'
     },
     {
-      symbol: (
-        <svg width="14" height="14" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
-          <path d="M 8,14 L 3,6 L 13,6 Z" fill="#000" stroke="#000" strokeWidth="1" />
-        </svg>
-      ),
+      svgMarkup: `<svg width="20" height="20" viewBox="0 0 24 24" style="display: block; margin: auto;">
+        <line x1="4" y1="16" x2="20" y2="16" stroke="#000" stroke-width="1.8" />
+        <polygon points="12,5 6,16 18,16" fill="#000" stroke="#000" stroke-width="1.5" />
+        <text x="12" y="3" font-size="5.5" font-weight="bold" text-anchor="middle" fill="#000">100VA</text>
+        <text x="12" y="21" font-size="5.5" font-weight="bold" text-anchor="middle" fill="#000">-1-</text>
+      </svg>`,
       desc: 'Tomada Alta TUE (Chuveiro/Ar)',
       install: 'Parede (2.20m)'
     },
     {
-      symbol: (
-        <svg width="14" height="14" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
-          <circle cx="8" cy="8" r="4" fill="#a855f7" stroke="#000" strokeWidth="1" />
-          <line x1="8" y1="8" x2="12" y2="4" stroke="#000" strokeWidth="1" />
-        </svg>
-      ),
+      svgMarkup: `<svg width="20" height="20" viewBox="0 0 24 24" style="display: block; margin: auto;">
+        <line x1="4" y1="18" x2="20" y2="18" stroke="#000" stroke-width="1.8" />
+        <line x1="12" y1="18" x2="12" y2="9" stroke="#000" stroke-width="1.5" />
+        <circle cx="12" cy="9" r="3.5" fill="#ffffff" stroke="#000" stroke-width="1.5" />
+        <text x="19" y="11" font-size="6.5" font-weight="bold" fill="#000">a1</text>
+      </svg>`,
       desc: 'Interruptor Simples (Acionamento)',
       install: 'Parede (1.10m)'
     },
     {
-      symbol: (
-        <svg width="14" height="14" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
-          <circle cx="8" cy="8" r="6" fill="#fbbf24" stroke="#000" strokeWidth="1" />
-        </svg>
-      ),
-      desc: 'Caixa de Passagem Octogonal',
+      svgMarkup: `<svg width="20" height="20" viewBox="0 0 24 24" style="display: block; margin: auto;">
+        <line x1="4" y1="18" x2="20" y2="18" stroke="#000" stroke-width="1.8" />
+        <line x1="12" y1="18" x2="12" y2="9" stroke="#000" stroke-width="1.5" />
+        <circle cx="12" cy="9" r="3.5" fill="#000" stroke="#000" stroke-width="1.5" />
+        <text x="19" y="11" font-size="6.5" font-weight="bold" fill="#000">a1</text>
+      </svg>`,
+      desc: 'Interruptor Paralelo (Three-Way)',
+      install: 'Parede (1.10m)'
+    },
+    {
+      svgMarkup: `<svg width="20" height="20" viewBox="0 0 24 24" style="display: block; margin: auto;">
+        <rect x="5" y="8" width="14" height="8" fill="#ffffff" stroke="#000" stroke-width="1.5" />
+        <line x1="5" y1="8" x2="19" y2="16" stroke="#000" stroke-width="1.2" />
+        <line x1="5" y1="16" x2="19" y2="8" stroke="#000" stroke-width="1.2" />
+        <text x="12" y="6" font-size="5.5" font-weight="bold" text-anchor="middle" fill="#000">100W</text>
+      </svg>`,
+      desc: 'Lâmpada Fluorescente (Teto)',
       install: 'Teto (2.80m)'
     },
     {
-      symbol: (
-        <svg width="14" height="14" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
-          <rect x="4" y="2" width="8" height="12" fill="#fbbf24" stroke="#000" strokeWidth="1" />
-        </svg>
-      ),
-      desc: 'Caixa de Embutir 4x2 (Parede)',
-      install: 'Variável'
+      svgMarkup: `<svg width="20" height="20" viewBox="0 0 24 24" style="display: block; margin: auto;">
+        <rect x="3" y="7" width="18" height="10" fill="#ffffff" stroke="#000" stroke-width="1.5" />
+        <line x1="7.5" y1="7" x2="7.5" y2="17" stroke="#000" stroke-width="1.2" />
+        <line x1="12" y1="7" x2="12" y2="17" stroke="#000" stroke-width="1.2" />
+        <line x1="16.5" y1="7" x2="16.5" y2="17" stroke="#000" stroke-width="1.2" />
+        <text x="12" y="14.5" font-size="6.5" font-weight="bold" text-anchor="middle" fill="#000">QDC</text>
+      </svg>`,
+      desc: 'Quadro de Distribuição (QDC)',
+      install: 'Parede (1.50m)'
     },
     {
-      symbol: (
-        <svg width="14" height="14" viewBox="0 0 16 16" style={{ display: 'block', margin: 'auto' }}>
-          <circle cx="8" cy="8" r="5" fill="#1e293b" stroke="#000" strokeWidth="1" />
-          <path d="M 5,8 L 8,5 L 11,8" fill="none" stroke="#fff" strokeWidth="1" />
-        </svg>
-      ),
-      desc: 'Câmera Dome CFTV',
-      install: 'Parede (2.50m)'
+      svgMarkup: `<svg width="20" height="20" viewBox="0 0 24 24" style="display: block; margin: auto;">
+        <polygon points="12,4 17,6 19,12 17,18 12,20 7,18 5,12 7,6" fill="#ffffff" stroke="#000" stroke-width="1.5" />
+      </svg>`,
+      desc: 'Caixa de Passagem Octogonal (Teto)',
+      install: 'Teto (2.80m)'
+    },
+    {
+      svgMarkup: `<svg width="20" height="20" viewBox="0 0 24 24" style="display: block; margin: auto;">
+        <rect x="7" y="4" width="10" height="16" fill="#ffffff" stroke="#000" stroke-width="1.5" />
+      </svg>`,
+      desc: 'Caixa de Embutir 4x2 (Parede)',
+      install: 'Variável'
     }
   ];
 
@@ -646,8 +842,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
                     ${legendItems.map(item => `
                       <tr>
                         <td style="text-align: center; padding: 2px;">
-                          <!-- Símbolo simplificado para impressão -->
-                          <div style="font-size: 8px; font-weight: bold;">[ ${item.desc.split(' ')[0]} ]</div>
+                          ${item.svgMarkup}
                         </td>
                         <td>${item.desc}</td>
                         <td>${item.install}</td>
@@ -1041,7 +1236,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
                           <tbody>
                             {legendItems.map((item, i) => (
                               <tr key={i} style={{ borderBottom: '0.5px solid #f1f5f9' }}>
-                                <td style={{ padding: '2px', textAlign: 'center' }}>{item.symbol}</td>
+                                <td style={{ padding: '2px', textAlign: 'center' }} dangerouslySetInnerHTML={{ __html: item.svgMarkup }} />
                                 <td style={{ padding: '2px' }}>{item.desc}</td>
                                 <td style={{ padding: '2px', color: '#475569' }}>{item.install}</td>
                               </tr>
