@@ -176,18 +176,12 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
     updateDeviceProperties,
     removeDevice,
     showLaje3D,
-    setShowLaje3D
+    setShowLaje3D,
+    customColors,
+    addCustomColor,
+    removeCustomColor,
+    updateCustomColor
   } = useCadStore();
-
-  const catalogPinturas = [
-    { name: 'Branco Neve', color: '#ffffff' },
-    { name: 'Palha Clássico', color: '#fef08a' },
-    { name: 'Cinza Crômio', color: '#94a3b8' },
-    { name: 'Azul Colonial', color: '#1e3a8a' },
-    { name: 'Verde Alecrim', color: '#2f5233' },
-    { name: 'Vermelho Terracota', color: '#b91c1c' },
-    { name: 'Preto Absoluto', color: '#0f172a' }
-  ];
 
   const catalogTexturas = [
     { id: 'gesso', name: 'Gesso Liso' },
@@ -196,18 +190,16 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
     { id: 'concreto', name: 'Concreto Aparente' }
   ];
 
-  const catalogPortas = [
-    { name: 'Branco Laca', color: '#ffffff' },
-    { name: 'Carvalho Natural', color: '#d97706' },
-    { name: 'Mogno Escuro', color: '#7c2d12' },
-    { name: 'Preto Fosco', color: '#1e293b' }
-  ];
-
   const [hiddenDeviceIds, setHiddenDeviceIds] = useState<Set<string>>(new Set());
   const [isTouring, setIsTouring] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recordingFormatRef = useRef<{ mimeType: string; ext: string }>({ mimeType: 'video/webm', ext: 'webm' });
+
+  // Estados locais para biblioteca de materiais dinâmicos (Estilo SketchUp)
+  const [selectedPaletteColor, setSelectedPaletteColor] = useState<{ name: string; value: string } | null>(null);
+  const [materialName, setMaterialName] = useState('');
+  const [materialColor, setMaterialColor] = useState('#3b82f6');
 
   const projectCenter = useMemo(() => {
     if (walls.length === 0) return { x: 0, y: 0 };
@@ -525,171 +517,350 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
       {/* ─── Área do Canvas 3D (WebGL) ─── */}
       <div style={{ flex: 1, position: 'relative', outline: 'none' }}>
         
-        {/* Painel Lateral Direito - Biblioteca de Materiais */}
+        {/* Painel Lateral Direito - Biblioteca de Materiais & Pintura */}
         <div style={{
           position: 'absolute', top: '16px', right: '16px', zIndex: 10,
           backgroundColor: 'rgba(15, 23, 42, 0.95)', border: '1px solid #d97706',
-          borderRadius: '8px', padding: '16px', width: '280px', pointerEvents: 'auto',
+          borderRadius: '8px', padding: '16px', width: '290px', pointerEvents: 'auto',
           boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.7)',
           maxHeight: 'calc(100% - 32px)', overflowY: 'auto',
-          fontFamily: 'Inter, sans-serif'
+          fontFamily: 'Inter, sans-serif',
+          display: 'flex', flexDirection: 'column', gap: '16px'
         }}>
-          {selectedWallId ? (() => {
-            const selWall = walls.find(w => w.id === selectedWallId);
-            if (!selWall) return null;
-            return (
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid #334155', paddingBottom: '8px' }}>
-                  <h4 style={{ fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#d97706', margin: 0 }}>
-                    🧱 Parede Selecionada
-                  </h4>
-                  <button 
-                    onClick={() => setSelectedWallId(null)}
-                    style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.85rem' }}
+          
+          {/* Seção 1: Elemento Selecionado */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid #334155', paddingBottom: '6px' }}>
+              <h4 style={{ fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#f59e0b', margin: 0 }}>
+                🎯 Seleção Ativa
+              </h4>
+              {(selectedWallId || selectedDeviceId) && (
+                <button 
+                  onClick={() => {
+                    setSelectedWallId(null);
+                    setSelectedDeviceId(null);
+                  }}
+                  style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.8rem' }}
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
+
+            {selectedWallId ? (() => {
+              const selWall = walls.find(w => w.id === selectedWallId);
+              if (!selWall) return null;
+              return (
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: '#cbd5e1', marginBottom: '8px', lineHeight: '1.4' }}>
+                    <strong>🧱 Parede ({selWall.material})</strong><br />
+                    <span>Espessura: {selWall.thickness}m | Altura: {selWall.height}m</span>
+                  </div>
+
+                  {/* Texturas e Revestimentos de Parede */}
+                  <div style={{ marginBottom: '8px' }}>
+                    <label style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Revestimento/Textura:</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                      {catalogTexturas.map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => updateWall(selectedWallId, { texture: t.id })}
+                          style={{
+                            padding: '4px 6px', borderRadius: '4px', border: selWall.texture === t.id ? '1px solid #d97706' : '1px solid #334155',
+                            backgroundColor: selWall.texture === t.id ? 'rgba(217, 119, 6, 0.15)' : '#1e293b',
+                            color: selWall.texture === t.id ? '#f59e0b' : '#cbd5e1',
+                            fontSize: '0.7rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', cursor: 'pointer', transition: 'all 0.15s'
+                          }}
+                        >
+                          {t.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => updateWall(selectedWallId, { color: undefined, texture: undefined })}
+                    style={{
+                      width: '100%', padding: '6px', borderRadius: '4px', border: '1px dashed #ef4444',
+                      backgroundColor: 'rgba(239, 68, 68, 0.05)', color: '#f87171', fontSize: '0.7rem',
+                      cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s', marginTop: '6px'
+                    }}
                   >
-                    ✕
+                    Resetar Parede
                   </button>
                 </div>
-                <div style={{ fontSize: '0.7rem', color: '#cbd5e1', marginBottom: '12px', lineHeight: '1.4' }}>
-                  <strong>Material Base:</strong> {selWall.material.toUpperCase()}<br />
-                  <strong>Espessura:</strong> {selWall.thickness}m | <strong>Altura:</strong> {selWall.height}m
-                </div>
+              );
+            })() : selectedDeviceId ? (() => {
+              const selDev = devices.find(d => d.id === selectedDeviceId);
+              if (!selDev) return null;
+              const isPorta = selDev.type.startsWith('door');
+              return (
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: '#cbd5e1', marginBottom: '8px', lineHeight: '1.4' }}>
+                    <strong>{isPorta ? '🚪 Porta' : '📦 Componente'} ({selDev.name})</strong><br />
+                    <span>Tipo: {selDev.type}</span>
+                  </div>
 
-                {/* Tópico: Tintas de Parede */}
-                <h5 style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#f59e0b', margin: '12px 0 6px 0' }}>
-                  Pintura e Tintas
-                </h5>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px' }}>
-                  {catalogPinturas.map(c => (
+                  <button
+                    onClick={() => updateDeviceProperties(selectedDeviceId, { color: undefined })}
+                    style={{
+                      width: '100%', padding: '6px', borderRadius: '4px', border: '1px dashed #ef4444',
+                      backgroundColor: 'rgba(239, 68, 68, 0.05)', color: '#f87171', fontSize: '0.7rem',
+                      cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s', marginTop: '4px'
+                    }}
+                  >
+                    Resetar Cor do Objeto
+                  </button>
+                </div>
+              );
+            })() : (
+              <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', textAlign: 'center', padding: '6px 0' }}>
+                Nenhum elemento selecionado.<br />
+                <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Clique em uma parede ou objeto no 3D para pintar.</span>
+              </div>
+            )}
+          </div>
+
+          {/* Seção 2: Biblioteca de Materiais (SketchUp) */}
+          <div style={{ borderTop: '1px solid #334155', paddingTop: '12px' }}>
+            <h4 style={{ fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#f59e0b', margin: '0 0 10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>🎨 Biblioteca de Cores</span>
+              <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 'normal' }}>({customColors.length} materiais)</span>
+            </h4>
+
+            {/* Paleta de Cores em Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px', marginBottom: '12px' }}>
+              {customColors.map(c => {
+                const isSelected = selectedPaletteColor?.value === c.value;
+                return (
+                  <div key={c.value} style={{ position: 'relative', width: '100%', aspectRatio: '1' }}>
                     <button
-                      key={c.color}
-                      onClick={() => updateWall(selectedWallId, { color: c.color })}
-                      title={c.name}
+                      onClick={() => {
+                        setSelectedPaletteColor(c);
+                        setMaterialName(c.name);
+                        setMaterialColor(c.value);
+
+                        // Aplica cor imediatamente se houver elemento selecionado
+                        if (selectedWallId) {
+                          updateWall(selectedWallId, { color: c.value });
+                        } else if (selectedDeviceId) {
+                          updateDeviceProperties(selectedDeviceId, { color: c.value });
+                        }
+                      }}
+                      title={`${c.name} (${c.value})`}
                       style={{
-                        width: '28px', height: '28px', borderRadius: '50%', border: selWall.color === c.color ? '2px solid #d97706' : '1px solid #475569',
-                        backgroundColor: c.color, cursor: 'pointer', outline: 'none', transform: selWall.color === c.color ? 'scale(1.1)' : 'none',
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: '4px',
+                        border: isSelected ? '2px solid #f59e0b' : '1px solid #475569',
+                        backgroundColor: c.value,
+                        cursor: 'pointer',
+                        outline: 'none',
+                        boxShadow: isSelected ? '0 0 6px #f59e0b' : 'none',
                         transition: 'transform 0.1s'
                       }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.1)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'none';
+                      }}
                     />
-                  ))}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Gerenciamento de Cores */}
+            <div style={{ backgroundColor: '#1e293b', borderRadius: '6px', padding: '10px', border: '1px solid #334155' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#cbd5e1' }}>
+                  {selectedPaletteColor ? '✏️ Editar Material' : '➕ Novo Material'}
+                </span>
+                {selectedPaletteColor && (
+                  <button
+                    onClick={() => {
+                      setSelectedPaletteColor(null);
+                      setMaterialName('');
+                      setMaterialColor('#3b82f6');
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.7rem', cursor: 'pointer' }}
+                  >
+                    Novo
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {/* Nome do Material */}
+                <div>
+                  <label style={{ fontSize: '0.65rem', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Nome:</label>
+                  <input
+                    type="text"
+                    value={materialName}
+                    onChange={(e) => setMaterialName(e.target.value)}
+                    placeholder="Ex: Tinta Parede"
+                    style={{
+                      width: '100%',
+                      backgroundColor: '#090d16',
+                      border: '1px solid #475569',
+                      borderRadius: '4px',
+                      color: '#fff',
+                      padding: '4px 6px',
+                      fontSize: '0.75rem',
+                      outline: 'none'
+                    }}
+                  />
                 </div>
 
-                {/* Tópico: Texturas e Revestimentos */}
-                <h5 style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#f59e0b', margin: '12px 0 6px 0' }}>
-                  Revestimentos / Texturas
-                </h5>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
-                  {catalogTexturas.map(t => (
-                    <button
-                      key={t.id}
-                      onClick={() => updateWall(selectedWallId, { texture: t.id })}
+                {/* Seleção de Cor */}
+                <div>
+                  <label style={{ fontSize: '0.65rem', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Cor (HEX):</label>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input
+                      type="color"
+                      value={materialColor}
+                      onChange={(e) => setMaterialColor(e.target.value)}
                       style={{
-                        padding: '6px 10px', borderRadius: '4px', border: selWall.texture === t.id ? '1px solid #d97706' : '1px solid #334155',
-                        backgroundColor: selWall.texture === t.id ? 'rgba(217, 119, 6, 0.1)' : '#1e293b',
-                        color: selWall.texture === t.id ? '#f59e0b' : '#cbd5e1',
-                        fontSize: '0.75rem', textAlign: 'left', cursor: 'pointer', transition: 'all 0.2s'
+                        width: '32px',
+                        height: '24px',
+                        border: 'none',
+                        padding: '0',
+                        backgroundColor: 'transparent',
+                        cursor: 'pointer'
+                      }}
+                    />
+                    <input
+                      type="text"
+                      value={materialColor}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val.startsWith('#') && val.length <= 7) {
+                          setMaterialColor(val);
+                        }
+                      }}
+                      placeholder="#3b82f6"
+                      style={{
+                        flex: 1,
+                        backgroundColor: '#090d16',
+                        border: '1px solid #475569',
+                        borderRadius: '4px',
+                        color: '#fff',
+                        padding: '2px 6px',
+                        fontSize: '0.75rem',
+                        outline: 'none',
+                        textTransform: 'uppercase'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Botões */}
+                <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                  {selectedPaletteColor ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          if (!selectedPaletteColor) return;
+                          if (!materialName.trim()) {
+                            alert('Insira um nome para o material.');
+                            return;
+                          }
+                          const oldValue = selectedPaletteColor.value;
+                          const newValue = materialColor;
+                          const newName = materialName;
+
+                          // 1. Atualizar paleta na store
+                          updateCustomColor(oldValue, newValue, newName);
+
+                          // 2. Cascata nas paredes
+                          walls.forEach(w => {
+                            if (w.color === oldValue) {
+                              updateWall(w.id, { color: newValue });
+                            }
+                          });
+
+                          // 3. Cascata nos objetos
+                          devices.forEach(d => {
+                            if (d.color === oldValue) {
+                              updateDeviceProperties(d.id, { color: newValue });
+                            }
+                          });
+
+                          setSelectedPaletteColor({ name: newName, value: newValue });
+                          alert('Material atualizado com sucesso!');
+                        }}
+                        style={{
+                          flex: 1, backgroundColor: '#f59e0b', color: '#000', border: 'none',
+                          borderRadius: '4px', padding: '6px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer'
+                        }}
+                      >
+                        Salvar
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (!selectedPaletteColor) return;
+                          const oldValue = selectedPaletteColor.value;
+
+                          // 1. Remover da store
+                          removeCustomColor(oldValue);
+
+                          // 2. Cascata: remover cor dos elementos afetados
+                          walls.forEach(w => {
+                            if (w.color === oldValue) {
+                              updateWall(w.id, { color: undefined });
+                            }
+                          });
+                          devices.forEach(d => {
+                            if (d.color === oldValue) {
+                              updateDeviceProperties(d.id, { color: undefined });
+                            }
+                          });
+
+                          setSelectedPaletteColor(null);
+                          setMaterialName('');
+                          setMaterialColor('#3b82f6');
+                          alert('Material excluído!');
+                        }}
+                        style={{
+                          backgroundColor: '#ef4444', color: '#fff', border: 'none',
+                          borderRadius: '4px', padding: '6px 10px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer'
+                        }}
+                      >
+                        Excluir
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        if (!materialName.trim()) {
+                          alert('Insira um nome para o material.');
+                          return;
+                        }
+                        // Verifica se já existe um material com o mesmo valor HEX ou nome para evitar duplicados
+                        if (customColors.some(c => c.value.toLowerCase() === materialColor.toLowerCase())) {
+                          alert('Já existe um material com esta cor na paleta.');
+                          return;
+                        }
+
+                        addCustomColor({ name: materialName, value: materialColor });
+                        setMaterialName('');
+                        setMaterialColor('#3b82f6');
+                      }}
+                      style={{
+                        width: '100%', backgroundColor: '#10b981', color: '#fff', border: 'none',
+                        borderRadius: '4px', padding: '6px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer'
                       }}
                     >
-                      {selWall.texture === t.id ? '✓ ' : ''}{t.name}
+                      Criar Material
                     </button>
-                  ))}
+                  )}
                 </div>
-
-                {/* Limpar Estilo */}
-                <button
-                  onClick={() => updateWall(selectedWallId, { color: undefined, texture: undefined })}
-                  style={{
-                    width: '100%', padding: '6px', borderRadius: '4px', border: '1px dashed #ef4444',
-                    backgroundColor: 'rgba(239, 68, 68, 0.05)', color: '#f87171', fontSize: '0.75rem',
-                    cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s', marginTop: '8px'
-                  }}
-                >
-                  Resetar Pintura / Textura
-                </button>
               </div>
-            );
-          })() : selectedDeviceId ? (() => {
-            const selDev = devices.find(d => d.id === selectedDeviceId);
-            if (!selDev) return null;
-            const isPorta = selDev.type.startsWith('door');
-            return (
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid #334155', paddingBottom: '8px' }}>
-                  <h4 style={{ fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#d97706', margin: 0 }}>
-                    {isPorta ? '🚪 Porta Selecionada' : '📦 Componente 3D'}
-                  </h4>
-                  <button 
-                    onClick={() => setSelectedDeviceId(null)}
-                    style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.85rem' }}
-                  >
-                    ✕
-                  </button>
-                </div>
-                <div style={{ fontSize: '0.7rem', color: '#cbd5e1', marginBottom: '12px', lineHeight: '1.4' }}>
-                  <strong>Tipo:</strong> {selDev.type.toUpperCase()}<br />
-                  <strong>Nome:</strong> {selDev.name}
-                </div>
-
-                {isPorta ? (
-                  <>
-                    <h5 style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#f59e0b', margin: '12px 0 6px 0' }}>
-                      Cores e Madeiras
-                    </h5>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
-                      {catalogPortas.map(c => (
-                        <button
-                          key={c.color}
-                          onClick={() => updateDeviceProperties(selectedDeviceId, { color: c.color })}
-                          title={c.name}
-                          style={{
-                            width: '28px', height: '28px', borderRadius: '50%', border: selDev.color === c.color ? '2px solid #d97706' : '1px solid #475569',
-                            backgroundColor: c.color, cursor: 'pointer', outline: 'none', transform: selDev.color === c.color ? 'scale(1.1)' : 'none',
-                            transition: 'transform 0.1s'
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <h5 style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#f59e0b', margin: '12px 0 6px 0' }}>
-                      Pintura / Cor do Objeto
-                    </h5>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px' }}>
-                      {catalogPinturas.map(c => (
-                        <button
-                          key={c.color}
-                          onClick={() => updateDeviceProperties(selectedDeviceId, { color: c.color })}
-                          title={c.name}
-                          style={{
-                            width: '28px', height: '28px', borderRadius: '50%', border: selDev.color === c.color ? '2px solid #d97706' : '1px solid #475569',
-                            backgroundColor: c.color, cursor: 'pointer', outline: 'none', transform: selDev.color === c.color ? 'scale(1.1)' : 'none',
-                            transition: 'transform 0.1s'
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                <button
-                  onClick={() => updateDeviceProperties(selectedDeviceId, { color: undefined })}
-                  style={{
-                    width: '100%', padding: '6px', borderRadius: '4px', border: '1px dashed #ef4444',
-                    backgroundColor: 'rgba(239, 68, 68, 0.05)', color: '#f87171', fontSize: '0.75rem',
-                    cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s', marginTop: '8px'
-                  }}
-                >
-                  Resetar Cor do Objeto
-                </button>
-              </div>
-            );
-          })() : (
-            <div style={{ textAlign: 'center', padding: '12px 0', color: '#94a3b8', fontSize: '0.75rem' }}>
-              <span style={{ fontSize: '1.5rem', display: 'block', marginBottom: '8px' }}>🎨</span>
-              Selecione uma parede ou componente no visualizador 3D para abrir a biblioteca de pintura e materiais.
             </div>
-          )}
+
+          </div>
+
         </div>
         
         {/* Painel Lateral de Instruções/Legenda */}

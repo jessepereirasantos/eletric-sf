@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { TransformControls } from '@react-three/drei';
 import { useCadStore } from '../../store/useCadStore';
@@ -75,6 +75,7 @@ const getClosestWallThickness = (devX: number, devY: number, wallsList: any[]): 
 
 export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner = false }) => {
   const { shadingMode, clippingState, doorColor, windowColor, selectedDeviceId, updateDeviceProperties, walls } = useCadStore();
+  const [isDragging, setIsDragging] = useState(false);
   
   // Rotação invertida: o Three.js rotaciona em torno de Z no sentido anti-horário,
   // enquanto o Konva (2D) e o SVG rotacionam no sentido horário.
@@ -234,7 +235,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
     let renderY = -deviceProp.y;
     let renderRotation = computedRotationRad;
 
-    if (isEsquadria && walls && walls.length > 0) {
+    if (isEsquadria && walls && walls.length > 0 && !isDragging) {
       let closestWall = null;
       let minDistance = Infinity;
       let projPoint = { x: deviceProp.x, y: deviceProp.y };
@@ -301,6 +302,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
       if (!transformRef.current) return;
       const controls = transformRef.current;
       const callback = (e: any) => {
+        setIsDragging(e.value);
         useCadStore.getState().setOrbitControlsEnabled(!e.value);
       };
       controls.addEventListener('dragging-changed', callback);
@@ -443,7 +445,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
     if (type === 'door') {
       const W = width - portalThickness * 2;
       const H = height - portalThickness;
-      const openAngle = Math.PI / 4; // 45 graus aberta
+      const openAngle = 0; // Portas fechadas conforme solicitado
 
       return (
         <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
@@ -517,32 +519,26 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
             <meshStandardMaterial color="#e2e8f0" roughness={0.5} {...matProps} />
           </mesh>
 
-          {/* Trilho Metálico Cromado Superior */}
-          <mesh position={[0, 0, height / 2 - portalThickness - 0.01]} rotation={[0, Math.PI / 2, 0]}>
-            <cylinderGeometry args={[0.012, 0.012, width - portalThickness * 2, 8]} />
-            <meshStandardMaterial color="#cbd5e1" metalness={0.95} roughness={0.05} />
-          </mesh>
-
-          {/* Folha 1 (Esquerda, mais interna, ligeiramente aberta/corrida para a esquerda) */}
-          <mesh position={[-width / 4 - 0.1, -0.02, -portalThickness / 2]}>
+          {/* Folha 1 (Esquerda, mais interna, fechada no centro) */}
+          <mesh position={[-width / 4 + overlap / 2, -0.01, -portalThickness / 2]}>
             <boxGeometry args={[leafW, depth, H]} />
             <meshStandardMaterial color={leafColor} roughness={0.7} {...matProps} />
           </mesh>
 
-          {/* Folha 2 (Direita, mais externa, ligeiramente aberta/corrida para a direita) */}
-          <mesh position={[width / 4 + 0.1, 0.02, -portalThickness / 2]}>
+          {/* Folha 2 (Direita, mais externa, fechada no centro) */}
+          <mesh position={[width / 4 - overlap / 2, 0.01, -portalThickness / 2]}>
             <boxGeometry args={[leafW, depth, H]} />
             <meshStandardMaterial color={leafColor} roughness={0.7} {...matProps} />
           </mesh>
 
           {/* Puxadores tipo concha embutidos */}
-          <group position={[-width / 4 - 0.1 + leafW / 2 - 0.04, -0.02 - depth / 2 - 0.001, 0]}>
+          <group position={[-width / 4 + overlap / 2 + leafW / 2 - 0.04, -0.01 - depth / 2 - 0.001, 0]}>
             <mesh>
               <boxGeometry args={[0.03, 0.002, 0.15]} />
               <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
             </mesh>
           </group>
-          <group position={[width / 4 + 0.1 - leafW / 2 + 0.04, 0.02 + depth / 2 + 0.001, 0]}>
+          <group position={[width / 4 - overlap / 2 - leafW / 2 + 0.04, 0.01 + depth / 2 + 0.001, 0]}>
             <mesh>
               <boxGeometry args={[0.03, 0.002, 0.15]} />
               <meshStandardMaterial color="#cbd5e1" metalness={0.9} roughness={0.1} />
@@ -556,7 +552,7 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
       const W = width - portalThickness * 2;
       const H = height - portalThickness;
       const pivotDist = 0.15 * width; // 15% do vão
-      const openAngle = Math.PI / 6; // 30 graus aberta
+      const openAngle = 0; // Portas fechadas conforme solicitado
 
       return (
         <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>

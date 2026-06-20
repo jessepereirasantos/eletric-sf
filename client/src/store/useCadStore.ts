@@ -156,6 +156,7 @@ interface HistorySnapshot {
   floorTextureType: 'madeira' | 'porcelanato' | 'ceramica' | 'pintura';
   doorColor: string;
   windowColor: string;
+  customColors: { name: string; value: string }[];
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -355,30 +356,31 @@ interface CadState {
   floorTextureType: 'madeira' | 'porcelanato' | 'ceramica' | 'pintura';
   doorColor: string;
   windowColor: string;
-
-  // Mutadoras de Pranchas e Viewports
-  addSheet: (sheet: Omit<Sheet, 'id'>) => void;
-  removeSheet: (id: string) => void;
-  updateSheet: (id: string, props: Partial<Omit<Sheet, 'id'>>) => void;
-  setActiveSheetId: (id: string) => void;
-  updateViewportGeometry: (sheetId: string, viewportId: string, geometry: Partial<Pick<SheetViewport, 'x' | 'y' | 'w' | 'h'>>) => void;
-  addViewportToSheet: (sheetId: string, type: SheetViewport['type'], snapshotId?: string) => void;
-  removeViewportFromSheet: (sheetId: string, viewportId: string) => void;
-
-  // Mutadoras de Snapshots 3D
-  addSnapshot3D: (title: string, dataUrl: string) => void;
-  removeSnapshot3D: (id: string) => void;
+  customColors: { name: string; value: string }[];
 
   // Mutadoras Estéticas
   setWallColor: (color: string) => void;
   setFloorTextureType: (type: 'madeira' | 'porcelanato' | 'ceramica' | 'pintura') => void;
   setDoorColor: (color: string) => void;
   setWindowColor: (color: string) => void;
+  setCustomColors: (colors: { name: string; value: string }[]) => void;
+  addCustomColor: (color: { name: string; value: string }) => void;
+  removeCustomColor: (value: string) => void;
+  updateCustomColor: (oldValue: string, newValue: string, newName: string) => void;
 
   orbitControlsEnabled: boolean;
   setOrbitControlsEnabled: (enabled: boolean) => void;
   showLaje3D: boolean;
   setShowLaje3D: (show: boolean) => void;
+  addSheet: (sheet: Omit<Sheet, 'id' | 'viewports'>) => void;
+  removeSheet: (id: string) => void;
+  updateSheet: (id: string, props: Partial<Sheet>) => void;
+  setActiveSheetId: (id: string) => void;
+  updateViewportGeometry: (sheetId: string, viewportId: string, geometry: Partial<SheetViewport>) => void;
+  addViewportToSheet: (sheetId: string, type: 'planta' | 'legenda' | 'unifilar' | 'cargas' | 'materiais' | 'corte_3d', snapshotId?: string) => void;
+  removeViewportFromSheet: (sheetId: string, viewportId: string) => void;
+  addSnapshot3D: (title: string, dataUrl: string) => void;
+  removeSnapshot3D: (id: string) => void;
 }
 
 const MAX_HISTORY = 50;
@@ -404,6 +406,7 @@ const takeSnapshot = (state: CadState): HistorySnapshot => ({
   floorTextureType: state.floorTextureType || 'pintura',
   doorColor: state.doorColor || '#b45309',
   windowColor: state.windowColor || '#38bdf8',
+  customColors: JSON.parse(JSON.stringify(state.customColors || [])),
 });
 
 export const useCadStore = create<CadState>()(
@@ -458,6 +461,15 @@ export const useCadStore = create<CadState>()(
       floorTextureType: 'porcelanato',
       doorColor: '#b45309',
       windowColor: '#38bdf8',
+      customColors: [
+        { name: 'Branco Neve', value: '#ffffff' },
+        { name: 'Palha Clássico', value: '#fef08a' },
+        { name: 'Cinza Crômio', value: '#94a3b8' },
+        { name: 'Azul Colonial', value: '#1e3a8a' },
+        { name: 'Verde Alecrim', value: '#2f5233' },
+        { name: 'Vermelho Terracota', value: '#b91c1c' },
+        { name: 'Preto Absoluto', value: '#0f172a' }
+      ],
       orbitControlsEnabled: true,
       showLaje3D: true,
 
@@ -468,15 +480,41 @@ export const useCadStore = create<CadState>()(
       setOrbitControlsEnabled: (enabled) => set({ orbitControlsEnabled: enabled }),
       setShowLaje3D: (show) => set({ showLaje3D: show }),
 
-      addSheet: (sheet) => {
+      setWallColor: (color) => set({ wallColor: color }),
+      setFloorTextureType: (type) => set({ floorTextureType: type }),
+      setDoorColor: (color) => set({ doorColor: color }),
+      setWindowColor: (color) => set({ windowColor: color }),
+      setCustomColors: (colors) => set({ customColors: colors }),
+      addCustomColor: (color) => {
+        get().pushHistory();
+        set((s) => ({
+          customColors: [...s.customColors, color]
+        }));
+      },
+      removeCustomColor: (value) => {
+        get().pushHistory();
+        set((s) => ({
+          customColors: s.customColors.filter(c => c.value !== value)
+        }));
+      },
+      updateCustomColor: (oldValue, newValue, newName) => {
+        get().pushHistory();
+        set((s) => ({
+          customColors: s.customColors.map(c => 
+            c.value === oldValue ? { name: newName, value: newValue } : c
+          )
+        }));
+      },
+
+      addSheet: (sheet: Omit<Sheet, 'id' | 'viewports'>) => {
         get().pushHistory();
         const newId = `sheet_${Date.now()}`;
         set((s) => ({
-          sheetsList: [...s.sheetsList, { ...sheet, id: newId, viewports: [] }],
+          sheetsList: [...s.sheetsList, { ...sheet, id: newId, viewports: [] } as Sheet],
           activeSheetId: newId
         }));
       },
-      removeSheet: (id) => {
+      removeSheet: (id: string) => {
         get().pushHistory();
         set((s) => {
           const filtered = s.sheetsList.filter(sheet => sheet.id !== id);
@@ -487,14 +525,14 @@ export const useCadStore = create<CadState>()(
           };
         });
       },
-      updateSheet: (id, props) => {
+      updateSheet: (id: string, props: Partial<Sheet>) => {
         get().pushHistory();
         set((s) => ({
           sheetsList: s.sheetsList.map(sheet => sheet.id === id ? { ...sheet, ...props } : sheet)
         }));
       },
-      setActiveSheetId: (id) => set({ activeSheetId: id }),
-      updateViewportGeometry: (sheetId, viewportId, geometry) => {
+      setActiveSheetId: (id: string) => set({ activeSheetId: id }),
+      updateViewportGeometry: (sheetId: string, viewportId: string, geometry: Partial<SheetViewport>) => {
         set((s) => ({
           sheetsList: s.sheetsList.map(sheet => {
             if (sheet.id !== sheetId) return sheet;
@@ -508,7 +546,7 @@ export const useCadStore = create<CadState>()(
           })
         }));
       },
-      addViewportToSheet: (sheetId, type, snapshotId) => {
+      addViewportToSheet: (sheetId: string, type: 'planta' | 'legenda' | 'unifilar' | 'cargas' | 'materiais' | 'corte_3d', snapshotId?: string) => {
         get().pushHistory();
         set((s) => {
           const newVp: SheetViewport = {
@@ -534,7 +572,7 @@ export const useCadStore = create<CadState>()(
           };
         });
       },
-      removeViewportFromSheet: (sheetId, viewportId) => {
+      removeViewportFromSheet: (sheetId: string, viewportId: string) => {
         get().pushHistory();
         set((s) => ({
           sheetsList: s.sheetsList.map(sheet => {
@@ -546,7 +584,7 @@ export const useCadStore = create<CadState>()(
           })
         }));
       },
-      addSnapshot3D: (title, dataUrl) => {
+      addSnapshot3D: (title: string, dataUrl: string) => {
         set((s) => ({
           snapshots3D: [...s.snapshots3D, {
             id: `snap_${Date.now()}`,
@@ -556,15 +594,11 @@ export const useCadStore = create<CadState>()(
           }]
         }));
       },
-      removeSnapshot3D: (id) => {
+      removeSnapshot3D: (id: string) => {
         set((s) => ({
           snapshots3D: s.snapshots3D.filter(snap => snap.id !== id)
         }));
       },
-      setWallColor: (color) => set({ wallColor: color }),
-      setFloorTextureType: (type) => set({ floorTextureType: type }),
-      setDoorColor: (color) => set({ doorColor: color }),
-      setWindowColor: (color) => set({ windowColor: color }),
       setViewFilter: (filter) => {
         set({ activeViewFilter: filter });
         get().recomputeDerivedState();
