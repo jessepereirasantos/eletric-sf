@@ -134,9 +134,19 @@ export interface CadDimension {
   labelOverride?: string; // Texto personalizado da cota (ex: '3.50')
 }
 
+export interface Area3D {
+  id: string;
+  points: Point2D[];
+  type: 'piso' | 'teto' | 'piscina' | 'grama' | 'calcada' | 'deck' | 'asfalto';
+  height?: number; // Para lajes e tetos ou profundidade da piscina
+  color?: string;
+  texture?: string;
+}
+
 // Snapshot para undo/redo
 interface HistorySnapshot {
   walls: Wall[];
+  areas: Area3D[];
   devices: Device[];
   conduits: Conduit[];
   circuits: Circuit[];
@@ -185,6 +195,7 @@ interface CadState {
   legend: LegendItem[];
 
   walls: Wall[];
+  areas: Area3D[];
   devices: Device[];
   circuits: Circuit[];
   conduits: Conduit[];
@@ -198,6 +209,7 @@ interface CadState {
   currentTool: ToolType;
   selectedDeviceType: string | null;
   activeWallPoints: Point2D[];
+  activeAreaPoints: Point2D[];
   selectedDeviceId: string | null;
   selectedWallId: string | null;
   selectedGuideLineId: string | null;
@@ -247,6 +259,12 @@ interface CadState {
   updateWallCutouts: (wallId: string) => void;
   addActiveWallPoint: (pt: Point2D) => void;
   clearActiveWallPoints: () => void;
+
+  addArea: (points: Point2D[], type?: Area3D['type']) => void;
+  removeArea: (id: string) => void;
+  updateArea: (id: string, props: Partial<Omit<Area3D, 'id'>>) => void;
+  addActiveAreaPoint: (pt: Point2D) => void;
+  clearActiveAreaPoints: () => void;
 
   addDevice: (device: Omit<Device, 'id'>) => void;
   removeDevice: (id: string) => void;
@@ -387,6 +405,7 @@ const MAX_HISTORY = 50;
 
 const takeSnapshot = (state: CadState): HistorySnapshot => ({
   walls: JSON.parse(JSON.stringify(state.walls || [])),
+  areas: JSON.parse(JSON.stringify(state.areas || [])),
   devices: JSON.parse(JSON.stringify(state.devices || [])),
   conduits: JSON.parse(JSON.stringify(state.conduits || [])),
   circuits: JSON.parse(JSON.stringify(state.circuits || [])),
@@ -650,6 +669,7 @@ export const useCadStore = create<CadState>()(
       legend: [],
 
       walls: [],
+      areas: [],
       devices: [],
       circuits: [],
       conduits: [],
@@ -663,6 +683,7 @@ export const useCadStore = create<CadState>()(
       currentTool: 'select',
       selectedDeviceType: null,
       activeWallPoints: [],
+      activeAreaPoints: [],
       selectedDeviceId: null,
       selectedWallId: null,
       selectedGuideLineId: null,
@@ -1306,6 +1327,7 @@ export const useCadStore = create<CadState>()(
     const prev = s.history[s.history.length - 1];
     return {
       walls: prev.walls,
+      areas: prev.areas || [],
       devices: prev.devices,
       conduits: prev.conduits,
       circuits: prev.circuits,
@@ -1335,6 +1357,7 @@ export const useCadStore = create<CadState>()(
     const next = s.future[s.future.length - 1];
     return {
       walls: next.walls,
+      areas: next.areas || [],
       devices: next.devices,
       conduits: next.conduits,
       circuits: next.circuits,
@@ -1395,6 +1418,28 @@ export const useCadStore = create<CadState>()(
 
   addActiveWallPoint: (pt) => set((s) => ({ activeWallPoints: [...s.activeWallPoints, pt] })),
   clearActiveWallPoints: () => set({ activeWallPoints: [] }),
+
+  addArea: (points, type = 'grama') => {
+    get().pushHistory();
+    set((s) => ({
+      areas: [...s.areas, { id: `area_${Date.now()}`, type, points, height: type === 'piscina' ? -1.5 : type === 'teto' ? 2.8 : 0 }]
+    }));
+  },
+
+  removeArea: (id) => {
+    get().pushHistory();
+    set((s) => ({ areas: s.areas.filter(a => a.id !== id) }));
+  },
+
+  updateArea: (id, props) => {
+    get().pushHistory();
+    set((s) => ({
+      areas: s.areas.map(a => a.id === id ? { ...a, ...props } : a)
+    }));
+  },
+
+  addActiveAreaPoint: (pt) => set((s) => ({ activeAreaPoints: [...s.activeAreaPoints, pt] })),
+  clearActiveAreaPoints: () => set({ activeAreaPoints: [] }),
 
   addDevice: (dev) => {
     get().pushHistory();
@@ -1960,6 +2005,7 @@ export const useCadStore = create<CadState>()(
     circuitTable: [],
     legend: [],
     walls: [],
+    areas: [],
     devices: [],
     circuits: [],
     conduits: [],
@@ -2001,6 +2047,7 @@ export const useCadStore = create<CadState>()(
     setWorkspaceData: (data: any) => {
       set({
         walls: data.walls || [],
+        areas: data.areas || [],
         devices: data.devices || [],
         conduits: data.conduits || [],
         circuits: data.circuits || [],
@@ -2171,6 +2218,7 @@ export const useCadStore = create<CadState>()(
           
           set({
             walls: projectData.walls || [],
+            areas: projectData.areas || [],
             devices: projectData.devices || [],
             conduits: projectData.conduits || [],
             circuits: projectData.circuits || [],
@@ -2228,6 +2276,7 @@ export const useCadStore = create<CadState>()(
     name: 'eletric-sf-cad-store',
     partialize: (state) => ({
       walls: state.walls,
+      areas: state.areas,
       devices: state.devices,
       circuits: state.circuits,
       conduits: state.conduits,

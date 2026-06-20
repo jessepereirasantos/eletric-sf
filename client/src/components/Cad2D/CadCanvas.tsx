@@ -197,6 +197,7 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
     setZoom, setPan, setBgImagePos, setBgImageRotation, setBgImageSelected, addCalibrationPoint, setIsCalibrating, setBgImageScale,
     setSelectedDeviceId, setSelectedWallId, setSelectedConduitId, clearSelection,
     addWall, addActiveWallPoint, clearActiveWallPoints,
+    areas, activeAreaPoints, addArea, addActiveAreaPoint, clearActiveAreaPoints,
     addDevice, addConduit, selectedConduitId,
     paperSpaceActive, paperSize, paperScale, paperPos,
     paperTitle, paperOwner, paperDesigner, paperDate, paperSheetNum,
@@ -799,6 +800,19 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
         if (currentTool === 'wall') clearActiveWallPoints();
         else if (currentTool === 'conduit') setConduitStartDeviceId(null);
         else if (currentTool === 'dimension') clearActiveDimensionPoints();
+        else if (currentTool === 'area') {
+           if (activeAreaPoints.length > 2) {
+              const typePrompt = window.prompt("Digite o número do tipo da área:\n1- Grama\n2- Piscina\n3- Piso\n4- Asfalto\n5- Teto\n6- Deck", "1");
+              let areaType = 'grama';
+              if(typePrompt === '2') areaType = 'piscina';
+              else if(typePrompt === '3') areaType = 'piso';
+              else if(typePrompt === '4') areaType = 'asfalto';
+              else if(typePrompt === '5') areaType = 'teto';
+              else if(typePrompt === '6') areaType = 'deck';
+              addArea(activeAreaPoints, areaType as any);
+           }
+           clearActiveAreaPoints();
+        }
       }
       return;
     }
@@ -833,6 +847,11 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
           }, 100);
         }
       }
+      return;
+    }
+
+    if (currentTool === 'area') {
+      addActiveAreaPoint(snappedMousePos);
       return;
     }
 
@@ -2535,6 +2554,42 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
             }
           }}
         />
+
+        {/* Renderização de Áreas Livres (Terrenos/Piscinas) */}
+        {areas.map((area) => {
+           const flatPoints = area.points.flatMap(pt => [pt.x * ppm, pt.y * ppm]);
+           const color = area.type === 'piscina' ? '#3b82f6' : area.type === 'grama' ? '#22c55e' : area.type === 'deck' ? '#b45309' : '#cbd5e1';
+           return (
+             <Group key={area.id}>
+                <Line
+                  points={flatPoints}
+                  closed
+                  fill={color}
+                  opacity={0.3}
+                  stroke={color}
+                  strokeWidth={2}
+                />
+                {area.points.map((pt, i) => (
+                  <Circle key={i} x={pt.x * ppm} y={pt.y * ppm} radius={3} fill={color} />
+                ))}
+             </Group>
+           );
+        })}
+
+        {currentTool === 'area' && activeAreaPoints.length > 0 && (
+          <Group>
+            <Line
+              points={[...activeAreaPoints.flatMap(pt => [pt.x * ppm, pt.y * ppm]), snappedMousePos.x * ppm, snappedMousePos.y * ppm]}
+              stroke="#22c55e"
+              strokeWidth={2}
+              dash={[5, 5]}
+            />
+            {activeAreaPoints.map((pt, i) => (
+              <Circle key={i} x={pt.x * ppm} y={pt.y * ppm} radius={5} fill="#22c55e" />
+            ))}
+            <Circle x={snappedMousePos.x * ppm} y={snappedMousePos.y * ppm} radius={5} fill="#22c55e" />
+          </Group>
+        )}
 
         {currentTool === 'wall' && activeWallPoints.length === 1 && (
           <Group>

@@ -7,6 +7,7 @@ import { TextureGenerator } from '../utils/textureGenerator';
 import { Wall3D } from '../components/Render3D/Wall3D';
 import { Device3D } from '../components/Render3D/Device3D';
 import { Conduit3D } from '../components/Render3D/Conduit3D';
+import { Area3DRender } from '../components/Render3D/Area3DRender';
 import { BottomBar } from '../components/BottomBar';
 
 const Laje3D: React.FC = () => {
@@ -168,6 +169,7 @@ interface Render3DViewProps {
 export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChange }) => {
   const {
     walls,
+    areas,
     devices,
     conduits,
     orbitControlsEnabled,
@@ -1026,6 +1028,13 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
 
            {/* Renderização da Laje de Cobertura */}
           <Laje3D />
+
+          {/* Renderização de Áreas e Terrenos Livres (Grama, Piscina, Piso, Asfalto) */}
+          <group>
+            {areas.map((area) => (
+              <Area3DRender key={area.id} area={area} />
+            ))}
+          </group>
 
           {/* Renderização das Paredes */}
           <group>

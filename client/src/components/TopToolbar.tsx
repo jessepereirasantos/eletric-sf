@@ -63,6 +63,19 @@ const DEVICE_GROUPS: DropdownGroup[] = [
       { type: 'box_4x4', label: 'Caixa 4x4 (Parede)', icon: '□', power: 0, voltage: 127 },
     ],
   },
+  {
+    label: 'Planta Humanizada',
+    icon: '🌳',
+    devices: [
+      { type: 'carro_hatch', label: 'Carro Hatch', icon: '🚗', power: 0, voltage: 127 },
+      { type: 'caminhonete', label: 'Caminhonete', icon: '🛻', power: 0, voltage: 127 },
+      { type: 'vaso_sanitario', label: 'Vaso Sanitário', icon: '🚽', power: 0, voltage: 127 },
+      { type: 'pia_esculpida', label: 'Pia Esculpida', icon: '🚰', power: 0, voltage: 127 },
+      { type: 'arvore_palmeira', label: 'Palmeira / Árvore', icon: '🌴', power: 0, voltage: 127 },
+      { type: 'arbusto', label: 'Arbusto / Grama', icon: '🌿', power: 0, voltage: 127 },
+      { type: 'guarda_sol', label: 'Guarda Sol', icon: '⛱️', power: 0, voltage: 127 },
+    ],
+  },
 ];
 
 // ─── Props ────────────────────────────────────────────────────
@@ -302,6 +315,14 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ onImportPlant, onOpenDim
             <span className="tb-icon">〰</span>
             <span className="tb-label">Eletroduto</span>
           </button>
+          <button
+            className={`tb-btn ${currentTool === 'area' ? 'tb-btn-active' : ''}`}
+            title="Desenhar Terreno/Área (A)"
+            onClick={() => setCurrentTool('area')}
+          >
+            <span className="tb-icon">⬠</span>
+            <span className="tb-label">Área Livre</span>
+          </button>
         </div>
       </div>
 
@@ -372,7 +393,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ onImportPlant, onOpenDim
       {/* ── STATUS BAR direita ─────────────────────────────── */}
       <div className="tb-status">
         <span>Zoom: {Math.round(zoom * 100)}%</span>
-        <span>{currentTool === 'select' ? 'Seleção' : currentTool === 'wall' ? 'Parede' : currentTool === 'conduit' ? 'Eletroduto' : 'Dispositivo'}</span>
+        <span>{currentTool === 'select' ? 'Seleção' : currentTool === 'wall' ? 'Parede' : currentTool === 'conduit' ? 'Eletroduto' : currentTool === 'area' ? 'Área Poligonal' : 'Dispositivo'}</span>
       </div>
     </div>
   );

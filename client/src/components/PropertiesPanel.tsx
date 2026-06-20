@@ -71,13 +71,13 @@ const WallProperties: React.FC<{ wall: Wall }> = ({ wall }) => {
       </div>
 
       <div className="props-field">
-        <label>Altura (m)</label>
+        <label>Altura / Muro (m)</label>
         <input
           type="number"
           className="props-input"
-          min={1.00} max={6.00} step={0.05}
+          min={0.10} max={12.00} step={0.05}
           value={wall.height}
-          onChange={e => handleChange('height', Math.max(1, parseFloat(e.target.value) || 2.8))}
+          onChange={e => handleChange('height', Math.max(0.10, parseFloat(e.target.value) || 2.8))}
         />
       </div>
 

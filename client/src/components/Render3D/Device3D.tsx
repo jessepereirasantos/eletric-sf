@@ -1597,6 +1597,107 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
     );
   }
 
+  // 22. Elementos de Paisagismo e BIM Arquitetônico
+  if (['carro_hatch', 'caminhonete', 'vaso_sanitario', 'pia_esculpida', 'arvore_palmeira', 'arbusto', 'guarda_sol'].includes(type)) {
+     let model = null;
+     if (type === 'carro_hatch') {
+        model = (
+          <group position={[0, 0, 0]}>
+             <mesh position={[0, 0.4, 0]}>
+               <boxGeometry args={[1.6, 0.8, 3.8]} />
+               <meshStandardMaterial color="#94a3b8" roughness={0.4} metalness={0.6} />
+             </mesh>
+             {/* Cabine (vidro translúcido) */}
+             <mesh position={[0, 1.1, -0.2]}>
+               <boxGeometry args={[1.4, 0.6, 2.0]} />
+               <meshPhysicalMaterial color="#020617" transmission={0.9} roughness={0.1} opacity={1} transparent={true} />
+             </mesh>
+          </group>
+        );
+     } else if (type === 'caminhonete') {
+        model = (
+          <group position={[0, 0, 0]}>
+             <mesh position={[0, 0.5, 0]}>
+               <boxGeometry args={[1.8, 0.9, 5.0]} />
+               <meshStandardMaterial color="#334155" roughness={0.5} metalness={0.7} />
+             </mesh>
+             {/* Cabine */}
+             <mesh position={[0, 1.25, 0.5]}>
+               <boxGeometry args={[1.6, 0.7, 2.0]} />
+               <meshPhysicalMaterial color="#020617" transmission={0.9} roughness={0.1} opacity={1} transparent={true} />
+             </mesh>
+          </group>
+        );
+     } else if (type === 'vaso_sanitario') {
+        model = (
+          <group position={[0, 0, 0]}>
+            <mesh position={[0, 0.2, 0.15]}>
+              <cylinderGeometry args={[0.2, 0.15, 0.4, 16]} />
+              <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.1} />
+            </mesh>
+            <mesh position={[0, 0.6, -0.15]}>
+              <boxGeometry args={[0.4, 0.4, 0.2]} />
+              <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.1} />
+            </mesh>
+          </group>
+        );
+     } else if (type === 'pia_esculpida') {
+        model = (
+          <group position={[0, 0.85, 0]}>
+             <mesh>
+               <boxGeometry args={[0.8, 0.15, 0.45]} />
+               <meshStandardMaterial color="#f8fafc" roughness={0.2} metalness={0.1} />
+             </mesh>
+             <mesh position={[0, 0.08, 0.15]}>
+               <cylinderGeometry args={[0.02, 0.02, 0.15]} />
+               <meshStandardMaterial color="#94a3b8" roughness={0.2} metalness={0.8} />
+             </mesh>
+          </group>
+        );
+     } else if (type === 'arvore_palmeira') {
+        model = (
+          <group position={[0, 0, 0]}>
+             <mesh position={[0, 2.0, 0]}>
+               <cylinderGeometry args={[0.1, 0.2, 4.0, 8]} />
+               <meshStandardMaterial color="#78350f" roughness={0.9} />
+             </mesh>
+             <mesh position={[0, 4.0, 0]}>
+               <sphereGeometry args={[1.2, 8, 8]} />
+               <meshStandardMaterial color="#15803d" roughness={0.8} />
+             </mesh>
+          </group>
+        );
+     } else if (type === 'arbusto') {
+        model = (
+          <group position={[0, 0.4, 0]}>
+             <mesh>
+               <sphereGeometry args={[0.4, 8, 8]} />
+               <meshStandardMaterial color="#16a34a" roughness={0.9} />
+             </mesh>
+          </group>
+        );
+     } else if (type === 'guarda_sol') {
+        model = (
+          <group position={[0, 0, 0]}>
+             <mesh position={[0, 1.25, 0]}>
+               <cylinderGeometry args={[0.02, 0.02, 2.5, 8]} />
+               <meshStandardMaterial color="#cbd5e1" metalness={0.8} roughness={0.2} />
+             </mesh>
+             <mesh position={[0, 2.5, 0]}>
+               <cylinderGeometry args={[1.5, 0.05, 0.3, 16]} />
+               <meshStandardMaterial color="#fef08a" roughness={0.8} />
+             </mesh>
+          </group>
+        );
+     }
+
+     return (
+       <group position={[device.x, device.y, z]} rotation={[Math.PI / 2, rotationRad, 0]}>
+          {model}
+       </group>
+     );
+  }
+
   // Fallback genérico para outros dispositivos
   return (
     <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>

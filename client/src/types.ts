@@ -1,4 +1,4 @@
-export type ToolType = 'select' | 'wall' | 'device' | 'conduit'
+export type ToolType = 'select' | 'wall' | 'device' | 'conduit' | 'area'
   | 'dimension' | 'text'
   | 'auto_wire' | 'auto_conduit'
   | 'split_circuits_tug' | 'split_circuits_light' | 'split_circuits_tue'
@@ -19,7 +19,8 @@ export type DeviceType =
   | 'motor' | 'bomba_agua' | 'torneira_eletrica' | 'fotocelula' | 'campainha'
   | 'gerador' | 'nobreak' | 'maquina_lavar'
   | 'sofa' | 'geladeira' | 'fogao' | 'cama' | 'mesa_jantar'
-  | 'ground_rod' | 'device_dr';
+  | 'ground_rod' | 'device_dr'
+  | 'carro_hatch' | 'caminhonete' | 'vaso_sanitario' | 'pia_esculpida' | 'arvore_palmeira' | 'arbusto' | 'guarda_sol' | 'mesa_piscina';
 
 export interface SheetViewport {
   id: string;
