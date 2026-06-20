@@ -466,6 +466,43 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       ],
     },
     {
+      key: 'area_livre',
+      label: 'Área Livre (Terreno)',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <polygon points="12 2 22 8 18 20 6 20 2 8" />
+          <circle cx="12" cy="12" r="2" fill="currentColor" />
+        </svg>
+      ),
+      hasDropdown: false,
+      defaultTool: 'area',
+      items: [
+        { type: 'area', label: 'Desenhar Área Livre' },
+      ],
+    },
+    {
+      key: 'paisagismo',
+      label: 'Paisagismo e Veículos',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M12 22V10M8 14l4-4 4 4" />
+          <circle cx="12" cy="7" r="3" />
+        </svg>
+      ),
+      hasDropdown: true,
+      defaultTool: 'device',
+      defaultDevice: 'carro_hatch',
+      items: [
+        { type: 'carro_hatch', label: 'Carro Hatch', isDevice: true, symbolDesc: '🚗' },
+        { type: 'caminhonete', label: 'Caminhonete 4x4', isDevice: true, symbolDesc: '🚙' },
+        { type: 'vaso_sanitario', label: 'Vaso Sanitário', isDevice: true, symbolDesc: '🚽' },
+        { type: 'pia_esculpida', label: 'Pia Esculpida', isDevice: true, symbolDesc: '🚰' },
+        { type: 'arvore_palmeira', label: 'Palmeira', isDevice: true, symbolDesc: '🌴' },
+        { type: 'arbusto', label: 'Arbusto / Planta', isDevice: true, symbolDesc: '🪴' },
+        { type: 'guarda_sol', label: 'Guarda-Sol', isDevice: true, symbolDesc: '⛱️' },
+      ],
+    },
+    {
       key: 'conduit',
       label: 'Eletroduto Manual',
       icon: <IconConduit />,
@@ -536,6 +573,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     if (group.key === 'wall' && currentTool === 'wall') return true;
     if (group.key === 'guide_line' && currentTool === 'guide_line') return true;
     if (group.key === 'conduit' && currentTool === 'conduit') return true;
+    if (group.key === 'area_livre' && currentTool === 'area') return true;
     if (group.key === 'text' && (currentTool === 'text' || currentTool === 'dimension')) return true;
 
     if (group.defaultTool === 'device' && currentTool === 'device' && selectedDeviceType) {
