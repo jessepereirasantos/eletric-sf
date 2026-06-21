@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useCadStore } from '../../../store/useCadStore';
-import { ThreeEvent } from '@react-three/fiber';
+import type { ThreeEvent } from '@react-three/fiber';
 
 export const SnapSystem: React.FC = () => {
   const { snapsEnabled, activeTool, areas, walls, currentSnapPoint, setCurrentSnapPoint } = useCadStore();

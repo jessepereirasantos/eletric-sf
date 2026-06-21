@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { useCadStore } from '../../../../store/useCadStore';
-import { FolderTree, Lock, Unlock, Eye, EyeOff, Box, Trash2 } from 'lucide-react';
-import { BIMNode } from '../../../../types';
+import { useCadStore } from '../../../store/useCadStore';
+import { FolderTree, Lock, Unlock, Eye, EyeOff, Box } from 'lucide-react';
+import type { BIMNode } from '../../../types';
 
 export const BIMOutliner: React.FC = () => {
   const { walls, devices, areas, setSelectedWallId, setSelectedDeviceId, selectedWallId, selectedDeviceId } = useCadStore();

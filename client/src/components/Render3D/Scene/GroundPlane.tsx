@@ -1,6 +1,5 @@
 import React from 'react';
 import { useCadStore } from '../../../store/useCadStore';
-import * as THREE from 'three';
 
 export const GroundPlane: React.FC = () => {
   const { shadowsEnabled } = useCadStore();

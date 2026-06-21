@@ -262,11 +262,6 @@ interface CadState {
   setSelectedDimensionId: (id: string | null) => void;
   setSelectedConduitId: (id: string | null) => void;
   clearSelection: () => void;
-  
-  addArea: (area: Omit<Area3D, 'id'>) => void;
-  updateArea: (id: string, props: Partial<Area3D>) => void;
-
-  addActiveDimensionPoint: (pt: Point2D) => void;
 
   pushHistory: () => void;
   undo: () => void;
@@ -458,10 +453,17 @@ const takeSnapshot = (state: CadState): HistorySnapshot => ({
 export const useCadStore = create<CadState>()(
   persist(
     (set, get) => ({
+      activeTool: 'SELECT',
+      snapsEnabled: true,
+      cameraTransition: false,
+      targetCameraPos: null,
+      targetCameraLookAt: null,
+      currentSnapPoint: null,
+      
       ppm: 100,
       activeViewFilter: 'completa',
       shadingMode: 'shaded',
-      renderMode: RenderMode.ARCHITECTURAL,
+      renderMode: 'ARCHITECTURAL',
       solarAzimuth: 180,
       solarElevation: 45,
       shadowsEnabled: true,
@@ -673,6 +675,11 @@ export const useCadStore = create<CadState>()(
         get().recomputeDerivedState();
       },
       updatePaperStamp: (fields) => set((s) => ({
+        cameraTransition: false,
+        targetCameraPos: null,
+        targetCameraLookAt: null,
+        currentSnapPoint: null,
+        selectedDeviceType: null,
         paperTitle: fields.title !== undefined ? fields.title : s.paperTitle,
         paperOwner: fields.owner !== undefined ? fields.owner : s.paperOwner,
         paperDesigner: fields.designer !== undefined ? fields.designer : s.paperDesigner,
@@ -741,13 +748,13 @@ export const useCadStore = create<CadState>()(
         selectedDimensionId: selected ? null : s.selectedDimensionId,
         selectedConduitId: selected ? null : s.selectedConduitId,
       })),
-      setCurrentTool: (tool) => set({ currentTool: tool }),
+// removed dup
       setActiveTool: (tool) => set({ activeTool: tool }),
       setSnapsEnabled: (enabled) => set({ snapsEnabled: enabled }),
       setCameraTransition: (enabled) => set({ cameraTransition: enabled }),
       setCameraTarget: (pos, lookAt) => set({ targetCameraPos: pos, targetCameraLookAt: lookAt, cameraTransition: true }),
       setCurrentSnapPoint: (pt) => set({ currentSnapPoint: pt }),
-      setSelectedDeviceType: (type) => set({ selectedDeviceType: type }),
+// removed dup
       setIsCalibrating: (active) => set({ isCalibrating: active, calibrationPoints: [] }),
       addCalibrationPoint: (point) => set((s) => ({ calibrationPoints: [...s.calibrationPoints, point] })),
       clearCalibrationPoints: () => set({ calibrationPoints: [] }),
@@ -2019,16 +2026,6 @@ export const useCadStore = create<CadState>()(
       dimensions: (s.dimensions || []).map(d => d.id === id ? { ...d, labelOverride: label } : d)
     }));
   },
-  addArea: (area) => {
-    set((s) => ({
-      areas: [...(s.areas || []), { ...area, id: `area_${Date.now()}` }]
-    }));
-  },
-  updateArea: (id, props) => {
-    set((s) => ({
-      areas: (s.areas || []).map(a => a.id === id ? { ...a, ...props } : a)
-    }));
-  },
   addActiveDimensionPoint: (pt) => set((s) => ({ activeDimensionPoints: [...(s.activeDimensionPoints || []), pt] })),
   clearActiveDimensionPoints: () => set({ activeDimensionPoints: [], lastDimensionOffset: null }),
   setShowOriginAxes: (show) => set({ showOriginAxes: show }),
@@ -2065,6 +2062,10 @@ export const useCadStore = create<CadState>()(
     dimensions: [],
     history: [],
     future: [],
+    cameraTransition: false,
+    targetCameraPos: null,
+    targetCameraLookAt: null,
+    currentSnapPoint: null,
     currentTool: 'select',
     selectedDeviceType: null,
     activeWallPoints: [],

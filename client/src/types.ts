@@ -48,15 +48,16 @@ export interface Snapshot3D {
   dataUrl: string; // base64 do canvas
   createdAt: string;
 }
-export enum RenderMode {
-  SOLID = 'SOLID',
-  TEXTURED = 'TEXTURED',
-  XRAY = 'XRAY',
-  WIREFRAME = 'WIREFRAME',
-  HIDDEN_LINE = 'HIDDEN_LINE',
-  MONOCHROME = 'MONOCHROME',
-  ARCHITECTURAL = 'ARCHITECTURAL'
-}
+export const RenderMode = {
+  SOLID: 'SOLID',
+  TEXTURED: 'TEXTURED',
+  XRAY: 'XRAY',
+  WIREFRAME: 'WIREFRAME',
+  HIDDEN_LINE: 'HIDDEN_LINE',
+  MONOCHROME: 'MONOCHROME',
+  ARCHITECTURAL: 'ARCHITECTURAL'
+} as const;
+export type RenderMode = typeof RenderMode[keyof typeof RenderMode];
 
 export interface BIMObject {
   id: string;
@@ -64,16 +65,17 @@ export interface BIMObject {
   metadata: Record<string, any>;
 }
 
-export enum ToolMode {
-  SELECT = 'SELECT',
-  LINE = 'LINE',
-  RECTANGLE = 'RECTANGLE',
-  POLYGON = 'POLYGON',
-  PUSH_PULL = 'PUSH_PULL',
-  MOVE = 'MOVE',
-  ROTATE = 'ROTATE',
-  SCALE = 'SCALE'
-}
+export const ToolMode = {
+  SELECT: 'SELECT',
+  LINE: 'LINE',
+  RECTANGLE: 'RECTANGLE',
+  POLYGON: 'POLYGON',
+  PUSH_PULL: 'PUSH_PULL',
+  MOVE: 'MOVE',
+  ROTATE: 'ROTATE',
+  SCALE: 'SCALE'
+} as const;
+export type ToolMode = typeof ToolMode[keyof typeof ToolMode];
 
 export interface BIMNode {
   id: string;

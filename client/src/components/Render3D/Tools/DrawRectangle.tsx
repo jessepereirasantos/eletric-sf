@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { useCadStore, Point2D } from '../../../store/useCadStore';
+import { useCadStore } from '../../../store/useCadStore';
+import type { Point2D } from '../../../store/useCadStore';
 import * as THREE from 'three';
-import { ThreeEvent } from '@react-three/fiber';
+import type { ThreeEvent } from '@react-three/fiber';
 import { ToolMode } from '../../../types';
 
 export const DrawRectangle: React.FC = () => {
@@ -29,10 +30,7 @@ export const DrawRectangle: React.FC = () => {
       const p3 = { x: cadX, y: cadY };
       const p4 = { x: p1.x, y: cadY };
 
-      addArea({
-        points: [p1, p2, p3, p4],
-        type: 'piso'
-      });
+      addArea([p1, p2, p3, p4], 'piso');
 
       setStartPoint(null);
       setCurrentPoint(null);

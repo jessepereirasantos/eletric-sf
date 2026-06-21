@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { useCadStore, Area3D } from '../../../store/useCadStore';
+import { useCadStore } from '../../../store/useCadStore';
+import type { Area3D } from '../../../store/useCadStore';
 import * as THREE from 'three';
-import { ThreeEvent } from '@react-three/fiber';
+import type { ThreeEvent } from '@react-three/fiber';
 import { ToolMode } from '../../../types';
 
 export const PushPull: React.FC = () => {

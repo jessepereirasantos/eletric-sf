@@ -15,15 +15,13 @@ export const PostProcessingEffects: React.FC = () => {
       <SMAA />
 
       {/* Ambient Occlusion Físico para evidenciar quinas como o Sketchup */}
-      {!disableAO && (
-        <N8AO 
-          aoRadius={0.5} 
-          intensity={2.0} 
-          aoSamples={16} 
-          denoiseSamples={4} 
-          halfRes={false} 
-        />
-      )}
+      <N8AO 
+        aoRadius={0.5} 
+        intensity={2.0} 
+        aoSamples={16} 
+        denoiseSamples={4} 
+        halfRes={false} 
+      />
     </EffectComposer>
   );
 };

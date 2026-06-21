@@ -15,6 +15,7 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
     shadingMode, 
     clippingState, 
     wallColor, 
+    renderMode,
     selectedWallId, 
     setSelectedWallId, 
     setSelectedDeviceId 

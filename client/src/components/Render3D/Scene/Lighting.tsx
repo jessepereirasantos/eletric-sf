@@ -1,4 +1,4 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useCadStore } from '../../../store/useCadStore';
 import * as THREE from 'three';
 import { Sky } from '@react-three/drei';

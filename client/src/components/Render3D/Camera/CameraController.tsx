@@ -10,7 +10,7 @@ export const CameraController: React.FC = () => {
   const cameraRef = useRef<THREE.PerspectiveCamera>(null);
 
   // Animação contínua da câmera para Preset Views
-  useFrame((state, delta) => {
+  useFrame((_state, delta) => {
     if (cameraTransition && targetCameraPos && targetCameraLookAt && controlsRef.current && cameraRef.current) {
       const step = 4.0 * delta; // Velocidade da interpolação 
       const currentPos = cameraRef.current.position;

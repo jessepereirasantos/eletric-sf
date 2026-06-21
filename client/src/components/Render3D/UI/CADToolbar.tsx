@@ -1,7 +1,7 @@
 import React from 'react';
-import { useCadStore } from '../../../../store/useCadStore';
+import { useCadStore } from '../../../store/useCadStore';
 import { MousePointer2, Minus, Square, Hexagon, ArrowUpFromLine, Move, RotateCw, Scaling } from 'lucide-react';
-import { ToolMode } from '../../../../types';
+import { ToolMode } from '../../../types';
 
 export const CADToolbar: React.FC = () => {
   const { activeTool, setActiveTool } = useCadStore();

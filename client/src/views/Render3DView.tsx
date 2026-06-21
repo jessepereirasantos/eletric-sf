@@ -2,7 +2,7 @@ import React, { useMemo, useState, useRef } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 import { useCadStore } from '../store/useCadStore';
-import { TextureGenerator } from '../utils/textureGenerator';
+
 import { Wall3D } from '../components/Render3D/Wall3D';
 import { Device3D } from '../components/Render3D/Device3D';
 import { Conduit3D } from '../components/Render3D/Conduit3D';
@@ -76,100 +76,7 @@ const Laje3D: React.FC = () => {
   );
 };
 
-const Piso3D: React.FC = () => {
-  const { walls, floorTextureType, shadingMode, clearSelection } = useCadStore();
 
-  const geometry = useMemo(() => {
-    if (walls.length === 0) return null;
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minY = Infinity;
-    let maxY = -Infinity;
-
-    walls.forEach(w => {
-      minX = Math.min(minX, w.p1.x, w.p2.x);
-      maxX = Math.max(maxX, w.p1.x, w.p2.x);
-      minY = Math.min(minY, -w.p1.y, -w.p2.y); // Usa Y invertido
-      maxY = Math.max(maxY, -w.p1.y, -w.p2.y);
-    });
-
-    const w = (maxX - minX) + 12.0; // Margem generosa ao redor do projeto
-    const h = (maxY - minY) + 12.0;
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-
-    return { cx, cy, w, h };
-  }, [walls]);
-
-  const texture = useMemo(() => {
-    if (shadingMode !== 'realistic') return null;
-    if (floorTextureType === 'madeira') {
-      return TextureGenerator.getWood('#d97706', '#7c2d12');
-    } else if (floorTextureType === 'ceramica') {
-      return TextureGenerator.getAzulejo('#fca5a5', '#b91c1c');
-    } else {
-      return TextureGenerator.getPorcelanato('#f8fafc');
-    }
-  }, [floorTextureType, shadingMode]);
-
-  if (!geometry) return null;
-
-  return (
-    <mesh 
-      position={[geometry.cx, geometry.cy, -0.005]} 
-      receiveShadow 
-      onClick={(e) => {
-        e.stopPropagation();
-        clearSelection();
-      }}
-    >
-      <planeGeometry args={[geometry.w, geometry.h]} />
-      <meshStandardMaterial
-        color={shadingMode === 'realistic' ? undefined : '#e2e8f0'}
-        map={texture || undefined}
-        roughness={shadingMode === 'realistic' ? 0.35 : 0.4}
-        metalness={shadingMode === 'realistic' ? 0.2 : 0.1}
-      />
-    </mesh>
-  );
-};
-
-const OriginAxes3D: React.FC = () => {
-  const { showOriginAxes } = useCadStore();
-  if (!showOriginAxes) return null;
-
-  return (
-    <group position={[0, 0, 0.01]}>
-      {/* Eixo X - Vermelho */}
-      <mesh rotation={[0, Math.PI / 2, 0]} position={[1.5, 0, 0]}>
-        <cylinderGeometry args={[0.015, 0.015, 3, 8]} />
-        <meshBasicMaterial color="#ef4444" />
-      </mesh>
-      {/* Seta X */}
-      <mesh rotation={[0, 0, -Math.PI / 2]} position={[3, 0, 0]}>
-        <coneGeometry args={[0.05, 0.15, 8]} />
-        <meshBasicMaterial color="#ef4444" />
-      </mesh>
-
-      {/* Eixo Y - Verde */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 1.5, 0]}>
-        <cylinderGeometry args={[0.015, 0.015, 3, 8]} />
-        <meshBasicMaterial color="#22c55e" />
-      </mesh>
-      {/* Seta Y */}
-      <mesh rotation={[0, 0, 0]} position={[0, 3, 0]}>
-        <coneGeometry args={[0.05, 0.15, 8]} />
-        <meshBasicMaterial color="#22c55e" />
-      </mesh>
-
-      {/* Esfera central da origem */}
-      <mesh position={[0, 0, 0]}>
-        <sphereGeometry args={[0.04, 16, 16]} />
-        <meshBasicMaterial color="#3b82f6" />
-      </mesh>
-    </group>
-  );
-};
 
 
 
@@ -184,7 +91,6 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
     areas,
     devices,
     conduits,
-    orbitControlsEnabled,
     shadingMode,
     setShadingMode,
     activeViewFilter,
@@ -283,26 +189,6 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
     const cat = categories.find(c => c.id === activeCategory);
     return cat ? cat.items : [];
   }, [activeCategory, categories]);
-
-  const projectCenter = useMemo(() => {
-    if (walls.length === 0) return { x: 0, y: 0 };
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minY = Infinity;
-    let maxY = -Infinity;
-
-    walls.forEach(w => {
-      minX = Math.min(minX, w.p1.x, w.p2.x);
-      maxX = Math.max(maxX, w.p1.x, w.p2.x);
-      minY = Math.min(minY, -w.p1.y, -w.p2.y); // Inverte o Y das paredes
-      maxY = Math.max(maxY, -w.p1.y, -w.p2.y);
-    });
-
-    return {
-      x: (minX + maxX) / 2,
-      y: (minY + maxY) / 2
-    };
-  }, [walls]);
 
   const handleCaptureSnapshot = () => {
     const canvas = document.querySelector('canvas');
