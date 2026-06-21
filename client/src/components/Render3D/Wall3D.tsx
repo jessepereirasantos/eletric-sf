@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { useCadStore } from '../../store/useCadStore';
 import { TextureGenerator } from '../../utils/textureGenerator';
 import type { Wall } from '../../store/useCadStore';
+import { RenderMode } from '../../types';
+import { Edges } from '@react-three/drei';
 
 interface Wall3DProps {
   wall: Wall;
@@ -54,6 +56,16 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
 
     if (wall.material === 'vidro') {
       return { color: '#93c5fd', roughness: 0.1, metalness: 0.9, transparent: true, opacity: 0.4, map: undefined };
+    }
+
+    // HIDDEN_LINE força a cor para um branco fosco padrão, sem mapas de textura
+    if (renderMode === RenderMode.HIDDEN_LINE) {
+      return {
+        color: '#ffffff',
+        roughness: 1.0,
+        metalness: 0.0,
+        map: undefined
+      };
     }
 
     return {
@@ -123,12 +135,15 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
           <boxGeometry args={[segL, wall.thickness, wall.height]} />
           <meshStandardMaterial
             {...matProps}
-            wireframe={shadingMode === 'wireframe'}
+            wireframe={shadingMode === 'wireframe' || renderMode === RenderMode.WIREFRAME}
             transparent={shadingMode === 'transparent' || matProps.transparent}
             opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
             clippingPlanes={clippingPlanes}
             clipShadows={true}
           />
+          {renderMode !== RenderMode.SOLID && renderMode !== RenderMode.WIREFRAME && (
+             <Edges linewidth={1} threshold={15} color="black" />
+          )}
         </mesh>
         {/* Contorno de Seleção Aramado */}
         {isSelected && (
@@ -172,12 +187,15 @@ export const Wall3D: React.FC<Wall3DProps> = ({ wall }) => {
                 <boxGeometry args={[cL, wall.thickness, belowHeight]} />
                 <meshStandardMaterial
                   {...matProps}
-                  wireframe={shadingMode === 'wireframe'}
+                  wireframe={shadingMode === 'wireframe' || renderMode === RenderMode.WIREFRAME}
                   transparent={shadingMode === 'transparent' || matProps.transparent}
                   opacity={shadingMode === 'transparent' ? 0.20 : matProps.opacity ?? 1.0}
                   clippingPlanes={clippingPlanes}
                   clipShadows={true}
                 />
+                {renderMode !== RenderMode.SOLID && renderMode !== RenderMode.WIREFRAME && (
+                   <Edges linewidth={1} threshold={15} color="black" />
+                )}
               </mesh>
               {isSelected && (
                 <mesh position={[x, y, belowHeight / 2]} rotation={[0, 0, angle]}>

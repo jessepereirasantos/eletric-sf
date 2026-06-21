@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { dimensionateCircuit } from '../utils/nbr5410';
 import { calculateWiringRouting } from '../utils/pathfinding';
 import type { ToolType, Sheet, SheetViewport, Snapshot3D } from '../types';
+import { RenderMode } from '../types';
 
 const API_URL = typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '5173'
   ? 'http://localhost:3001/api'
@@ -399,6 +400,14 @@ interface CadState {
   removeViewportFromSheet: (sheetId: string, viewportId: string) => void;
   addSnapshot3D: (title: string, dataUrl: string) => void;
   removeSnapshot3D: (id: string) => void;
+
+  renderMode: RenderMode;
+  setRenderMode: (mode: RenderMode) => void;
+  solarAzimuth: number;
+  solarElevation: number;
+  setSolarSettings: (azimuth: number, elevation: number) => void;
+  shadowsEnabled: boolean;
+  setShadowsEnabled: (enabled: boolean) => void;
 }
 
 const MAX_HISTORY = 50;
@@ -434,6 +443,10 @@ export const useCadStore = create<CadState>()(
       ppm: 100,
       activeViewFilter: 'completa',
       shadingMode: 'shaded',
+      renderMode: RenderMode.ARCHITECTURAL,
+      solarAzimuth: 180,
+      solarElevation: 45,
+      shadowsEnabled: true,
       clippingState: { enabled: false, axis: 'Z', value: 1.5 },
       projectScale: 50,
       utilityGridType: 'trifasico',
@@ -1984,6 +1997,9 @@ export const useCadStore = create<CadState>()(
   addActiveDimensionPoint: (pt) => set((s) => ({ activeDimensionPoints: [...(s.activeDimensionPoints || []), pt] })),
   clearActiveDimensionPoints: () => set({ activeDimensionPoints: [], lastDimensionOffset: null }),
   setShowOriginAxes: (show) => set({ showOriginAxes: show }),
+  setRenderMode: (mode) => set({ renderMode: mode }),
+  setSolarSettings: (azimuth, elevation) => set({ solarAzimuth: azimuth, solarElevation: elevation }),
+  setShadowsEnabled: (enabled) => set({ shadowsEnabled: enabled }),
 
   resetWorkspace: () => set({
     ppm: 100,

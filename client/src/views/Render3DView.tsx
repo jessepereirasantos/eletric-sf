@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useRef } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Grid } from '@react-three/drei';
 import { useCadStore } from '../store/useCadStore';
 import { TextureGenerator } from '../utils/textureGenerator';
 import { Wall3D } from '../components/Render3D/Wall3D';
@@ -9,6 +8,13 @@ import { Device3D } from '../components/Render3D/Device3D';
 import { Conduit3D } from '../components/Render3D/Conduit3D';
 import { Area3DRender } from '../components/Render3D/Area3DRender';
 import { BottomBar } from '../components/BottomBar';
+
+// Importação dos Módulos da Engine 3D Baseados no SketchUp
+import { EnvironmentManager } from '../components/Render3D/Scene/Environment';
+import { Lighting } from '../components/Render3D/Scene/Lighting';
+import { GroundPlane } from '../components/Render3D/Scene/GroundPlane';
+import { PostProcessingEffects } from '../components/Render3D/Effects/PostProcessing';
+import { CameraController } from '../components/Render3D/Camera/CameraController';
 
 const Laje3D: React.FC = () => {
   const { walls, clippingState, showLaje3D } = useCadStore();
@@ -978,55 +984,23 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
           </div>
         </div>
 
-        {/* Canvas WebGL do R3F */}
+        {/* Canvas WebGL do R3F modularizado (Engine estilo SketchUp) */}
         <Canvas
-          camera={{ position: [projectCenter.x + 8, projectCenter.y - 8, 8], fov: 45, up: [0, 0, 1] }}
           shadows
-          gl={{ localClippingEnabled: true, preserveDrawingBuffer: true }}
-          style={{ width: '100%', height: '100%', outline: 'none' }}
+          gl={{ localClippingEnabled: true, preserveDrawingBuffer: true, antialias: false }} // antialias native is off because we use SMAA
+          style={{ width: '100%', height: '100%', outline: 'none', backgroundColor: '#e2e8f0' }}
         >
-          {/* Fundo do Espaço 3D */}
-          <color attach="background" args={['#090d16']} />
-          
-          {/* Iluminação Premium e Sombras */}
-          <ambientLight intensity={0.5} />
-          <pointLight position={[10, 10, 10]} intensity={0.6} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-bias={-0.0001} />
-          <pointLight position={[-10, -10, 8]} intensity={0.4} />
-          <directionalLight 
-            position={[10, -10, 15]} 
-            intensity={1.2} 
-            castShadow 
-            shadow-mapSize-width={2048} 
-            shadow-mapSize-height={2048} 
-            shadow-camera-left={-20} 
-            shadow-camera-right={20} 
-            shadow-camera-top={20} 
-            shadow-camera-bottom={-20} 
-            shadow-bias={-0.0005} 
-          />
+          {/* Fundo Padrão (se HDR não cobrir tudo) */}
+          <color attach="background" args={['#d4d4d8']} />
 
-          {/* Piso de Porcelanato sob o projeto */}
-          <Piso3D />
+          {/* Módulos do Sistema Visual */}
+          <EnvironmentManager />
+          <Lighting />
+          <GroundPlane />
+          <CameraController />
+          <PostProcessingEffects />
 
-          {/* Eixos de Origem Técnicos coincidentes */}
-          <OriginAxes3D />
-
-          {/* Grid Técnico sutil no piso */}
-          <Grid
-            renderOrder={-1}
-            position={[0, 0, 0]}
-            args={[30, 30]}
-            cellSize={0.5}
-            cellThickness={0.5}
-            cellColor="#1e293b"
-            sectionSize={2.5}
-            sectionThickness={1}
-            sectionColor="#334155"
-            fadeDistance={30}
-            infiniteGrid
-          />
-
-           {/* Renderização da Laje de Cobertura */}
+          {/* Renderização da Laje de Cobertura */}
           <Laje3D />
 
           {/* Renderização de Áreas e Terrenos Livres (Grama, Piscina, Piso, Asfalto) */}
@@ -1072,17 +1046,6 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
                 );
               })}
           </group>
-
-          {/* Controles de Câmera e Órbita centralizada */}
-          <OrbitControls
-            enabled={orbitControlsEnabled}
-            enableDamping
-            dampingFactor={0.05}
-            maxPolarAngle={Math.PI / 2 - 0.05} // impede a câmera de passar para debaixo do chão
-            minDistance={0.05}
-            maxDistance={60}
-            target={[projectCenter.x, projectCenter.y, 1.10]}
-          />
         </Canvas>
       </div>
       <BottomBar activeTab={activeTab} />

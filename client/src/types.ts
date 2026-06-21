@@ -48,5 +48,18 @@ export interface Snapshot3D {
   dataUrl: string; // base64 do canvas
   createdAt: string;
 }
+export enum RenderMode {
+  SOLID = 'SOLID',
+  TEXTURED = 'TEXTURED',
+  XRAY = 'XRAY',
+  WIREFRAME = 'WIREFRAME',
+  HIDDEN_LINE = 'HIDDEN_LINE',
+  MONOCHROME = 'MONOCHROME',
+  ARCHITECTURAL = 'ARCHITECTURAL'
+}
 
-
+export interface BIMObject {
+  id: string;
+  category: string;
+  metadata: Record<string, any>;
+}
