@@ -63,3 +63,23 @@ export interface BIMObject {
   category: string;
   metadata: Record<string, any>;
 }
+
+export enum ToolMode {
+  SELECT = 'SELECT',
+  LINE = 'LINE',
+  RECTANGLE = 'RECTANGLE',
+  POLYGON = 'POLYGON',
+  PUSH_PULL = 'PUSH_PULL',
+  MOVE = 'MOVE',
+  ROTATE = 'ROTATE',
+  SCALE = 'SCALE'
+}
+
+export interface BIMNode {
+  id: string;
+  name: string;
+  type: "group" | "object";
+  children?: BIMNode[];
+  visible?: boolean;
+  locked?: boolean;
+}

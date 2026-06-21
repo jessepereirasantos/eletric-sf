@@ -16,6 +16,12 @@ import { GroundPlane } from '../components/Render3D/Scene/GroundPlane';
 import { PostProcessingEffects } from '../components/Render3D/Effects/PostProcessing';
 import { CameraController } from '../components/Render3D/Camera/CameraController';
 
+// Interface 3D (HUD)
+import { FloatingHUD } from '../components/Render3D/UI/FloatingHUD';
+import { CADToolbar } from '../components/Render3D/UI/CADToolbar';
+import { BIMOutliner } from '../components/Render3D/UI/BIMOutliner';
+import { ToolManager } from '../components/Render3D/Tools/ToolManager';
+
 const Laje3D: React.FC = () => {
   const { walls, clippingState, showLaje3D } = useCadStore();
 
@@ -941,12 +947,23 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
 
         </div>
         
-        {/* Painel Lateral de Instruções/Legenda */}
+        {/* UI HUD e Menus Flutuantes */}
+        <FloatingHUD />
+        <CADToolbar />
+        <BIMOutliner />
+        
+        {/* Painel da Legenda original */}
         <div style={{
-          position: 'absolute', top: '16px', left: '16px', zIndex: 10,
-          backgroundColor: 'rgba(15, 23, 42, 0.9)', border: '1px solid #334155',
-          borderRadius: '8px', padding: '14px', width: '220px', pointerEvents: 'auto',
-          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)'
+          position: 'absolute',
+          bottom: '16px',
+          left: '16px',
+          backgroundColor: 'rgba(15, 23, 42, 0.8)',
+          padding: '12px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)',
+          zIndex: 10,
+          border: '1px solid #334155',
+          pointerEvents: 'none'
         }}>
           <h4 style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#3b82f6', margin: '0 0 8px 0' }}>
             Controles 3D
@@ -999,6 +1016,7 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
           <GroundPlane />
           <CameraController />
           <PostProcessingEffects />
+          <ToolManager />
 
           {/* Renderização da Laje de Cobertura */}
           <Laje3D />

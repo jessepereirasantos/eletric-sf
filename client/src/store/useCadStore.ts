@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { dimensionateCircuit } from '../utils/nbr5410';
 import { calculateWiringRouting } from '../utils/pathfinding';
 import type { ToolType, Sheet, SheetViewport, Snapshot3D } from '../types';
-import { RenderMode } from '../types';
+import { RenderMode, ToolMode } from '../types';
 
 const API_URL = typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '5173'
   ? 'http://localhost:3001/api'
@@ -208,6 +208,12 @@ interface CadState {
   future: HistorySnapshot[];
 
   currentTool: ToolType;
+  activeTool: ToolMode;
+  snapsEnabled: boolean;
+  cameraTransition: boolean;
+  targetCameraPos: [number, number, number] | null;
+  targetCameraLookAt: [number, number, number] | null;
+  
   selectedDeviceType: string | null;
   activeWallPoints: Point2D[];
   activeAreaPoints: Point2D[];
@@ -240,6 +246,11 @@ interface CadState {
   recomputeDerivedState: () => void;
 
   setCurrentTool: (tool: ToolType) => void;
+  setActiveTool: (tool: ToolMode) => void;
+  setSnapsEnabled: (enabled: boolean) => void;
+  setCameraTransition: (enabled: boolean) => void;
+  setCameraTarget: (pos: [number, number, number] | null, lookAt: [number, number, number] | null) => void;
+  
   setSelectedDeviceType: (type: string | null) => void;
   setSelectedDeviceId: (id: string | null) => void;
   setSelectedWallId: (id: string | null) => void;
@@ -723,6 +734,12 @@ export const useCadStore = create<CadState>()(
         selectedDimensionId: selected ? null : s.selectedDimensionId,
         selectedConduitId: selected ? null : s.selectedConduitId,
       })),
+      setCurrentTool: (tool) => set({ currentTool: tool }),
+      setActiveTool: (tool) => set({ activeTool: tool }),
+      setSnapsEnabled: (enabled) => set({ snapsEnabled: enabled }),
+      setCameraTransition: (enabled) => set({ cameraTransition: enabled }),
+      setCameraTarget: (pos, lookAt) => set({ targetCameraPos: pos, targetCameraLookAt: lookAt, cameraTransition: true }),
+      setSelectedDeviceType: (type) => set({ selectedDeviceType: type }),
       setIsCalibrating: (active) => set({ isCalibrating: active, calibrationPoints: [] }),
       addCalibrationPoint: (point) => set((s) => ({ calibrationPoints: [...s.calibrationPoints, point] })),
       clearCalibrationPoints: () => set({ calibrationPoints: [] }),
