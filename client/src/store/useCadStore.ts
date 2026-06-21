@@ -213,6 +213,7 @@ interface CadState {
   cameraTransition: boolean;
   targetCameraPos: [number, number, number] | null;
   targetCameraLookAt: [number, number, number] | null;
+  currentSnapPoint: Point2D | null;
   
   selectedDeviceType: string | null;
   activeWallPoints: Point2D[];
@@ -250,6 +251,7 @@ interface CadState {
   setSnapsEnabled: (enabled: boolean) => void;
   setCameraTransition: (enabled: boolean) => void;
   setCameraTarget: (pos: [number, number, number] | null, lookAt: [number, number, number] | null) => void;
+  setCurrentSnapPoint: (pt: Point2D | null) => void;
   
   setSelectedDeviceType: (type: string | null) => void;
   setSelectedDeviceId: (id: string | null) => void;
@@ -260,6 +262,11 @@ interface CadState {
   setSelectedDimensionId: (id: string | null) => void;
   setSelectedConduitId: (id: string | null) => void;
   clearSelection: () => void;
+  
+  addArea: (area: Omit<Area3D, 'id'>) => void;
+  updateArea: (id: string, props: Partial<Area3D>) => void;
+
+  addActiveDimensionPoint: (pt: Point2D) => void;
 
   pushHistory: () => void;
   undo: () => void;
@@ -739,6 +746,7 @@ export const useCadStore = create<CadState>()(
       setSnapsEnabled: (enabled) => set({ snapsEnabled: enabled }),
       setCameraTransition: (enabled) => set({ cameraTransition: enabled }),
       setCameraTarget: (pos, lookAt) => set({ targetCameraPos: pos, targetCameraLookAt: lookAt, cameraTransition: true }),
+      setCurrentSnapPoint: (pt) => set({ currentSnapPoint: pt }),
       setSelectedDeviceType: (type) => set({ selectedDeviceType: type }),
       setIsCalibrating: (active) => set({ isCalibrating: active, calibrationPoints: [] }),
       addCalibrationPoint: (point) => set((s) => ({ calibrationPoints: [...s.calibrationPoints, point] })),
@@ -2009,6 +2017,16 @@ export const useCadStore = create<CadState>()(
   updateDimensionLabel: (id, label) => {
     set((s) => ({
       dimensions: (s.dimensions || []).map(d => d.id === id ? { ...d, labelOverride: label } : d)
+    }));
+  },
+  addArea: (area) => {
+    set((s) => ({
+      areas: [...(s.areas || []), { ...area, id: `area_${Date.now()}` }]
+    }));
+  },
+  updateArea: (id, props) => {
+    set((s) => ({
+      areas: (s.areas || []).map(a => a.id === id ? { ...a, ...props } : a)
     }));
   },
   addActiveDimensionPoint: (pt) => set((s) => ({ activeDimensionPoints: [...(s.activeDimensionPoints || []), pt] })),
