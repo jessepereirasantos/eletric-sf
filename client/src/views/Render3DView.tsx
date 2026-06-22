@@ -292,7 +292,7 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
 
         
         {/* UI HUD e Menus Flutuantes */}
-        <FloatingHUD />
+        
         <CADToolbar />
         <BIMOutliner />
         

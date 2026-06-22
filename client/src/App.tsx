@@ -8,6 +8,8 @@ import { useCadStore } from './store/useCadStore';
 import { InstructorPanel } from './components/Render3D/UI/Panels/InstructorPanel';
 import { BimLibraryPanel } from './components/Render3D/UI/Panels/BimLibraryPanel';
 import { MaterialsPanel } from './components/Render3D/UI/Panels/MaterialsPanel';
+import { SheetsManagerPanel } from './components/Sheets/SheetsManagerPanel';
+import { ResumoDemandaPanel } from './components/Unifilar/ResumoDemandaPanel';
 import { EntityInfoPanel } from './components/Render3D/UI/Panels/EntityInfoPanel';
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { ScenesPanel } from './components/Render3D/UI/Panels/ScenesPanel';
@@ -448,6 +450,17 @@ function App() {
             {tab.label}
           </button>
         ))}
+
+        {activeTab === 'render3d' && (
+          <>
+            <div className="su-sep" style={{ margin: '0 8px', borderLeft: '1px solid var(--su-border)', height: '24px' }} />
+            <div className="su-toolbar-group">
+              <button className="su-tool-btn" onClick={() => useCadStore.getState().setRenderMode('solid')} title="Estilo: Sólido" style={{fontSize:11, width:'auto', padding:'0 8px'}}>Sólido</button>
+              <button className="su-tool-btn" onClick={() => useCadStore.getState().setRenderMode('wireframe')} title="Estilo: Aramado" style={{fontSize:11, width:'auto', padding:'0 8px'}}>Aramado</button>
+              <button className="su-tool-btn" onClick={() => useCadStore.getState().toggleGrid()} title="Alternar Grade" style={{fontSize:11, width:'auto', padding:'0 8px'}}>Grade (G)</button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* ═══════════════════════════════════════════════
@@ -526,6 +539,21 @@ function App() {
       <div className="su-tray">
         <div className="su-tray-title">Bandeja Padrão</div>
         <div className="su-tray-panels-scroll">
+          {activeTab === 'sheets' && (
+            <TrayPanel id="sheets-manager" title="Gestor de Pranchas" defaultOpen>
+              <SheetsManagerPanel />
+            </TrayPanel>
+          )}
+          {activeTab === 'unifilar' && (
+            <TrayPanel id="unifilar-demanda" title="Demanda NBR 5410" defaultOpen>
+              <ResumoDemandaPanel />
+            </TrayPanel>
+          )}
+          {activeTab === 'render3d' && (
+            <TrayPanel id="outliner" title="Estrutura (Outliner)" defaultOpen>
+              <OutlinerPanel />
+            </TrayPanel>
+          )}
           <TrayPanel id="entity" title="Informações da Entidade" defaultOpen>
             <EntityInfoPanel />
           </TrayPanel>
