@@ -1,12 +1,11 @@
-import React from 'react';
+
 import { useCadStore } from '../../store/useCadStore';
 
 export function SheetsManagerPanel() {
   const { 
     sheetsList, activeSheetId, setActiveSheetId, 
     addSheet, removeSheet, updateSheet, 
-    addViewportToSheet, removeViewportFromSheet,
-    snapshots3D 
+    addViewportToSheet, removeViewportFromSheet
   } = useCadStore();
 
   const activeSheet = sheetsList.find(s => s.id === activeSheetId) || sheetsList[0];
@@ -18,8 +17,7 @@ export function SheetsManagerPanel() {
       code: `PR-0${nextNum}/0${nextNum}`,
       title: `Nova Prancha ${nextNum}`,
       size: 'A1',
-      orientation: 'landscape',
-      viewports: [{ id: `vp_${Date.now()}`, type: 'planta', x: 5, y: 5, w: 60, h: 80 }]
+      orientation: 'landscape'
     });
   };
 

@@ -455,8 +455,8 @@ function App() {
           <>
             <div className="su-sep" style={{ margin: '0 8px', borderLeft: '1px solid var(--su-border)', height: '24px' }} />
             <div className="su-toolbar-group">
-              <button className="su-tool-btn" onClick={() => useCadStore.getState().setRenderMode('solid')} title="Estilo: Sólido" style={{fontSize:11, width:'auto', padding:'0 8px'}}>Sólido</button>
-              <button className="su-tool-btn" onClick={() => useCadStore.getState().setRenderMode('wireframe')} title="Estilo: Aramado" style={{fontSize:11, width:'auto', padding:'0 8px'}}>Aramado</button>
+              <button className="su-tool-btn" onClick={() => useCadStore.getState().setRenderMode('SOLID')} title="Estilo: Sólido" style={{fontSize:11, width:'auto', padding:'0 8px'}}>Sólido</button>
+              <button className="su-tool-btn" onClick={() => useCadStore.getState().setRenderMode('WIREFRAME')} title="Estilo: Aramado" style={{fontSize:11, width:'auto', padding:'0 8px'}}>Aramado</button>
               <button className="su-tool-btn" onClick={() => useCadStore.getState().toggleGrid()} title="Alternar Grade" style={{fontSize:11, width:'auto', padding:'0 8px'}}>Grade (G)</button>
             </div>
           </>

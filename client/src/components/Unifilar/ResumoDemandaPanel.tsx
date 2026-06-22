@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useCadStore } from '../../store/useCadStore';
 import { calculateDemand, autoPhaseBalance } from '../../utils/nbr5410';
 
@@ -86,7 +86,7 @@ export function ResumoDemandaPanel() {
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', color: 'var(--su-text-muted)' }}>
           <span>Desbalanço máx:</span>
-          <strong>{(phaseBalance.maxImbalance * 100).toFixed(1)}%</strong>
+          <strong>{(phaseBalance.unbalancePercent).toFixed(1)}%</strong>
         </div>
       </div>
     </div>

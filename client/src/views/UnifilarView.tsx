@@ -378,7 +378,7 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
         <Background color="#1e293b" gap={16} size={1} />
         <Controls showInteractive={false} style={{ backgroundColor: '#ffffff', border: '1px solid #334155', color: '#1a1a1a', fill: '#f8fafc' }} />
       </ReactFlow>
-
-      
+      </div>
+    </div>
   );
 };
