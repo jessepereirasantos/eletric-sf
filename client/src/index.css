@@ -1,28 +1,904 @@
-/* RESET E CONFIGURAÇÕES GERAIS */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
+/* ═══════════════════════════════════════════════════
+   TEMA SKETCHUP PRO 2024 — Interface CAD Profissional
+   Regra 05: Tema único, claro, CAD profissional.
+   Proibido: dark mode, gradientes modernos, dashboard.
+═══════════════════════════════════════════════════ */
 :root {
-  /* Paleta Sóbria - Light Mode AutoCAD/WOCA */
-  --bg-primary: #f8fafc;     /* Slate 50 */
-  --bg-secondary: #ffffff;   /* Branco */
-  --bg-tertiary: #f1f5f9;    /* Slate 100 */
-  --text-primary: #0f172a;   /* Slate 900 */
-  --text-secondary: #475569; /* Slate 600 */
-  --border-color: #cbd5e1;   /* Slate 300 */
-  
-  /* Cores normativas NBR 5410 */
-  --cable-phase: #ef4444;   /* Vermelho */
-  --cable-neutral: #3b82f6; /* Azul */
-  --cable-ground: #22c55e;  /* Verde */
-  --cable-return: #eab308;  /* Amarelo */
+  /* ── Paleta Principal SketchUp (cinza claro profissional) ── */
+  --su-bg-app:       #f0f0f0;   /* Fundo geral da aplicação */
+  --su-bg-panel:     #ebebeb;   /* Painéis (toolbars, tray) */
+  --su-bg-menu:      #f5f5f5;   /* Menu superior */
+  --su-bg-viewport:  #d8d8d8;   /* Fundo da viewport */
+  --su-bg-canvas:    #ffffff;   /* Canvas de modelagem */
+  --su-bg-hover:     #e0e0e0;   /* Hover em botões */
+  --su-bg-active:    #bae6fd;   /* Ferramenta ativa (azul céu claro) */
+  --su-bg-selected:  #d4edff;   /* Item selecionado */
 
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  /* ── Bordas e Separadores ── */
+  --su-border:       #c0c0c0;   /* Borda padrão entre painéis */
+  --su-border-light: #d4d4d4;   /* Borda leve */
+  --su-border-dark:  #999999;   /* Borda de ênfase/sombra */
+  --su-divider:      #b0b0b0;   /* Divisor entre grupos de botões */
+
+  /* ── Tipografia ── */
+  --su-text:         #1a1a1a;   /* Texto principal */
+  --su-text-muted:   #555555;   /* Texto secundário */
+  --su-text-label:   #333333;   /* Rótulos de painéis */
+  --su-text-active:  #0070cc;   /* Texto de item ativo */
+  --su-font:         'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --su-font-size:    12px;      /* Tamanho base (SketchUp usa fonte pequena) */
+
+  /* ── Dimensões da Shell ── */
+  --su-menu-h:       24px;      /* Altura da barra de menus */
+  --su-toolbar-h:    38px;      /* Altura da barra de ferramentas principal */
+  --su-sidebar-w:    36px;      /* Largura da barra lateral esquerda */
+  --su-tray-w:       240px;     /* Largura do Default Tray direito */
+  --su-scenes-h:     28px;      /* Altura da barra de cenas */
+  --su-status-h:     24px;      /* Altura da barra de status/medidas */
+  --su-tray-min-w:   220px;
+  --su-tray-max-w:   320px;
+
+  /* ── Cores Normativas Elétricas (NBR 5410) ── */
+  --cable-phase:   #ef4444;   /* Vermelho */
+  --cable-neutral: #3b82f6;   /* Azul */
+  --cable-ground:  #22c55e;   /* Verde */
+  --cable-return:  #eab308;   /* Amarelo */
+
+  /* Legacy compatibility */
+  --bg-primary:    var(--su-bg-app);
+  --bg-secondary:  var(--su-bg-panel);
+  --bg-tertiary:   var(--su-bg-hover);
+  --text-primary:  var(--su-text);
+  --text-secondary: var(--su-text-muted);
+  --border-color:  var(--su-border);
+
+  font-family: var(--su-font);
+  font-size: var(--su-font-size);
   color-scheme: light;
 }
+
+/* ═══════════════════════════════════════════════════
+   CURSORES CUSTOMIZADOS — Estilo SketchUp
+   Cada ferramenta tem cursor CSS próprio
+═══════════════════════════════════════════════════ */
+.su-cursor-select   { cursor: default; }
+.su-cursor-pencil   { cursor: crosshair; }
+.su-cursor-eraser   { cursor: cell; }
+.su-cursor-move     { cursor: move; }
+.su-cursor-rotate   { cursor: grab; }
+.su-cursor-scale    { cursor: nwse-resize; }
+.su-cursor-pushpull { cursor: ns-resize; }
+.su-cursor-measure  { cursor: crosshair; }
+.su-cursor-paint    { cursor: copy; }
+.su-cursor-zoom     { cursor: zoom-in; }
+.su-cursor-orbit    { cursor: all-scroll; }
+.su-cursor-pan      { cursor: grab; }
+
+/* ═══════════════════════════════════════════════════
+   SHELL PRINCIPAL — Grid Layout SketchUp
+   Estrutura: menu / toolbar / [sidebar | viewport | tray] / status
+═══════════════════════════════════════════════════ */
+.su-shell {
+  display: grid;
+  grid-template-rows: var(--su-menu-h) var(--su-toolbar-h) 1fr var(--su-status-h);
+  grid-template-columns: var(--su-sidebar-w) 1fr var(--su-tray-w);
+  grid-template-areas:
+    "menu     menu     menu"
+    "toolbar  toolbar  toolbar"
+    "sidebar  viewport tray"
+    "status   status   status";
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--su-bg-app);
+  font-family: var(--su-font);
+  font-size: var(--su-font-size);
+  color: var(--su-text);
+}
+
+/* Menu Superior */
+.su-menu-bar {
+  grid-area: menu;
+  display: flex;
+  align-items: center;
+  background-color: var(--su-bg-menu);
+  border-bottom: 1px solid var(--su-border);
+  padding: 0 4px;
+  height: var(--su-menu-h);
+  z-index: 1000;
+  user-select: none;
+}
+
+.su-menu-item {
+  position: relative;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--su-text);
+  cursor: default;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.su-menu-item:hover {
+  background-color: var(--su-bg-active);
+  color: var(--su-text-active);
+}
+
+.su-menu-item.active {
+  background-color: var(--su-bg-active);
+  color: var(--su-text-active);
+}
+
+/* Dropdown de menus */
+.su-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 180px;
+  background-color: var(--su-bg-menu);
+  border: 1px solid var(--su-border-dark);
+  box-shadow: 2px 2px 6px rgba(0,0,0,0.25);
+  z-index: 2000;
+  padding: 2px 0;
+}
+
+.su-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 16px 4px 28px;
+  font-size: 12px;
+  color: var(--su-text);
+  cursor: default;
+  white-space: nowrap;
+  gap: 16px;
+}
+
+.su-dropdown-item:hover {
+  background-color: var(--su-bg-active);
+  color: var(--su-text-active);
+}
+
+.su-dropdown-item.disabled {
+  color: #aaa;
+  pointer-events: none;
+}
+
+.su-dropdown-separator {
+  height: 1px;
+  background-color: var(--su-border);
+  margin: 3px 0;
+}
+
+.su-dropdown-shortcut {
+  font-size: 11px;
+  color: var(--su-text-muted);
+  margin-left: auto;
+}
+
+/* Barra Principal de Ferramentas */
+.su-toolbar {
+  grid-area: toolbar;
+  display: flex;
+  align-items: center;
+  background-color: var(--su-bg-panel);
+  border-bottom: 1px solid var(--su-border);
+  padding: 0 4px;
+  gap: 1px;
+  height: var(--su-toolbar-h);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.su-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 3px;
+  border-right: 1px solid var(--su-divider);
+}
+
+.su-toolbar-group:last-child {
+  border-right: none;
+}
+
+/* Barra Lateral Esquerda */
+.su-sidebar {
+  grid-area: sidebar;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: var(--su-bg-panel);
+  border-right: 1px solid var(--su-border);
+  padding: 4px 0;
+  gap: 1px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  width: var(--su-sidebar-w);
+}
+
+.su-sidebar-separator {
+  width: 80%;
+  height: 1px;
+  background-color: var(--su-divider);
+  margin: 3px 0;
+}
+
+/* Viewport Central (inclui barra de cenas) */
+.su-viewport-area {
+  grid-area: viewport;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: var(--su-bg-viewport);
+}
+
+/* Barra de Cenas */
+.su-scenes-bar {
+  display: flex;
+  align-items: center;
+  background-color: var(--su-bg-panel);
+  border-bottom: 1px solid var(--su-border);
+  height: var(--su-scenes-h);
+  padding: 0 4px;
+  gap: 0;
+  flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.su-scene-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  height: 100%;
+  font-size: 11px;
+  color: var(--su-text-muted);
+  cursor: pointer;
+  border-right: 1px solid var(--su-border);
+  white-space: nowrap;
+  background: transparent;
+  border-top: 2px solid transparent;
+  transition: all 0.1s;
+}
+
+.su-scene-tab:hover {
+  background-color: var(--su-bg-hover);
+  color: var(--su-text);
+}
+
+.su-scene-tab.active {
+  background-color: var(--su-bg-canvas);
+  color: var(--su-text);
+  border-top-color: var(--su-text-active);
+  font-weight: 600;
+}
+
+.su-scene-tab-add {
+  padding: 0 8px;
+  font-size: 14px;
+  color: var(--su-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.su-scene-tab-add:hover {
+  color: var(--su-text-active);
+  background-color: var(--su-bg-hover);
+}
+
+/* Canvas da Viewport */
+.su-canvas {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Default Tray Direito */
+.su-tray {
+  grid-area: tray;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--su-bg-panel);
+  border-left: 1px solid var(--su-border);
+  overflow: hidden;
+  min-width: var(--su-tray-min-w);
+  max-width: var(--su-tray-max-w);
+  width: var(--su-tray-w);
+}
+
+/* Tray Header (título do tray) */
+.su-tray-title {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--su-text-muted);
+  background-color: var(--su-bg-panel);
+  border-bottom: 1px solid var(--su-border);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+
+/* Painel do Tray — Acordeão */
+.su-tray-panel {
+  border-bottom: 1px solid var(--su-border);
+  flex-shrink: 0;
+}
+
+.su-tray-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--su-text-label);
+  background-color: var(--su-bg-panel);
+  cursor: pointer;
+  user-select: none;
+  border-top: 1px solid var(--su-border-light);
+  transition: background 0.1s;
+}
+
+.su-tray-panel-header:hover {
+  background-color: var(--su-bg-hover);
+}
+
+.su-tray-panel-header .su-tray-arrow {
+  font-size: 10px;
+  color: var(--su-text-muted);
+  transition: transform 0.15s;
+}
+
+.su-tray-panel-header.open .su-tray-arrow {
+  transform: rotate(90deg);
+}
+
+.su-tray-panel-body {
+  padding: 6px 8px;
+  background-color: var(--su-bg-canvas);
+  font-size: 11px;
+  overflow-y: auto;
+}
+
+.su-tray-panels-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Barra de Status / Medidas Inferior */
+.su-status-bar {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--su-bg-panel);
+  border-top: 1px solid var(--su-border);
+  padding: 0 8px;
+  height: var(--su-status-h);
+  font-size: 11px;
+  color: var(--su-text-muted);
+  flex-shrink: 0;
+}
+
+.su-status-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.su-measurements-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.su-measurements-label {
+  font-size: 11px;
+  color: var(--su-text-muted);
+}
+
+.su-measurements-input {
+  width: 140px;
+  height: 18px;
+  font-size: 11px;
+  font-family: var(--su-font);
+  background-color: white;
+  border: 1px solid var(--su-border-dark);
+  padding: 0 4px;
+  color: var(--su-text);
+  outline: none;
+  text-align: right;
+}
+
+.su-measurements-input:focus {
+  border-color: var(--su-text-active);
+  box-shadow: 0 0 0 1px var(--su-text-active);
+}
+
+/* ═══════════════════════════════════════════════════
+   BOTÕES DE FERRAMENTA — Estilo SketchUp
+   Usados na Toolbar e na Sidebar
+═══════════════════════════════════════════════════ */
+.su-tool-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--su-text);
+  font-size: 14px;
+  flex-shrink: 0;
+  position: relative;
+  transition: all 0.1s;
+}
+
+.su-tool-btn:hover {
+  background-color: var(--su-bg-hover);
+  border-color: var(--su-border);
+}
+
+.su-tool-btn.active {
+  background-color: var(--su-bg-active);
+  border-color: var(--su-text-active);
+  color: var(--su-text-active);
+}
+
+.su-tool-btn:active {
+  background-color: var(--su-bg-active);
+}
+
+/* Tooltip das ferramentas */
+.su-tool-btn::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 6px);
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: #2d2d2d;
+  color: white;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 9999;
+  font-family: var(--su-font);
+}
+
+.su-tool-btn:hover::after {
+  opacity: 1;
+}
+
+/* Sidebar vertical — tooltip à direita */
+.su-sidebar .su-tool-btn::after {
+  left: calc(100% + 6px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Toolbar horizontal — tooltip abaixo */
+.su-toolbar .su-tool-btn::after {
+  left: 50%;
+  top: calc(100% + 4px);
+  transform: translateX(-50%);
+}
+
+/* ═══════════════════════════════════════════════════
+   ENTITY INFO — Painel de propriedades
+═══════════════════════════════════════════════════ */
+.su-entity-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 11px;
+  border-bottom: 1px solid var(--su-border-light);
+}
+
+.su-entity-label {
+  color: var(--su-text-muted);
+  min-width: 80px;
+}
+
+.su-entity-value {
+  font-weight: 500;
+  color: var(--su-text);
+  text-align: right;
+}
+
+.su-entity-input {
+  width: 100%;
+  border: 1px solid var(--su-border);
+  background: white;
+  font-size: 11px;
+  font-family: var(--su-font);
+  padding: 2px 4px;
+  color: var(--su-text);
+  outline: none;
+}
+
+.su-entity-input:focus {
+  border-color: var(--su-text-active);
+}
+
+/* ═══════════════════════════════════════════════════
+   MATERIAIS — Grid de miniaturas
+═══════════════════════════════════════════════════ */
+.su-materials-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 4px;
+}
+
+.su-material-thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 2px solid transparent;
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.1s;
+}
+
+.su-material-thumb:hover {
+  border-color: var(--su-text-active);
+}
+
+.su-material-thumb.selected {
+  border-color: var(--su-text-active);
+  box-shadow: 0 0 0 1px var(--su-text-active);
+}
+
+.su-material-thumb-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0,0,0,0.5);
+  color: white;
+  font-size: 9px;
+  text-align: center;
+  padding: 1px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.su-material-thumb:hover .su-material-thumb-label {
+  opacity: 1;
+}
+
+/* ═══════════════════════════════════════════════════
+   BIBLIOTECA BIM — Cards de componentes
+═══════════════════════════════════════════════════ */
+.su-bim-search {
+  width: 100%;
+  border: 1px solid var(--su-border);
+  padding: 3px 6px;
+  font-size: 11px;
+  font-family: var(--su-font);
+  background: white;
+  color: var(--su-text);
+  outline: none;
+  margin-bottom: 4px;
+}
+
+.su-bim-search:focus {
+  border-color: var(--su-text-active);
+}
+
+.su-bim-category {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--su-text-muted);
+  padding: 4px 0 2px;
+  border-bottom: 1px solid var(--su-border-light);
+  margin-bottom: 2px;
+}
+
+.su-bim-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  cursor: pointer;
+  border-radius: 2px;
+  font-size: 11px;
+  color: var(--su-text);
+}
+
+.su-bim-item:hover {
+  background-color: var(--su-bg-active);
+  color: var(--su-text-active);
+}
+
+.su-bim-item-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════
+   INSTRUCTOR PANEL
+═══════════════════════════════════════════════════ */
+.su-instructor {
+  padding: 6px 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--su-text);
+  background-color: white;
+}
+
+.su-instructor-title {
+  font-weight: 700;
+  color: var(--su-text-active);
+  margin-bottom: 4px;
+}
+
+.su-instructor-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.su-instructor-step-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: var(--su-bg-active);
+  color: var(--su-text-active);
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════
+   TAGS / OUTLINER (Estrutura)
+═══════════════════════════════════════════════════ */
+.su-outliner-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 1px;
+  color: var(--su-text);
+}
+
+.su-outliner-item:hover {
+  background-color: var(--su-bg-hover);
+}
+
+.su-outliner-item.selected {
+  background-color: var(--su-bg-active);
+  color: var(--su-text-active);
+}
+
+.su-outliner-indent {
+  padding-left: 12px;
+}
+
+.su-outliner-icon {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.su-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+.su-tag-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════
+   CENAS PANEL (dentro do Tray)
+═══════════════════════════════════════════════════ */
+.su-scene-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 2px;
+  color: var(--su-text);
+}
+
+.su-scene-item:hover {
+  background-color: var(--su-bg-hover);
+}
+
+.su-scene-item.active {
+  background-color: var(--su-bg-active);
+  color: var(--su-text-active);
+  font-weight: 600;
+}
+
+.su-scene-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  background: transparent;
+  border: 1px dashed var(--su-border);
+  border-radius: 2px;
+  color: var(--su-text-muted);
+  margin-top: 4px;
+}
+
+.su-scene-add-btn:hover {
+  border-color: var(--su-text-active);
+  color: var(--su-text-active);
+  background-color: var(--su-bg-active);
+}
+
+/* ═══════════════════════════════════════════════════
+   MODO TABSTRIP (abas do viewport)
+═══════════════════════════════════════════════════ */
+.su-viewport-tabs {
+  display: flex;
+  background-color: var(--su-bg-panel);
+  border-bottom: 1px solid var(--su-border);
+  flex-shrink: 0;
+}
+
+.su-viewport-tab {
+  padding: 4px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--su-text-muted);
+  border-right: 1px solid var(--su-border);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: all 0.1s;
+}
+
+.su-viewport-tab:hover {
+  background-color: var(--su-bg-hover);
+  color: var(--su-text);
+}
+
+.su-viewport-tab.active {
+  background-color: var(--su-bg-canvas);
+  color: var(--su-text-active);
+  border-bottom-color: var(--su-text-active);
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════
+   MODAL / DIALOG estilo SketchUp
+═══════════════════════════════════════════════════ */
+.su-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+}
+
+.su-modal {
+  background: var(--su-bg-panel);
+  border: 1px solid var(--su-border-dark);
+  box-shadow: 4px 4px 12px rgba(0,0,0,0.35);
+  min-width: 300px;
+  max-width: 600px;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+}
+
+.su-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background-color: #3a3a3a;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.su-modal-close {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+}
+
+.su-modal-body {
+  padding: 12px 16px;
+  font-size: 12px;
+  color: var(--su-text);
+  background: white;
+}
+
+.su-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--su-border);
+}
+
+/* ═══════════════════════════════════════════════════
+   BOTÕES SketchUp
+═══════════════════════════════════════════════════ */
+.su-btn {
+  padding: 4px 14px;
+  font-size: 12px;
+  font-family: var(--su-font);
+  border-radius: 2px;
+  cursor: pointer;
+  border: 1px solid var(--su-border-dark);
+  background-color: var(--su-bg-panel);
+  color: var(--su-text);
+  transition: all 0.1s;
+}
+
+.su-btn:hover {
+  background-color: var(--su-bg-hover);
+  border-color: var(--su-border-dark);
+}
+
+.su-btn-primary {
+  background-color: #0070cc;
+  color: white;
+  border-color: #0060b0;
+}
+
+.su-btn-primary:hover {
+  background-color: #0060b0;
+}
+
+/* ═══════════════════════════════════════════════════
+   SEPARADOR / DIVIDER (para uso inline)
+═══════════════════════════════════════════════════ */
+.su-sep {
+  width: 1px;
+  height: 22px;
+  background-color: var(--su-divider);
+  margin: 0 3px;
+  flex-shrink: 0;
+}
+
+
 
 body {
   background-color: var(--bg-primary);
