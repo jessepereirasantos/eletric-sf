@@ -11,6 +11,7 @@ import { MaterialsPanel } from './components/Render3D/UI/Panels/MaterialsPanel';
 import { EntityInfoPanel } from './components/Render3D/UI/Panels/EntityInfoPanel';
 import { ScenesPanel } from './components/Render3D/UI/Panels/ScenesPanel';
 import { CadIcon } from './components/CadIcons';
+import { measurementsEngine } from './engines/MeasurementsEngine';
 // ─────────────────────────────────────────────────────────────────────────────
 // TIPOS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -235,6 +236,14 @@ function App() {
   // ── Inicialização ──
   useEffect(() => {
     loadUserSession();
+    
+    measurementsEngine.init();
+    measurementsEngine.onCommit((val) => {
+      dispatchCommand('apply_measurement', val);
+      setMeasurementsValue('');
+    });
+
+    return () => measurementsEngine.destroy();
   }, []);
 
   // ── Inicializar ShortcutManager ──
@@ -539,17 +548,13 @@ function App() {
         <div className="su-measurements-box">
           <span className="su-measurements-label">Medidas:</span>
           <input
+            ref={(el) => { if (el) measurementsEngine.attachInput(el); }}
             id="measurements-box"
             type="text"
             className="su-measurements-input"
             value={measurementsValue}
             placeholder="0,00"
             onChange={e => setMeasurementsValue(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') {
-                dispatchCommand('apply_measurement', measurementsValue);
-              }
-            }}
           />
         </div>
       </div>

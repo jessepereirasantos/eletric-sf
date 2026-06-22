@@ -12,9 +12,8 @@ import { BottomBar } from '../components/BottomBar';
 // Importação dos Módulos da Engine 3D Baseados no SketchUp
 import { EnvironmentManager } from '../components/Render3D/Scene/Environment';
 import { Lighting } from '../components/Render3D/Scene/Lighting';
-import { GroundPlane } from '../components/Render3D/Scene/GroundPlane';
-import { PostProcessingEffects } from '../components/Render3D/Effects/PostProcessing';
 import { CameraController } from '../components/Render3D/Camera/CameraController';
+import { PostProcessingEffects } from '../components/Render3D/Effects/PostProcessing';
 
 // Interface 3D (HUD)
 import { FloatingHUD } from '../components/Render3D/UI/FloatingHUD';
@@ -304,13 +303,9 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
           gl={{ localClippingEnabled: true, preserveDrawingBuffer: true, antialias: false }} // antialias native is off because we use SMAA
           style={{ width: '100%', height: '100%', outline: 'none', backgroundColor: '#e2e8f0' }}
         >
-          {/* Fundo Padrão (se HDR não cobrir tudo) */}
-          <color attach="background" args={['#d4d4d8']} />
-
           {/* Módulos do Sistema Visual */}
           <EnvironmentManager />
           <Lighting />
-          <GroundPlane />
           <CameraController />
           <PostProcessingEffects />
           <ToolManager />
