@@ -421,7 +421,111 @@ interface CadState {
   setSolarSettings: (azimuth: number, elevation: number) => void;
   shadowsEnabled: boolean;
   setShadowsEnabled: (enabled: boolean) => void;
+
+  // ═══════════════════════════════════════════════════════════
+  // TOOL MANAGER — Gerenciador centralizado de ferramentas
+  // Tudo que era scattered (activeTool, cursor, instructor)
+  // agora é coordenado por aqui.
+  // ═══════════════════════════════════════════════════════════
+  activeToolId: string;             // ex: 'select', 'line', 'wall', 'tug_baixa'
+  activeToolCursor: string;         // classe CSS do cursor: 'su-cursor-pencil'
+  activeToolInstructor: string;     // texto de instrução passo a passo
+  activeToolGroup: string;          // 'select' | 'draw' | 'modify' | 'electric' | 'measure'
+  setActiveTool3D: (toolId: string) => void;
+  setActiveToolId: (toolId: string, cursor?: string, instructor?: string, group?: string) => void;
+
+  // ═══════════════════════════════════════════════════════════
+  // COMMAND MANAGER — Histórico e despacho de comandos
+  // Undo/Redo já existe; aqui adicionamos o sistema de comandos
+  // para Copy, Paste, Delete, Move, Rotate, PushPull, etc.
+  // ═══════════════════════════════════════════════════════════
+  commandHistory: Array<{ id: string; label: string; timestamp: number }>;
+  clipboard: unknown | null;                     // conteúdo copiado
+  dispatchCommand: (commandId: string, payload?: unknown) => void;
+  copySelection: () => void;
+  pasteClipboard: () => void;
+  deleteSelection: () => void;
+
+  // ═══════════════════════════════════════════════════════════
+  // SHORTCUT MANAGER — Listener global de teclado
+  // Atalhos do SketchUp: Space, L, R, C, M, Q, S, P, E, etc.
+  // ═══════════════════════════════════════════════════════════
+  shortcutsEnabled: boolean;
+  setShortcutsEnabled: (enabled: boolean) => void;
+  initShortcutManager: () => () => void;   // retorna função de cleanup
+
+  // ═══════════════════════════════════════════════════════════
+  // VIEWPORT MANAGER — Estado da câmera e modo de renderização
+  // Controla: modo ativo, snaps, lock de eixo, pan, zoom
+  // ═══════════════════════════════════════════════════════════
+  viewportState: {
+    activeTab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets';
+    snapsEnabled: boolean;
+    snapTypes: string[];
+    axisLock: 'none' | 'x' | 'y' | 'z';
+    measurementsValue: string;    // Caixa de Medidas (Measurements Box)
+    statusText: string;           // Texto de status da barra inferior
+  };
+  setViewportTab: (tab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets') => void;
+  setAxisLock: (axis: 'none' | 'x' | 'y' | 'z') => void;
+  setMeasurementsValue: (value: string) => void;
+  setStatusText: (text: string) => void;
+
+  // ═══════════════════════════════════════════════════════════
+  // IMPORT MANAGER — Esqueleto vazio para importadores futuros
+  // Suportará: SKP, DWG, DXF, IFC, OBJ, GLTF
+  // ═══════════════════════════════════════════════════════════
+  importManager: {
+    supportedFormats: string[];
+    isImporting: boolean;
+    lastImportError: string | null;
+  };
+  importFile: (format: string, file: File) => Promise<void>;   // implementação futura
+
+  // ═══════════════════════════════════════════════════════════
+  // SELECTION MANAGER — Seleção profissional estilo SketchUp
+  // Clique único, Shift+click, janela e cruzamento
+  // ═══════════════════════════════════════════════════════════
+  selectedEntityIds: string[];
+  selectionBox: { startX: number; startY: number; endX: number; endY: number; mode: 'window' | 'crossing' } | null;
+  addToSelection: (id: string) => void;
+  removeFromSelection: (id: string) => void;
+  setSelection: (ids: string[]) => void;
+  clearEntitySelection: () => void;
+  setSelectionBox: (box: { startX: number; startY: number; endX: number; endY: number; mode: 'window' | 'crossing' } | null) => void;
+
+  // ═══════════════════════════════════════════════════════════
+  // SCENE MANAGER — Cenas do projeto (estilo SketchUp)
+  // ═══════════════════════════════════════════════════════════
+  scenesList: Array<{
+    id: string;
+    name: string;
+    activeTab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets';
+    renderMode?: string;
+  }>;
+  activeSceneId: string | null;
+  addScene: (name: string) => void;
+  removeScene: (id: string) => void;
+  renameScene: (id: string, name: string) => void;
+  activateScene: (id: string) => void;
+
+  // ═══════════════════════════════════════════════════════════
+  // MATERIAL DATABASE — Biblioteca de materiais PBR
+  // ═══════════════════════════════════════════════════════════
+  pbrMaterials: Array<{
+    id: string;
+    name: string;
+    color?: string;
+    texture?: string;
+    roughness?: number;
+    metalness?: number;
+    opacity?: number;
+    category?: string;
+    thumbnail?: string;
+  }>;
+  applyMaterial: (entityId: string, materialId: string) => void;
 }
+
 
 const MAX_HISTORY = 50;
 
@@ -2323,7 +2427,336 @@ export const useCadStore = create<CadState>()(
         console.error('Erro ao deletar projeto do banco', err);
       }
     },
+
+    // ═══════════════════════════════════════════════════════════
+    // TOOL MANAGER — Implementações
+    // ═══════════════════════════════════════════════════════════
+    activeToolId: 'select',
+    activeToolCursor: 'su-cursor-select',
+    activeToolInstructor: 'Clique para selecionar entidades. Shift+Clique para seleção múltipla.',
+    activeToolGroup: 'select',
+
+    setActiveToolId: (toolId, cursor, instructor, group) => {
+      const cursorMap: Record<string, string> = {
+        select: 'su-cursor-select',
+        line: 'su-cursor-pencil',
+        wall: 'su-cursor-pencil',
+        rectangle: 'su-cursor-pencil',
+        circle: 'su-cursor-pencil',
+        eraser: 'su-cursor-eraser',
+        move: 'su-cursor-move',
+        rotate: 'su-cursor-rotate',
+        scale: 'su-cursor-scale',
+        push_pull: 'su-cursor-pushpull',
+        offset: 'su-cursor-pencil',
+        measure: 'su-cursor-select',
+        device: 'su-cursor-pencil',
+        conduit: 'su-cursor-pencil',
+        area: 'su-cursor-pencil',
+        dimension: 'su-cursor-pencil',
+        text: 'su-cursor-pencil',
+      };
+      const instructorMap: Record<string, string> = {
+        select: 'Clique para selecionar. Shift+Clique para seleção múltipla. Arraste para janela de seleção.',
+        line: 'Clique para definir o ponto inicial da linha. Clique novamente para o ponto final. ESC para cancelar.',
+        wall: 'Clique para definir o início da parede. Clique novamente para o final. ESC para finalizar.',
+        rectangle: 'Clique para o primeiro canto. Mova e clique para o canto oposto.',
+        circle: 'Clique para o centro do círculo. Mova e clique para definir o raio.',
+        eraser: 'Clique em uma entidade para deletá-la. Shift+Clique para suavizar/esconder arestas.',
+        move: 'Clique em uma entidade para mover. Clique novamente para posicionar.',
+        rotate: 'Clique para definir o centro. Clique novamente para o ângulo de início e fim.',
+        scale: 'Clique em um ponto de controle e arraste para escalar. Shift para escala uniforme.',
+        push_pull: 'Clique em uma face e arraste para extrudar. Clique duplo para repetir a última extrusão.',
+        device: 'Clique na planta para posicionar o dispositivo elétrico.',
+        conduit: 'Clique no dispositivo de origem e depois no destino para criar o eletroduto.',
+      };
+      set({
+        activeToolId: toolId,
+        activeToolCursor: cursor ?? cursorMap[toolId] ?? 'su-cursor-select',
+        activeToolInstructor: instructor ?? instructorMap[toolId] ?? '',
+        activeToolGroup: group ?? 'select',
+      });
+    },
+
+    setActiveTool3D: (toolId) => {
+      get().setActiveToolId(toolId);
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    // COMMAND MANAGER — Implementações
+    // ═══════════════════════════════════════════════════════════
+    commandHistory: [],
+    clipboard: null,
+
+    dispatchCommand: (commandId, payload) => {
+      set((s) => ({
+        commandHistory: [
+          ...s.commandHistory.slice(-49),
+          { id: `cmd_${Date.now()}`, label: commandId, timestamp: Date.now() }
+        ]
+      }));
+      // Roteamento de comandos built-in
+      const store = get();
+      switch (commandId) {
+        case 'undo': store.undo(); break;
+        case 'redo': store.redo(); break;
+        case 'copy': store.copySelection(); break;
+        case 'paste': store.pasteClipboard(); break;
+        case 'delete': store.deleteSelection(); break;
+        default:
+          console.log(`[CommandManager] Comando despachado: ${commandId}`, payload);
+      }
+    },
+
+    copySelection: () => {
+      const { selectedDeviceId, selectedWallId, devices, walls } = get();
+      if (selectedDeviceId) {
+        const device = devices.find(d => d.id === selectedDeviceId);
+        if (device) set({ clipboard: { type: 'device', data: { ...device } } });
+      } else if (selectedWallId) {
+        const wall = walls.find(w => w.id === selectedWallId);
+        if (wall) set({ clipboard: { type: 'wall', data: { ...wall } } });
+      }
+    },
+
+    pasteClipboard: () => {
+      const { clipboard } = get();
+      if (!clipboard) return;
+      const cb = clipboard as { type: string; data: Record<string, unknown> };
+      if (cb.type === 'device' && cb.data) {
+        get().pushHistory();
+        get().addDevice({
+          ...(cb.data as Parameters<typeof get>),
+          x: (cb.data.x as number ?? 0) + 0.3,
+          y: (cb.data.y as number ?? 0) + 0.3,
+        } as Parameters<CadState['addDevice']>[0]);
+      }
+    },
+
+    deleteSelection: () => {
+      const { selectedDeviceId, selectedWallId, selectedConduitId, selectedTextId, selectedDimensionId } = get();
+      get().pushHistory();
+      if (selectedDeviceId) get().removeDevice(selectedDeviceId);
+      if (selectedWallId) get().removeWall(selectedWallId);
+      if (selectedConduitId) get().removeConduit(selectedConduitId);
+      if (selectedTextId) get().removeText(selectedTextId);
+      if (selectedDimensionId) get().removeDimension(selectedDimensionId);
+      get().clearSelection();
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    // SHORTCUT MANAGER — Implementações
+    // ═══════════════════════════════════════════════════════════
+    shortcutsEnabled: true,
+
+    setShortcutsEnabled: (enabled) => set({ shortcutsEnabled: enabled }),
+
+    initShortcutManager: () => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        const { shortcutsEnabled, setActiveToolId, setCurrentTool, dispatchCommand } = get();
+        if (!shortcutsEnabled) return;
+        // Ignora quando está em um input/textarea
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+
+        const key = e.key.toLowerCase();
+        const ctrl = e.ctrlKey || e.metaKey;
+
+        if (ctrl && key === 'z') { e.preventDefault(); dispatchCommand('undo'); return; }
+        if (ctrl && key === 'y') { e.preventDefault(); dispatchCommand('redo'); return; }
+        if (ctrl && key === 'c') { e.preventDefault(); dispatchCommand('copy'); return; }
+        if (ctrl && key === 'v') { e.preventDefault(); dispatchCommand('paste'); return; }
+        if (key === 'delete' || key === 'backspace') { dispatchCommand('delete'); return; }
+
+        // Atalhos de ferramentas do SketchUp
+        const toolMap: Record<string, string> = {
+          ' ': 'select',    // Space
+          'escape': 'select',
+          'l': 'line',
+          'r': 'rectangle',
+          'c': 'circle',
+          'm': 'move',
+          'q': 'rotate',
+          's': 'scale',
+          'p': 'push_pull',
+          'e': 'eraser',
+          'f': 'offset',
+          't': 'measure',
+        };
+
+        if (toolMap[key] && !ctrl) {
+          e.preventDefault();
+          const toolId = toolMap[key];
+          setActiveToolId(toolId);
+          // Mapear também para o currentTool legacy
+          const legacyMap: Record<string, string> = {
+            select: 'select', eraser: 'select',
+            line: 'wall', wall: 'wall',
+            device: 'device', conduit: 'conduit',
+            area: 'area',
+          };
+          if (legacyMap[toolId]) {
+            setCurrentTool(legacyMap[toolId] as Parameters<typeof setCurrentTool>[0]);
+          }
+        }
+      };
+
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    // VIEWPORT MANAGER — Implementações
+    // ═══════════════════════════════════════════════════════════
+    viewportState: {
+      activeTab: 'cad2d',
+      snapsEnabled: true,
+      snapTypes: ['endpoint', 'midpoint', 'center', 'on_edge'],
+      axisLock: 'none',
+      measurementsValue: '',
+      statusText: 'Pronto',
+    },
+
+    setViewportTab: (tab) => set((s) => ({
+      viewportState: { ...s.viewportState, activeTab: tab }
+    })),
+
+    setAxisLock: (axis) => set((s) => ({
+      viewportState: { ...s.viewportState, axisLock: axis }
+    })),
+
+    setMeasurementsValue: (value) => set((s) => ({
+      viewportState: { ...s.viewportState, measurementsValue: value }
+    })),
+
+    setStatusText: (text) => set((s) => ({
+      viewportState: { ...s.viewportState, statusText: text }
+    })),
+
+    // ═══════════════════════════════════════════════════════════
+    // IMPORT MANAGER — Implementações (esqueleto vazio)
+    // ═══════════════════════════════════════════════════════════
+    importManager: {
+      supportedFormats: ['skp', 'dwg', 'dxf', 'ifc', 'obj', 'gltf'],
+      isImporting: false,
+      lastImportError: null,
+    },
+
+    importFile: async (format, _file) => {
+      set((s) => ({ importManager: { ...s.importManager, isImporting: true, lastImportError: null } }));
+      try {
+        // TODO Fase 3+: Implementar parsers para cada formato
+        console.warn(`[ImportManager] Importação de ${format} ainda não implementada.`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Erro desconhecido';
+        set((s) => ({ importManager: { ...s.importManager, lastImportError: msg } }));
+      } finally {
+        set((s) => ({ importManager: { ...s.importManager, isImporting: false } }));
+      }
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    // SELECTION MANAGER — Implementações
+    // ═══════════════════════════════════════════════════════════
+    selectedEntityIds: [],
+    selectionBox: null,
+
+    addToSelection: (id) => set((s) => ({
+      selectedEntityIds: s.selectedEntityIds.includes(id) ? s.selectedEntityIds : [...s.selectedEntityIds, id]
+    })),
+
+    removeFromSelection: (id) => set((s) => ({
+      selectedEntityIds: s.selectedEntityIds.filter(eid => eid !== id)
+    })),
+
+    setSelection: (ids) => set({ selectedEntityIds: ids }),
+
+    clearEntitySelection: () => set({ selectedEntityIds: [], selectionBox: null }),
+
+    setSelectionBox: (box) => set({ selectionBox: box }),
+
+    // ═══════════════════════════════════════════════════════════
+    // SCENE MANAGER — Implementações
+    // ═══════════════════════════════════════════════════════════
+    scenesList: [
+      { id: 'scene_default', name: 'Cena 1', activeTab: 'cad2d', renderMode: 'ARCHITECTURAL' }
+    ],
+    activeSceneId: 'scene_default',
+
+    addScene: (name) => {
+      const id = `scene_${Date.now()}`;
+      const { viewportState, renderMode } = get();
+      set((s) => ({
+        scenesList: [...s.scenesList, {
+          id,
+          name,
+          activeTab: viewportState.activeTab,
+          renderMode: renderMode,
+        }],
+        activeSceneId: id,
+      }));
+    },
+
+    removeScene: (id) => set((s) => {
+      const filtered = s.scenesList.filter(sc => sc.id !== id);
+      return {
+        scenesList: filtered,
+        activeSceneId: filtered.length > 0 ? filtered[filtered.length - 1].id : null,
+      };
+    }),
+
+    renameScene: (id, name) => set((s) => ({
+      scenesList: s.scenesList.map(sc => sc.id === id ? { ...sc, name } : sc)
+    })),
+
+    activateScene: (id) => {
+      const { scenesList } = get();
+      const scene = scenesList.find(sc => sc.id === id);
+      if (!scene) return;
+      set({ activeSceneId: id });
+      get().setViewportTab(scene.activeTab);
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    // MATERIAL DATABASE — Biblioteca PBR inicial
+    // ═══════════════════════════════════════════════════════════
+    pbrMaterials: [
+      // Cores
+      { id: 'mat_white', name: 'Branco Neve', color: '#ffffff', roughness: 0.8, metalness: 0.0, opacity: 1.0, category: 'Cores' },
+      { id: 'mat_offwhite', name: 'Off-White', color: '#f5f0e8', roughness: 0.85, metalness: 0.0, opacity: 1.0, category: 'Cores' },
+      { id: 'mat_gray', name: 'Cinza Concreto', color: '#9ca3af', roughness: 0.9, metalness: 0.0, opacity: 1.0, category: 'Concreto' },
+      { id: 'mat_concrete', name: 'Concreto Aparente', color: '#6b7280', roughness: 0.95, metalness: 0.0, opacity: 1.0, category: 'Concreto' },
+      // Madeiras
+      { id: 'mat_wood_light', name: 'Madeira Clara', color: '#d4a76a', roughness: 0.7, metalness: 0.0, opacity: 1.0, category: 'Madeira' },
+      { id: 'mat_wood_dark', name: 'Madeira Escura', color: '#7c4d1e', roughness: 0.75, metalness: 0.0, opacity: 1.0, category: 'Madeira' },
+      { id: 'mat_wood_pine', name: 'Pinus Natural', color: '#c89b5f', roughness: 0.65, metalness: 0.0, opacity: 1.0, category: 'Madeira' },
+      // Pisos e Azulejos
+      { id: 'mat_porcelain_white', name: 'Porcelanato Branco', color: '#f8f8f8', roughness: 0.1, metalness: 0.0, opacity: 1.0, category: 'Piso' },
+      { id: 'mat_porcelain_gray', name: 'Porcelanato Cinza', color: '#d1d5db', roughness: 0.12, metalness: 0.0, opacity: 1.0, category: 'Piso' },
+      { id: 'mat_tile_white', name: 'Azulejo Branco', color: '#f9fafb', roughness: 0.15, metalness: 0.0, opacity: 1.0, category: 'Azulejo' },
+      { id: 'mat_tile_subway', name: 'Subway Tile', color: '#e5e7eb', roughness: 0.2, metalness: 0.0, opacity: 1.0, category: 'Azulejo' },
+      // Metais
+      { id: 'mat_steel', name: 'Aço Inox', color: '#d1d5db', roughness: 0.3, metalness: 0.9, opacity: 1.0, category: 'Metal' },
+      { id: 'mat_aluminum', name: 'Alumínio', color: '#e5e7eb', roughness: 0.4, metalness: 0.8, opacity: 1.0, category: 'Metal' },
+      { id: 'mat_copper', name: 'Cobre', color: '#b87333', roughness: 0.5, metalness: 0.95, opacity: 1.0, category: 'Metal' },
+      // Vidros
+      { id: 'mat_glass_clear', name: 'Vidro Transparente', color: '#bfdbfe', roughness: 0.05, metalness: 0.1, opacity: 0.25, category: 'Vidro' },
+      { id: 'mat_glass_frosted', name: 'Vidro Fosco', color: '#e0f2fe', roughness: 0.6, metalness: 0.0, opacity: 0.6, category: 'Vidro' },
+      // Elétrico
+      { id: 'mat_electric_conduit', name: 'Eletroduto PVC', color: '#fbbf24', roughness: 0.7, metalness: 0.0, opacity: 1.0, category: 'Elétrico' },
+      { id: 'mat_electric_wire', name: 'Cabo Elétrico', color: '#dc2626', roughness: 0.8, metalness: 0.0, opacity: 1.0, category: 'Elétrico' },
+    ],
+
+    applyMaterial: (entityId, materialId) => {
+      set((s) => ({
+        devices: s.devices.map(d => d.id === entityId ? { ...d, materialId } : d),
+        walls: s.walls.map(w => w.id === entityId ? { ...w, materialId } : w),
+        areas: s.areas.map(a => a.id === entityId ? { ...a, materialId } : a),
+      }));
+    },
   }),
+
   {
     name: 'eletric-sf-cad-store',
     partialize: (state) => ({
