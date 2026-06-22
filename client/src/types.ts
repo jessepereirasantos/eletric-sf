@@ -139,7 +139,9 @@ export interface ViewportState {
 // ============================================================
 
 export type ToolType = 'select' | 'wall' | 'device' | 'conduit' | 'area'
-  | 'dimension' | 'text'
+  | 'dimension' | 'text' | 'line' | 'rectangle' | 'circle'
+  | 'eraser' | 'move' | 'rotate' | 'scale' | 'push_pull' | 'offset'
+  | 'orbit' | 'pan' | 'zoom'
   | 'auto_wire' | 'auto_conduit'
   | 'split_circuits_tug' | 'split_circuits_light' | 'split_circuits_tue'
   | 'guide_line';

@@ -234,6 +234,7 @@ function App() {
     toggleGrid, setRenderMode,
     logout,
     setCurrentTool,
+    resetWorkspace, saveProjectLocally, loadProjectLocally,
   } = useCadStore();
 
   const { measurementsValue = '', statusText = 'Pronto' } = viewportState ?? {};
@@ -295,6 +296,13 @@ function App() {
   const handleMenuCommand = (cmd: string) => {
     setActiveMenu(null);
     switch (cmd) {
+      case 'new': 
+        if (window.confirm('Iniciar novo projeto? As alterações não salvas serão perdidas.')) {
+          resetWorkspace();
+        }
+        break;
+      case 'open': loadProjectLocally(); break;
+      case 'save': saveProjectLocally(); break;
       case 'undo': undo(); break;
       case 'redo': redo(); break;
       case 'copy': dispatchCommand('copy'); break;
@@ -330,6 +338,13 @@ function App() {
   // ── Ação dos botões da toolbar ──
   const handleToolbarAction = (toolId: string) => {
     switch (toolId) {
+      case 'new': 
+        if (window.confirm('Iniciar novo projeto? As alterações não salvas serão perdidas.')) {
+          resetWorkspace();
+        }
+        break;
+      case 'open': loadProjectLocally(); break;
+      case 'save': saveProjectLocally(); break;
       case 'undo': undo(); break;
       case 'redo': redo(); break;
       case 'solid': setRenderMode('SOLID' as any); break;
@@ -348,11 +363,14 @@ function App() {
   const handleSidebarTool = (toolId: string) => {
     setActiveToolId(toolId);
     const legacyMap: Record<string, string> = {
-      select: 'select', eraser: 'select',
+      select: 'select', 
       wall: 'wall', line: 'wall',
       device: 'device', conduit: 'conduit',
       area: 'area', dimension: 'dimension',
       text: 'text',
+      eraser: 'eraser',
+      move: 'move', rotate: 'rotate', scale: 'scale',
+      push_pull: 'push_pull', orbit: 'orbit', pan: 'pan', zoom: 'zoom'
     };
     if (legacyMap[toolId]) {
       setCurrentTool(legacyMap[toolId] as any);

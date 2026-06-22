@@ -239,8 +239,8 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
       },
       position: { x: 150, y: nextY },
       style: {
-        backgroundColor: '#334155', color: '#1a1a1a',
-        border: '1px solid #475569', borderRadius: '4px', width: 600
+        backgroundColor: '#cbd5e1', color: '#1a1a1a',
+        border: '1px solid #94a3b8', borderRadius: '4px', width: 600
       }
     });
     listEdges.push({
@@ -260,8 +260,8 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
       },
       position: { x: 20, y: nextY + 60 },
       style: {
-        backgroundColor: '#14532d', color: '#1a1a1a',
-        border: '1px solid #22c55e', borderRadius: '4px', width: 140
+        backgroundColor: '#bbf7d0', color: '#14532d',
+        border: '1.5px solid #22c55e', borderRadius: '6px', width: 220
       }
     });
     listEdges.push({

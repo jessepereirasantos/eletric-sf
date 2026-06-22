@@ -1392,6 +1392,16 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                   e.cancelBubble = true;
                   if (currentTool === 'select') {
                     setSelectedGuideLineId(g.id);
+                  } else if (currentTool === 'eraser') {
+                    useCadStore.getState().removeGuideLine(g.id);
+                  }
+                }}
+                onTap={(e) => {
+                  e.cancelBubble = true;
+                  if (currentTool === 'select') {
+                    setSelectedGuideLineId(g.id);
+                  } else if (currentTool === 'eraser') {
+                    useCadStore.getState().removeGuideLine(g.id);
                   }
                 }}
                 onMouseEnter={(e) => {
@@ -1631,6 +1641,16 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                 e.cancelBubble = true;
                 if (currentTool === 'select') {
                   setSelectedDimensionId(d.id);
+                } else if (currentTool === 'eraser') {
+                  useCadStore.getState().removeDimension(d.id);
+                }
+              }}
+              onTap={(e) => {
+                e.cancelBubble = true;
+                if (currentTool === 'select') {
+                  setSelectedDimensionId(d.id);
+                } else if (currentTool === 'eraser') {
+                  useCadStore.getState().removeDimension(d.id);
                 }
               }}
             >
@@ -1900,6 +1920,8 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                 e.cancelBubble = true;
                 if (currentTool === 'select') {
                   setSelectedTextId(t.id);
+                } else if (currentTool === 'eraser') {
+                  useCadStore.getState().removeText(t.id);
                 }
               }}
             >
@@ -1978,10 +2000,15 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
 
           const clickHandler = (e: any) => {
             e.cancelBubble = true;
-            if (currentTool === 'select') setSelectedWallId(wall.id);
+            if (currentTool === 'select') {
+              setSelectedWallId(wall.id);
+            } else if (currentTool === 'eraser') {
+              useCadStore.getState().removeWall(wall.id);
+            }
           };
           const enterHandler = (e: any) => {
             if (currentTool === 'select') e.target.getStage()!.container().style.cursor = 'pointer';
+            else if (currentTool === 'eraser') e.target.getStage()!.container().style.cursor = 'crosshair';
           };
           const leaveHandler = (e: any) => {
             e.target.getStage()!.container().style.cursor = cursorStyle;
@@ -2218,12 +2245,16 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
                     e.cancelBubble = true;
                     if (currentTool === 'select') {
                       setSelectedConduitId(conduit.id);
+                    } else if (currentTool === 'eraser') {
+                      useCadStore.getState().removeConduit(conduit.id);
                     }
                   }}
                   onTap={(e) => {
                     e.cancelBubble = true;
                     if (currentTool === 'select') {
                       setSelectedConduitId(conduit.id);
+                    } else if (currentTool === 'eraser') {
+                      useCadStore.getState().removeConduit(conduit.id);
                     }
                   }}
                   onMouseEnter={(e) => { e.target.getStage()!.container().style.cursor = 'pointer'; }}
@@ -2404,6 +2435,8 @@ export const CadCanvas: React.FC<CadCanvasProps> = ({ width, height }) => {
               e.cancelBubble = true;
               if (currentTool === 'select') {
                 setSelectedDeviceId(dev.id);
+              } else if (currentTool === 'eraser') {
+                useCadStore.getState().removeDevice(dev.id);
               } else if (currentTool === 'conduit') {
                 if (!conduitStartDeviceId) {
                   setConduitStartDeviceId(dev.id);

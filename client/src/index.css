@@ -3,6 +3,8 @@
    Regra 05: Tema único, claro, CAD profissional.
    Proibido: dark mode, gradientes modernos, dashboard.
 ═══════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 :root {
   /* ── Paleta Principal SketchUp (cinza claro profissional) ── */
   --su-bg-app:       #f0f0f0;   /* Fundo geral da aplicação */
@@ -89,6 +91,9 @@
     "status   status   status";
   width: 100vw;
   height: 100vh;
+  min-height: 0;
+  min-width: 0;
+  box-sizing: border-box;
   overflow: hidden;
   background-color: var(--su-bg-app);
   font-family: var(--su-font);

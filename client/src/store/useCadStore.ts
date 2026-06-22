@@ -456,6 +456,12 @@ interface CadState {
   initShortcutManager: () => () => void;   // retorna função de cleanup
 
   // ═══════════════════════════════════════════════════════════
+  // LOCAL FILE SYSTEM I/O
+  // ═══════════════════════════════════════════════════════════
+  saveProjectLocally: () => void;
+  loadProjectLocally: () => void;
+
+  // ═══════════════════════════════════════════════════════════
   // VIEWPORT MANAGER — Estado da câmera e modo de renderização
   // Controla: modo ativo, snaps, lock de eixo, pan, zoom
   // ═══════════════════════════════════════════════════════════
@@ -2305,6 +2311,63 @@ export const useCadStore = create<CadState>()(
       } catch (err) {
         set({ authLoading: false });
       }
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    // LOCAL FILE SYSTEM I/O
+    // ═══════════════════════════════════════════════════════════
+    saveProjectLocally: () => {
+      const state = get();
+      const payload = {
+        projectName: state.projectName,
+        walls: state.walls,
+        areas: state.areas,
+        devices: state.devices,
+        circuits: state.circuits,
+        conduits: state.conduits,
+        guideLines: state.guideLines,
+        texts: state.texts,
+        dimensions: state.dimensions,
+        ppm: state.ppm,
+        bgImageSrc: state.bgImageSrc,
+        bgImageLock: state.bgImageLock,
+        bgImageScaleX: state.bgImageScaleX,
+        bgImageScaleY: state.bgImageScaleY,
+        bgImagePos: state.bgImagePos,
+        bgImageRotation: state.bgImageRotation,
+        sheetsList: state.sheetsList,
+        snapshots3D: state.snapshots3D,
+      };
+      const json = JSON.stringify(payload, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${state.projectName || 'projeto_eletrico'}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    },
+
+    loadProjectLocally: () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'application/json';
+      input.onchange = (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const data = JSON.parse(ev.target?.result as string);
+            get().setWorkspaceData(data);
+          } catch (err) {
+            console.error('Erro ao carregar projeto:', err);
+            alert('Falha ao ler arquivo de projeto. Formato inválido.');
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
     },
 
     loadProjectsFromDb: async () => {
