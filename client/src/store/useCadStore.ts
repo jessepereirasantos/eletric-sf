@@ -2525,13 +2525,22 @@ export const useCadStore = create<CadState>()(
       const cb = clipboard as { type: string; data: Record<string, unknown> };
       if (cb.type === 'device' && cb.data) {
         get().pushHistory();
+        const srcData = cb.data as Record<string, unknown>;
         get().addDevice({
-          ...(cb.data as Parameters<typeof get>),
-          x: (cb.data.x as number ?? 0) + 0.3,
-          y: (cb.data.y as number ?? 0) + 0.3,
-        } as Parameters<CadState['addDevice']>[0]);
+          type: (srcData.type as string) ?? 'tug_baixa',
+          name: (srcData.name as string) ?? 'Cópia',
+          x: ((srcData.x as number) ?? 0) + 0.3,
+          y: ((srcData.y as number) ?? 0) + 0.3,
+          rotation: (srcData.rotation as number) ?? 0,
+          power: (srcData.power as number) ?? 100,
+          voltage: (srcData.voltage as 127 | 220) ?? 127,
+          circuitId: srcData.circuitId as string | undefined,
+          height3d: srcData.height3d as number | undefined,
+          width: srcData.width as number | undefined,
+        });
       }
     },
+
 
     deleteSelection: () => {
       const { selectedDeviceId, selectedWallId, selectedConduitId, selectedTextId, selectedDimensionId } = get();
