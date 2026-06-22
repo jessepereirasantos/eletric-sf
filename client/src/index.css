@@ -231,6 +231,8 @@
   flex-direction: column;
   overflow: hidden;
   background-color: var(--su-bg-viewport);
+  min-height: 0;
+  min-width: 0;
 }
 
 /* Barra de Cenas */
@@ -308,6 +310,7 @@
   min-width: var(--su-tray-min-w);
   max-width: var(--su-tray-max-w);
   width: var(--su-tray-w);
+  min-height: 0;
 }
 
 /* Tray Header (título do tray) */
@@ -384,6 +387,8 @@
   font-size: 11px;
   color: var(--su-text-muted);
   flex-shrink: 0;
+  z-index: 1000;
+  position: relative;
 }
 
 .su-status-text {

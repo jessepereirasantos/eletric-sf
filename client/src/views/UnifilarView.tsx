@@ -100,7 +100,7 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
               ⚡ ENTRADA CONCESSIONÁRIA
             </span>
             <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginTop: '2px' }}>{demandInfo.connectionType.toUpperCase()}</div>
-            <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+            <div style={{ fontSize: '0.7rem', color: '#555555' }}>
               Medidor: {demandInfo.connectionType === 'monofasico' ? 'Monofásico 2F' : demandInfo.connectionType === 'bifasico' ? 'Bifásico 3F' : 'Trifásico 4F'}
             </div>
             <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px' }}>
@@ -111,8 +111,8 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
       },
       position: { x: 350, y: 20 },
       style: {
-        backgroundColor: '#0f172a',
-        color: '#f8fafc',
+        backgroundColor: '#f5f5f5',
+        color: '#1a1a1a',
         border: '1.5px solid #ef4444',
         borderRadius: '8px',
         width: 200
@@ -126,7 +126,7 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
         label: (
           <div style={{ textAlign: 'center', padding: '4px' }}>
             <div style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>📊 Medidor kWh</div>
-            <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>
+            <div style={{ fontSize: '0.65rem', color: '#555555' }}>
               Cabo entrada: {demandInfo.suggestedEntrySection}mm²
             </div>
           </div>
@@ -134,7 +134,7 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
       },
       position: { x: 370, y: 120 },
       style: {
-        backgroundColor: '#1e293b', color: '#f8fafc',
+        backgroundColor: '#ffffff', color: '#1a1a1a',
         border: '1px solid #475569', borderRadius: '6px', width: 160
       }
     });
@@ -157,13 +157,13 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
             <div style={{ fontSize: '0.85rem', color: '#eab308', fontWeight: 'bold', fontFamily: 'monospace', margin: '2px 0' }}>
               {generalBreakerA}A Termomagnético
             </div>
-            <div style={{ fontSize: '0.6rem', color: '#94a3b8' }}>Bipolar/Tripolar</div>
+            <div style={{ fontSize: '0.6rem', color: '#555555' }}>Bipolar/Tripolar</div>
           </div>
         )
       },
       position: { x: 355, y: 200 },
       style: {
-        backgroundColor: '#1e293b', color: '#f8fafc',
+        backgroundColor: '#ffffff', color: '#1a1a1a',
         border: '1.5px solid #eab308', borderRadius: '8px', width: 190
       }
     });
@@ -183,13 +183,13 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
           label: (
             <div style={{ textAlign: 'center', padding: '4px' }}>
               <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#f87171' }}>🔴 {drType}</div>
-              <div style={{ fontSize: '0.6rem', color: '#94a3b8' }}>Proteção contra choque</div>
+              <div style={{ fontSize: '0.6rem', color: '#555555' }}>Proteção contra choque</div>
             </div>
           )
         },
         position: { x: 370, y: nextY },
         style: {
-          backgroundColor: '#1e293b', color: '#f8fafc',
+          backgroundColor: '#ffffff', color: '#1a1a1a',
           border: '1.5px solid #f87171', borderRadius: '6px', width: 160
         }
       });
@@ -208,7 +208,7 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
           label: (
             <div style={{ textAlign: 'center', padding: '4px' }}>
               <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#f59e0b' }}>⚡ DPS Class II 275V</div>
-              <div style={{ fontSize: '0.6rem', color: '#94a3b8' }}>
+              <div style={{ fontSize: '0.6rem', color: '#555555' }}>
                 {busbarType === 'trifasico' ? '3 módulos' : busbarType === 'bifasico' ? '2 módulos' : '1 módulo'}
               </div>
             </div>
@@ -216,7 +216,7 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
         },
         position: { x: 600, y: nextY - 60 },
         style: {
-          backgroundColor: '#1e293b', color: '#f8fafc',
+          backgroundColor: '#ffffff', color: '#1a1a1a',
           border: '1.5px solid #f59e0b', borderRadius: '6px', width: 150
         }
       });
@@ -239,7 +239,7 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
       },
       position: { x: 150, y: nextY },
       style: {
-        backgroundColor: '#334155', color: '#f8fafc',
+        backgroundColor: '#334155', color: '#1a1a1a',
         border: '1px solid #475569', borderRadius: '4px', width: 600
       }
     });
@@ -260,7 +260,7 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
       },
       position: { x: 20, y: nextY + 60 },
       style: {
-        backgroundColor: '#14532d', color: '#f8fafc',
+        backgroundColor: '#14532d', color: '#1a1a1a',
         border: '1px solid #22c55e', borderRadius: '4px', width: 140
       }
     });
@@ -278,7 +278,7 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
         data: { label: 'Nenhum circuito cadastrado. Adicione circuitos na prancheta 2D.' },
         position: { x: 320, y: nextY },
         style: {
-          backgroundColor: '#0f172a', color: '#94a3b8',
+          backgroundColor: '#f5f5f5', color: '#555555',
           border: '1px dashed #334155', borderRadius: '8px',
           width: 260, fontSize: '0.75rem', textAlign: 'center', padding: '12px'
         }
@@ -311,9 +311,9 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
               <div style={{ textAlign: 'left', padding: '4px', fontSize: '0.68rem', lineHeight: '1.4' }}>
                 <div style={{ borderBottom: '1px dashed #475569', paddingBottom: '3px', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <strong style={{ color: '#eab308' }}>Circ. {c.number}</strong>
-                  <span>{statusIcon} <span style={{ color: '#94a3b8', fontSize: '0.6rem' }}>{c.type.toUpperCase()}</span></span>
+                  <span>{statusIcon} <span style={{ color: '#555555', fontSize: '0.6rem' }}>{c.type.toUpperCase()}</span></span>
                 </div>
-                <div style={{ color: '#f8fafc', fontWeight: '600', marginBottom: '2px' }}>{c.name}</div>
+                <div style={{ color: '#1a1a1a', fontWeight: '600', marginBottom: '2px' }}>{c.name}</div>
                 <div>⚡ {c.voltage}V | 🔌 {totalPower}W | 📐 {maxDistance.toFixed(1)}m</div>
                 <div>👤 {deviceCount} ponto{deviceCount !== 1 ? 's' : ''} | 🧭 Fase: <strong style={{ color: '#eab308' }}>{phaseBalance.circuits.find((pc: any) => pc.circuitId === c.id)?.phaseAssigned || 'R'}</strong></div>
                 <div style={{ borderTop: '1px dashed #475569', marginTop: '3px', paddingTop: '3px' }}>
@@ -343,7 +343,7 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
           },
           position: { x: nodeX, y: nextY },
           style: {
-            backgroundColor: '#0f172a', color: '#f8fafc',
+            backgroundColor: '#f5f5f5', color: '#1a1a1a',
             border: `1.5px solid ${borderColor}`, borderRadius: '8px', width: 190
           }
         });
@@ -365,7 +365,7 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
   }, [circuits, devices]);
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#090d16', color: '#f8fafc', overflow: 'hidden' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#090d16', color: '#1a1a1a', overflow: 'hidden' }}>
 
       <div style={{ flex: 1, position: 'relative', outline: 'none' }}>
       <ReactFlow
@@ -376,7 +376,7 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
         nodesConnectable={false}
       >
         <Background color="#1e293b" gap={16} size={1} />
-        <Controls showInteractive={false} style={{ backgroundColor: '#1e293b', border: '1px solid #334155', color: '#f8fafc', fill: '#f8fafc' }} />
+        <Controls showInteractive={false} style={{ backgroundColor: '#ffffff', border: '1px solid #334155', color: '#1a1a1a', fill: '#f8fafc' }} />
       </ReactFlow>
 
       {/* ── Legenda + Resumo de Demanda ── */}
@@ -385,7 +385,7 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
           position: 'absolute', top: '16px', left: '16px',
           backgroundColor: 'rgba(15, 23, 42, 0.95)',
           border: '1px solid #334155', borderRadius: '10px',
-          padding: '14px 18px', zIndex: 10, color: '#f8fafc',
+          padding: '14px 18px', zIndex: 10, color: '#1a1a1a',
           maxWidth: '320px', boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
         }}
       >

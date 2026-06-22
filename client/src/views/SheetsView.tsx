@@ -633,7 +633,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
 
     if (!hasCircuits) {
       return (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '10px' }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555555', fontSize: '10px' }}>
           Nenhum circuito cadastrado para gerar o diagrama
         </div>
       );
@@ -1108,13 +1108,13 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
   const paddingBottom = isSmallSheet ? '110px' : '125px';
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#090d16', color: '#f8fafc', overflow: 'hidden' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#090d16', color: '#1a1a1a', overflow: 'hidden' }}>
 
       {/* Área de Trabalho */}
       <div style={{ flex: 1, display: 'flex', padding: '20px', gap: '20px', overflow: 'hidden' }}>
         
         {/* Painel de Controle de Folhas com Rolagem Própria */}
-        <div style={{ width: '280px', backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
+        <div style={{ width: '280px', backgroundColor: '#f5f5f5', border: '1px solid #c0c0c0', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ fontSize: '0.9rem', color: '#e2e8f0', margin: 0 }}>Suas Pranchas</h3>
@@ -1133,7 +1133,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
               }}>
                 <div>
                   <div style={{ fontWeight: 'bold', fontSize: '0.8rem' }}>{s.code}</div>
-                  <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{s.title}</div>
+                  <div style={{ fontSize: '0.7rem', color: '#555555' }}>{s.title}</div>
                 </div>
                 <button onClick={(e) => { e.stopPropagation(); handleRemoveSheet(s.id); }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.9rem' }}>
                   ✕
@@ -1147,21 +1147,21 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
             <h4 style={{ fontSize: '0.8rem', color: '#cbd5e1', margin: 0 }}>Configurar Folha</h4>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Título da Prancha</span>
+              <span style={{ fontSize: '0.65rem', color: '#555555' }}>Título da Prancha</span>
               <input
                 type="text"
                 value={activeSheet.title}
                 onChange={(e) => updateSheet(activeSheet.id, { title: e.target.value })}
-                style={{ backgroundColor: '#1e293b', border: '1px solid #334155', color: '#fff', padding: '6px', borderRadius: '4px', fontSize: '0.75rem', outline: 'none' }}
+                style={{ backgroundColor: '#ffffff', border: '1px solid #334155', color: '#fff', padding: '6px', borderRadius: '4px', fontSize: '0.75rem', outline: 'none' }}
               />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Tamanho do Papel</span>
+              <span style={{ fontSize: '0.65rem', color: '#555555' }}>Tamanho do Papel</span>
               <select
                 value={activeSheet.size}
                 onChange={(e) => updateSheet(activeSheet.id, { size: e.target.value as any })}
-                style={{ backgroundColor: '#1e293b', border: '1px solid #334155', color: '#fff', padding: '6px', borderRadius: '4px', fontSize: '0.75rem', outline: 'none', cursor: 'pointer' }}
+                style={{ backgroundColor: '#ffffff', border: '1px solid #334155', color: '#fff', padding: '6px', borderRadius: '4px', fontSize: '0.75rem', outline: 'none', cursor: 'pointer' }}
               >
                 <option value="A0">A0 (1189x841 mm)</option>
                 <option value="A1">A1 (841x594 mm)</option>
@@ -1173,7 +1173,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
 
             {/* Conteúdos Habilitados na Prancha (Zustand) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-              <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Adicionar no Layout</span>
+              <span style={{ fontSize: '0.65rem', color: '#555555' }}>Adicionar no Layout</span>
               {(['planta', 'unifilar', 'cargas', 'materiais', 'legenda'] as const).map(type => {
                 const label = type === 'planta' ? 'Planta Baixa 2D'
                             : type === 'unifilar' ? 'Diagrama Unifilar'
@@ -1193,14 +1193,14 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
             {/* Snapshots 3D Capturados */}
             {snapshots3D.length > 0 && (
               <div style={{ borderTop: '1px solid #1e293b', paddingTop: '10px', marginTop: '6px' }}>
-                <span style={{ fontSize: '0.65rem', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>Cortes 3D Capturados</span>
+                <span style={{ fontSize: '0.65rem', color: '#555555', display: 'block', marginBottom: '6px' }}>Cortes 3D Capturados</span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '110px', overflowY: 'auto' }}>
                   {snapshots3D.map(snap => (
                     <button
                       key={snap.id}
                       onClick={() => addViewportToSheet(activeSheet.id, 'corte_3d', snap.id)}
                       style={{
-                        padding: '4px 8px', backgroundColor: '#1e293b', border: '1px solid #334155',
+                        padding: '4px 8px', backgroundColor: '#ffffff', border: '1px solid #334155',
                         borderRadius: '4px', color: '#cbd5e1', fontSize: '0.7rem', cursor: 'pointer', textAlign: 'left',
                         display: 'flex', alignItems: 'center', gap: '6px'
                       }}
@@ -1219,7 +1219,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
             <button onClick={() => handlePrint([activeSheet])} style={{ width: '100%', padding: '10px', borderRadius: '6px', backgroundColor: '#3b82f6', color: '#fff', border: 'none', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               🖨️ Imprimir Prancha Atual
             </button>
-            <button onClick={() => handlePrint(sheetsList)} style={{ width: '100%', padding: '8px', borderRadius: '6px', backgroundColor: 'transparent', border: '1px solid #334155', color: '#94a3b8', fontSize: '0.7rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <button onClick={() => handlePrint(sheetsList)} style={{ width: '100%', padding: '8px', borderRadius: '6px', backgroundColor: 'transparent', border: '1px solid #334155', color: '#555555', fontSize: '0.7rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               🖨️ Imprimir Todas as Folhas
             </button>
           </div>
@@ -1231,7 +1231,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
           style={{
             flex: 1,
             backgroundColor: '#0b0f19',
-            border: '1px solid #1e293b',
+            border: '1px solid #c0c0c0',
             borderRadius: '8px',
             display: 'flex',
             alignItems: 'center',
@@ -1392,7 +1392,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
                       );
                     } else {
                       viewportInner = (
-                        <div style={{ color: '#94a3b8', fontSize: '9px', textAlign: 'center', padding: '10px' }}>
+                        <div style={{ color: '#555555', fontSize: '9px', textAlign: 'center', padding: '10px' }}>
                           📸 Snapshot 3D Indisponível
                         </div>
                       );
