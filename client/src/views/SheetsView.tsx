@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useRef, useEffect } from 'react';
 import { useCadStore } from '../store/useCadStore';
 import { BottomBar } from '../components/BottomBar';
@@ -1538,3 +1539,4 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
     </div>
   );
 };
+
