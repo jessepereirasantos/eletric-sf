@@ -1,7 +1,6 @@
 // @ts-nocheck
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { CadCanvas } from '../components/Cad2D/CadCanvas';
-import { PropertiesPanel } from '../components/PropertiesPanel';
 
 import { useCadStore } from '../store/useCadStore';
 import { dimensionateCircuit } from '../utils/nbr5410';
@@ -881,7 +880,7 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
           )}
         </div>
 
-        <PropertiesPanel />
+        
       </div>
 
       {isDimensioningOpen && (
