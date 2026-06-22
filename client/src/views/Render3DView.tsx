@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useMemo, useState, useRef } from 'react';
 import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
@@ -23,7 +22,7 @@ import { BIMOutliner } from '../components/Render3D/UI/BIMOutliner';
 import { ToolManager } from '../components/Render3D/Tools/ToolManager';
 
 const Laje3D: React.FC = () => {
-  useCadStore(); // no state destructured
+  const { walls, clippingState, showLaje3D } = useCadStore();
 
   const clippingPlanes = useMemo(() => {
     if (!clippingState.enabled) return [];
@@ -184,6 +183,8 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
       items: customColors.map(c => ({ name: c.name, value: c.value, texture: 'gesso' }))
     }
   ], [customColors]);
+
+  
 
   const handleCaptureSnapshot = () => {
     const canvas = document.querySelector('canvas');
@@ -358,5 +359,3 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
     </div>
   );
 };
-
-

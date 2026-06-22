@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useRef, useEffect } from 'react';
 import { useCadStore } from '../store/useCadStore';
 import { BottomBar } from '../components/BottomBar';
@@ -11,8 +10,27 @@ interface SheetsViewProps {
   onTabChange: (tab: 'cad2d' | 'render3d' | 'unifilar' | 'sheets') => void;
 }
 
-export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }) => {
-  useCadStore(); // no state destructured
+export const SheetsView: React.FC<SheetsViewProps> = () => {
+  const {
+    projectName,
+    walls,
+    devices,
+    circuits,
+    materialsList,
+    paperOwner,
+    paperDesigner,
+    paperLogo,
+    sheetsList,
+    activeSheetId,
+    addSheet,
+    removeSheet,
+    updateSheet,
+    setActiveSheetId,
+    updateViewportGeometry,
+    addViewportToSheet,
+    removeViewportFromSheet,
+    snapshots3D
+  } = useCadStore();
 
   const [selectedViewportId, setSelectedViewportId] = useState<string | null>(null);
   const [containerSize, setContainerSize] = useState({ w: 800, h: 600 });
@@ -1520,5 +1538,3 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
     </div>
   );
 };
-
-
