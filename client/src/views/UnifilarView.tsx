@@ -365,7 +365,7 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
   }, [circuits, devices]);
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#090d16', color: '#1a1a1a', overflow: 'hidden' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc', color: '#1a1a1a', overflow: 'hidden' }}>
 
       <div style={{ flex: 1, position: 'relative', outline: 'none' }}>
       <ReactFlow
@@ -375,8 +375,8 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
         nodesDraggable={true}
         nodesConnectable={false}
       >
-        <Background color="#1e293b" gap={16} size={1} />
-        <Controls showInteractive={false} style={{ backgroundColor: '#ffffff', border: '1px solid #334155', color: '#1a1a1a', fill: '#f8fafc' }} />
+        <Background color="#cbd5e1" gap={16} size={1} />
+        <Controls showInteractive={false} style={{ backgroundColor: '#ffffff', border: '1px solid #334155', color: '#1a1a1a', fill: '#475569' }} />
       </ReactFlow>
       </div>
     </div>

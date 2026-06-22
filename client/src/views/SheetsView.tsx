@@ -1108,7 +1108,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
   const paddingBottom = isSmallSheet ? '110px' : '125px';
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#090d16', color: '#1a1a1a', overflow: 'hidden' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc', color: '#1a1a1a', overflow: 'hidden' }}>
 
       {/* Área de Trabalho */}
       <div style={{ flex: 1, display: 'flex', padding: '20px', gap: '20px', overflow: 'hidden' }}>
@@ -1118,7 +1118,7 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
           ref={containerRef}
           style={{
             flex: 1,
-            backgroundColor: '#0b0f19',
+            backgroundColor: '#e2e8f0',
             border: '1px solid #c0c0c0',
             borderRadius: '8px',
             display: 'flex',
