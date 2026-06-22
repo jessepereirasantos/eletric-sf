@@ -1211,3 +1211,4 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
   );
 };
 
+
