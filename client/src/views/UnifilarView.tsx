@@ -12,7 +12,7 @@ interface UnifilarViewProps {
 }
 
 export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChange }) => {
-  const { circuits, devices } = useCadStore();
+  useCadStore(); // no state destructured
 
   const { nodes, edges, demandInfo, validations, phaseBalance } = useMemo(() => {
     const listNodes: Array<{

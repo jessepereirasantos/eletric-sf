@@ -23,7 +23,7 @@ import { BIMOutliner } from '../components/Render3D/UI/BIMOutliner';
 import { ToolManager } from '../components/Render3D/Tools/ToolManager';
 
 const Laje3D: React.FC = () => {
-  const { walls, clippingState, showLaje3D } = useCadStore();
+  useCadStore(); // no state destructured
 
   const clippingPlanes = useMemo(() => {
     if (!clippingState.enabled) return [];
@@ -110,17 +110,17 @@ export const Render3DView: React.FC<Render3DViewProps> = ({ activeTab, onTabChan
     updateCustomColor
   } = useCadStore();
 
-  const [hiddenDeviceIds, setHiddenDeviceIds] = useState<Set<string>>(new Set());
+  const [hiddenDeviceIds] = useState<Set<string>>(new Set());
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recordingFormatRef = useRef<{ mimeType: string; ext: string }>({ mimeType: 'video/webm', ext: 'webm' });
 
   // Estados locais para biblioteca de materiais dinâmicos (Estilo SketchUp)
-  const [selectedPaletteColor, setSelectedPaletteColor] = useState<{ name: string; value: string } | null>(null);
   
-  const [materialColor, setMaterialColor] = useState('#3b82f6');
-  const [activeCategory, setActiveCategory] = useState('cores');
+  
+  
+  const [activeCategory] = useState('cores');
 
   const categories = useMemo(() => [
     {

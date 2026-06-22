@@ -37,20 +37,7 @@ const FILE_PICKER_OPTIONS = {
 };
 
 export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) => {
-  const {
-    bgImageSrc, bgImageLock, isCalibrating,
-    devices, circuits,
-    projectName, legend, materialsList,
-    
-    setBgImageSrc, setBgImageLock, setIsCalibrating,
-    setBgImageSelected,
-    
-    
-    addCircuit, removeCircuit, resetWorkspace,
-    
-    splitCircuitsLight, splitCircuitsTUG, splitCircuitsTUE, autoWire,
-    walls, ppm, texts, dimensions: cadDimensions,
-  } = useCadStore();
+  useCadStore(); // no state destructured
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });

@@ -12,26 +12,7 @@ interface SheetsViewProps {
 }
 
 export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }) => {
-  const {
-    projectName,
-    walls,
-    devices,
-    circuits,
-    materialsList,
-    paperOwner,
-    paperDesigner,
-    paperLogo,
-    sheetsList,
-    activeSheetId,
-    addSheet,
-    removeSheet,
-    updateSheet,
-    setActiveSheetId,
-    updateViewportGeometry,
-    addViewportToSheet,
-    removeViewportFromSheet,
-    snapshots3D
-  } = useCadStore();
+  useCadStore(); // no state destructured
 
   const [selectedViewportId, setSelectedViewportId] = useState<string | null>(null);
   const [containerSize, setContainerSize] = useState({ w: 800, h: 600 });
