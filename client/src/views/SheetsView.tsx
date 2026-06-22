@@ -1539,4 +1539,3 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
     </div>
   );
 };
-

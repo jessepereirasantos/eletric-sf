@@ -1,6 +1,6 @@
 import { useCadStore } from '../../../../store/useCadStore';
 
-/** EntityInfoPanel â€” InformaÃ§Ãµes da entidade selecionada (equivalente ao Entity Info do SketchUp) */
+/** EntityInfoPanel â€” Informações da entidade selecionada (equivalente ao Entity Info do SketchUp) */
 export function EntityInfoPanel() {
   const {
     selectedDeviceId, selectedWallId, selectedConduitId, selectedTextId,
@@ -40,11 +40,11 @@ export function EntityInfoPanel() {
           <span className="su-entity-value">{device.y.toFixed(2)} m</span>
         </div>
         <div className="su-entity-row">
-          <span className="su-entity-label">PotÃªncia</span>
+          <span className="su-entity-label">Potência</span>
           <span className="su-entity-value">{device.power} W</span>
         </div>
         <div className="su-entity-row">
-          <span className="su-entity-label">TensÃ£o</span>
+          <span className="su-entity-label">Tensão</span>
           <span className="su-entity-value">{device.voltage} V</span>
         </div>
         <div className="su-entity-row">
@@ -123,7 +123,7 @@ export function EntityInfoPanel() {
         <div style={{ fontWeight: 700, padding: '3px 0 6px', color: 'var(--su-text)', borderBottom: '1px solid var(--su-border)', marginBottom: 4 }}>
           Eletroduto
         </div>
-        <div className="su-entity-row"><span className="su-entity-label">DiÃ¢metro</span><span className="su-entity-value">{conduit.diameter}"</span></div>
+        <div className="su-entity-row"><span className="su-entity-label">Diâmetro</span><span className="su-entity-value">{conduit.diameter}"</span></div>
         <div className="su-entity-row"><span className="su-entity-label">Tipo</span><span className="su-entity-value">{conduit.type}</span></div>
       </div>
     );
@@ -137,7 +137,7 @@ export function EntityInfoPanel() {
         <div style={{ fontWeight: 700, padding: '3px 0 6px', color: 'var(--su-text)', borderBottom: '1px solid var(--su-border)', marginBottom: 4 }}>
           Texto
         </div>
-        <div className="su-entity-row"><span className="su-entity-label">ConteÃºdo</span><span className="su-entity-value">{text.text}</span></div>
+        <div className="su-entity-row"><span className="su-entity-label">Conteíºdo</span><span className="su-entity-value">{text.text}</span></div>
         <div className="su-entity-row"><span className="su-entity-label">Tamanho</span><span className="su-entity-value">{text.fontSize}pt</span></div>
       </div>
     );
@@ -145,7 +145,7 @@ export function EntityInfoPanel() {
 
   return (
     <div className="su-instructor" style={{ color: 'var(--su-text-muted)' }}>
-      <div className="su-instructor-title">InformaÃ§Ãµes da Entidade</div>
+      <div className="su-instructor-title">Informações da Entidade</div>
       <p>Selecione uma entidade no editor para ver suas propriedades aqui.</p>
     </div>
   );

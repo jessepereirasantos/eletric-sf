@@ -1,6 +1,6 @@
 ﻿import { useCadStore } from '../../../../store/useCadStore';
 
-/** InstructorPanel â€” Exibe instruÃ§Ãµes dinÃ¢micas para a ferramenta ativa */
+/** InstructorPanel â€” Exibe instruções dinâmicas para a ferramenta ativa */
 export function InstructorPanel() {
   const { activeToolId, activeToolInstructor, activeToolGroup } = useCadStore();
 
@@ -8,18 +8,18 @@ export function InstructorPanel() {
     select:    'Selecionar (Space)',
     line:      'Linha (L)',
     wall:      'Parede',
-    rectangle: 'RetÃ¢ngulo (R)',
-    circle:    'CÃ­rculo (C)',
+    rectangle: 'Retângulo (R)',
+    circle:    'Círculo (C)',
     eraser:    'Borracha (E)',
     move:      'Mover (M)',
     rotate:    'Rotacionar (Q)',
     scale:     'Escalar (S)',
     push_pull: 'Push/Pull (P)',
     offset:    'Offset (F)',
-    measure:   'Fita MÃ©trica (T)',
-    device:    'Dispositivo ElÃ©trico',
+    measure:   'Fita Métrica (T)',
+    device:    'Dispositivo Elétrico',
     conduit:   'Eletroduto',
-    area:      'Ãrea',
+    area:      'írea',
     dimension: 'Cota',
     text:      'Texto',
   };

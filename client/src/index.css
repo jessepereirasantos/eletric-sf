@@ -1586,7 +1586,7 @@ code {
 }
 
 .header-title:hover {
-  background-color: #e2e8f0;
+  background-color: var(--su-text);
   border-color: #cbd5e1;
 }
 
@@ -1644,7 +1644,7 @@ code {
 .hdr-sep {
   width: 1px;
   height: 18px;
-  background-color: #e2e8f0;
+  background-color: var(--su-text);
   margin: 0 8px;
 }
 
@@ -1677,7 +1677,7 @@ code {
 }
 
 .hdr-nav-tab:hover {
-  background-color: #e2e8f0;
+  background-color: var(--su-text);
   color: #0f172a;
 }
 
@@ -1708,7 +1708,7 @@ code {
 .toolbar-divider {
   width: 1px;
   height: 18px;
-  background-color: #e2e8f0;
+  background-color: var(--su-text);
   margin: 0 6px;
 }
 
@@ -1931,7 +1931,7 @@ code {
 }
 
 .status-btn:hover {
-  background-color: #e2e8f0;
+  background-color: var(--su-text);
 }
 
 .status-btn-warn {
@@ -1978,7 +1978,7 @@ code {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-primary);
-  background-color: #f8fafc;
+  background-color: var(--su-text);
 }
 
 .props-panel-content {
@@ -2131,7 +2131,7 @@ code {
 }
 
 .props-rot-btn {
-  background-color: #f8fafc;
+  background-color: var(--su-text);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   cursor: pointer;
@@ -2149,7 +2149,7 @@ code {
 }
 
 .props-info {
-  background-color: #f8fafc;
+  background-color: var(--su-text);
   border: 1px solid #f1f5f9;
   border-radius: 6px;
   padding: 8px 10px;
@@ -2233,7 +2233,7 @@ code {
 }
 
 .app-main {
-  background-color: #f8fafc;
+  background-color: var(--su-text);
 }
 
 /* Ajustes nos Modais da Fase 3 */
@@ -2250,7 +2250,7 @@ code {
 }
 
 .modal-tab.active {
-  background-color: #e2e8f0;
+  background-color: var(--su-text);
   color: #1e3a8a !important;
 }
 
@@ -2287,7 +2287,7 @@ code {
 }
 
 .circuit-form-bar {
-  background-color: #f8fafc;
+  background-color: var(--su-text);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 12px;
@@ -2327,7 +2327,7 @@ code {
 }
 
 .dimensioning-table th {
-  background-color: #f8fafc;
+  background-color: var(--su-text);
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border-color);
 }
@@ -2338,7 +2338,7 @@ code {
 }
 
 .dimensioning-table tr:hover td {
-  background-color: #f8fafc;
+  background-color: var(--su-text);
 }
 
 /* ==========================================================================

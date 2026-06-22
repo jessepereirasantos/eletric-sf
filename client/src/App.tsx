@@ -9,6 +9,7 @@ import { InstructorPanel } from './components/Render3D/UI/Panels/InstructorPanel
 import { BimLibraryPanel } from './components/Render3D/UI/Panels/BimLibraryPanel';
 import { MaterialsPanel } from './components/Render3D/UI/Panels/MaterialsPanel';
 import { EntityInfoPanel } from './components/Render3D/UI/Panels/EntityInfoPanel';
+import { PropertiesPanel } from './components/PropertiesPanel';
 import { ScenesPanel } from './components/Render3D/UI/Panels/ScenesPanel';
 import { CadIcon } from './components/CadIcons';
 import { measurementsEngine } from './engines/MeasurementsEngine';
@@ -19,7 +20,7 @@ type ActiveTab = 'cad2d' | 'render3d' | 'unifilar' | 'sheets';
 type MenuId = 'arquivo' | 'editar' | 'visualizar' | 'camera' | 'desenhar' | 'ferramentas' | 'janela' | 'ajuda' | null;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DEFINIÇÃO DAS FERRAMENTAS DA BARRA LATERAL ESQUERDA
+// DEFINIÇíO DAS FERRAMENTAS DA BARRA LATERAL ESQUERDA
 // ─────────────────────────────────────────────────────────────────────────────
 const SIDEBAR_TOOLS = [
   { id: 'select',    icon: 'select',  tooltip: 'Selecionar (Space)',  group: 'select' },
@@ -76,7 +77,7 @@ const TOOLBAR_GROUPS = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DEFINIÇÃO DOS MENUS DROPDOWN
+// DEFINIÇíO DOS MENUS DROPDOWN
 // ─────────────────────────────────────────────────────────────────────────────
 const MENUS = {
   arquivo: [
@@ -523,10 +524,13 @@ function App() {
           DEFAULT TRAY DIREITO
       ═══════════════════════════════════════════════ */}
       <div className="su-tray">
-        <div className="su-tray-title">Default Tray</div>
+        <div className="su-tray-title">Bandeja Padrão</div>
         <div className="su-tray-panels-scroll">
           <TrayPanel id="entity" title="Informações da Entidade" defaultOpen>
             <EntityInfoPanel />
+          </TrayPanel>
+          <TrayPanel id="properties" title="Propriedades" defaultOpen={false}>
+            <PropertiesPanel />
           </TrayPanel>
           <TrayPanel id="materials" title="Materiais" defaultOpen={false}>
             <MaterialsPanel />
