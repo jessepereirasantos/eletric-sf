@@ -365,66 +365,6 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#090d16', color: '#f8fafc', overflow: 'hidden' }}>
-      {/* ─── Top Header da View Unifilar ─── */}
-      <header style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '12px 24px', backgroundColor: '#0f172a', borderBottom: '1px solid #1e293b'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '1.5rem' }}>⚡</span>
-          <div>
-            <h2 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0, color: '#f8fafc' }}>
-              Diagrama Unifilar Inteligente
-            </h2>
-            <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: 0 }}>
-              Cálculos automáticos de dimensionamento NBR 5410
-            </p>
-          </div>
-        </div>
-
-        {/* Abas de Navegação */}
-        <div className="tab-buttons" style={{ display: 'flex', gap: '8px' }}>
-          <button
-            onClick={() => onTabChange('cad2d')}
-            className={`tab-btn ${activeTab === 'cad2d' ? 'active' : ''}`}
-            style={{
-              padding: '6px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '500', cursor: 'pointer',
-              border: '1px solid #334155', backgroundColor: '#1e293b', color: '#cbd5e1'
-            }}
-          >
-            📐 Editor CAD 2D
-          </button>
-          <button
-            onClick={() => onTabChange('render3d')}
-            className={`tab-btn ${activeTab === 'render3d' ? 'active' : ''}`}
-            style={{
-              padding: '6px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '500', cursor: 'pointer',
-              border: '1px solid #334155', backgroundColor: '#1e293b', color: '#cbd5e1'
-            }}
-          >
-            🧊 Visualizador 3D
-          </button>
-          <button
-            className="tab-btn active"
-            style={{
-              padding: '6px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '500', cursor: 'pointer',
-              border: '1px solid #3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6'
-            }}
-          >
-            ⚡ Diagrama Unifilar
-          </button>
-          <button
-            onClick={() => onTabChange('sheets')}
-            className={`tab-btn ${activeTab === 'sheets' ? 'active' : ''}`}
-            style={{
-              padding: '6px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '500', cursor: 'pointer',
-              border: '1px solid #334155', backgroundColor: '#1e293b', color: '#cbd5e1'
-            }}
-          >
-            📋 Pranchas / Folhas
-          </button>
-        </div>
-      </header>
 
       <div style={{ flex: 1, position: 'relative', outline: 'none' }}>
       <ReactFlow
@@ -522,9 +462,7 @@ export const UnifilarView: React.FC<UnifilarViewProps> = ({ activeTab, onTabChan
           Diagrama gerado automaticamente com base nos circuitos e dispositivos do projeto. Conforme NBR 5410:2024.
         </p>
       </div>
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 100 }}>
-        <BottomBar activeTab={activeTab} />
-      </div>
+
     </div>
     </div>
   );

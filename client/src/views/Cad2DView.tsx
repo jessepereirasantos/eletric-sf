@@ -1,9 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { CadCanvas } from '../components/Cad2D/CadCanvas';
 import { PropertiesPanel } from '../components/PropertiesPanel';
-import { Header } from '../components/Header';
-import { Toolbar } from '../components/Toolbar';
-import { BottomBar } from '../components/BottomBar';
+
 import { useCadStore } from '../store/useCadStore';
 import { dimensionateCircuit } from '../utils/nbr5410';
 import type { ToolType, DeviceType } from '../types';
@@ -789,29 +787,7 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
         style={{ display: 'none' }}
       />
 
-      <Header
-        projectName={projectName}
-        onProjectNameChange={setProjectName}
-        onSave={handleSave}
-        onImportProject={() => jsonFileInputRef.current?.click()}
-        onExportPDF={handleExportPDF}
-        onImportPlant={() => fileInputRef.current?.click()}
-        onSwitchTo3D={() => onTabChange('render3d')}
-        onToggleLegend={handleToggleLegend}
-        onTrash={handleTrash}
-        onUndo={undo}
-        onRedo={redo}
-        activeTab={activeTab}
-        onTabChange={onTabChange}
-      />
 
-      <Toolbar
-        currentTool={currentTool}
-        selectedDeviceType={selectedDeviceType as any}
-        onToolChange={handleToolChange}
-        onDeviceTypeChange={handleDeviceTypeChange}
-        onAutomationAction={handleAutomationAction}
-      />
 
       <div className="cad2d-workspace">
         <div className="cad2d-canvas-wrapper" ref={containerRef}>
@@ -1181,7 +1157,7 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
           </div>
         </div>
       )}
-      <BottomBar activeTab={activeTab} />
+
     </div>
   );
 };

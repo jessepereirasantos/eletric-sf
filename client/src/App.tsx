@@ -10,7 +10,7 @@ import { BimLibraryPanel } from './components/Render3D/UI/Panels/BimLibraryPanel
 import { MaterialsPanel } from './components/Render3D/UI/Panels/MaterialsPanel';
 import { EntityInfoPanel } from './components/Render3D/UI/Panels/EntityInfoPanel';
 import { ScenesPanel } from './components/Render3D/UI/Panels/ScenesPanel';
-
+import { CadIcon } from './components/CadIcons';
 // ─────────────────────────────────────────────────────────────────────────────
 // TIPOS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -21,74 +21,55 @@ type MenuId = 'arquivo' | 'editar' | 'visualizar' | 'camera' | 'desenhar' | 'fer
 // DEFINIÇÃO DAS FERRAMENTAS DA BARRA LATERAL ESQUERDA
 // ─────────────────────────────────────────────────────────────────────────────
 const SIDEBAR_TOOLS = [
-  { id: 'select',    icon: '↖',  tooltip: 'Selecionar (Space)',  group: 'select' },
-  { id: 'eraser',   icon: '⌫',  tooltip: 'Borracha (E)',        group: 'select' },
+  { id: 'select',    icon: 'select',  tooltip: 'Selecionar (Space)',  group: 'select' },
+  { id: 'eraser',   icon: 'eraser',  tooltip: 'Borracha (E)',        group: 'select' },
   { sep: true },
-  { id: 'wall',     icon: '▊',  tooltip: 'Parede',              group: 'draw' },
-  { id: 'line',     icon: '/',   tooltip: 'Linha (L)',            group: 'draw' },
-  { id: 'rectangle',icon: '▭',  tooltip: 'Retângulo (R)',        group: 'draw' },
-  { id: 'circle',   icon: '○',  tooltip: 'Círculo (C)',          group: 'draw' },
-  { id: 'area',     icon: '⬛', tooltip: 'Área',                group: 'draw' },
+  { id: 'line',     icon: 'line',   tooltip: 'Linha (L)',            group: 'draw' },
+  { id: 'arc',      icon: 'arc',    tooltip: 'Arco (A)',             group: 'draw' },
+  { id: 'rectangle',icon: 'rectangle',tooltip: 'Retângulo (R)',        group: 'draw' },
+  { id: 'circle',   icon: 'circle', tooltip: 'Círculo (C)',          group: 'draw' },
+  { id: 'polygon',  icon: 'polygon',tooltip: 'Polígono',             group: 'draw' },
   { sep: true },
-  { id: 'move',     icon: '✥',  tooltip: 'Mover (M)',            group: 'modify' },
-  { id: 'rotate',   icon: '↻',  tooltip: 'Rotacionar (Q)',       group: 'modify' },
-  { id: 'scale',    icon: '⤢',  tooltip: 'Escalar (S)',          group: 'modify' },
-  { id: 'push_pull',icon: '⬆', tooltip: 'Push/Pull (P)',        group: 'modify' },
-  { id: 'offset',   icon: '⊟', tooltip: 'Offset (F)',           group: 'modify' },
+  { id: 'push_pull',icon: 'pushpull',tooltip: 'Push/Pull (P)',        group: 'modify' },
+  { id: 'offset',   icon: 'offset', tooltip: 'Offset (F)',           group: 'modify' },
   { sep: true },
-  { id: 'measure',  icon: '📏', tooltip: 'Fita Métrica (T)',     group: 'measure' },
-  { id: 'dimension',icon: '↔', tooltip: 'Cota',                  group: 'measure' },
-  { id: 'text',     icon: 'T',  tooltip: 'Texto',                group: 'measure' },
+  { id: 'move',     icon: 'move',   tooltip: 'Mover (M)',            group: 'transform' },
+  { id: 'rotate',   icon: 'rotate', tooltip: 'Rotacionar (Q)',       group: 'transform' },
+  { id: 'scale',    icon: 'scale',  tooltip: 'Escalar (S)',          group: 'transform' },
   { sep: true },
-  { id: 'device',   icon: '⚡', tooltip: 'Dispositivo Elétrico', group: 'electric' },
-  { id: 'conduit',  icon: '〰',tooltip: 'Eletroduto',            group: 'electric' },
+  { id: 'measure',  icon: 'measure',tooltip: 'Fita Métrica (T)',     group: 'measure' },
+  { id: 'dimension',icon: 'dimension',tooltip: 'Cota',                  group: 'measure' },
+  { id: 'text',     icon: 'text',   tooltip: 'Texto',                group: 'measure' },
+  { sep: true },
+  { id: 'orbit',    icon: 'orbit',  tooltip: 'Orbitar (O)',          group: 'navigate' },
+  { id: 'pan',      icon: 'pan',    tooltip: 'Panorâmico (H)',       group: 'navigate' },
+  { id: 'zoom',     icon: 'zoom',   tooltip: 'Zoom (Z)',             group: 'navigate' },
+  { id: 'zoom_ext', icon: 'zoom-extents',tooltip:'Zoom Extents (Shift+Z)', group: 'navigate' },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DEFINIÇÃO DA BARRA PRINCIPAL DE FERRAMENTAS
-// ─────────────────────────────────────────────────────────────────────────────
 const TOOLBAR_GROUPS = [
   {
     label: 'Arquivo',
     tools: [
-      { id: 'new',    icon: '📄', tooltip: 'Novo Projeto (Ctrl+N)' },
-      { id: 'open',   icon: '📂', tooltip: 'Abrir (Ctrl+O)' },
-      { id: 'save',   icon: '💾', tooltip: 'Salvar (Ctrl+S)' },
+      { id: 'new',    icon: 'new', tooltip: 'Novo Projeto (Ctrl+N)' },
+      { id: 'open',   icon: 'open', tooltip: 'Abrir (Ctrl+O)' },
+      { id: 'save',   icon: 'save', tooltip: 'Salvar (Ctrl+S)' },
     ],
   },
   {
     label: 'Histórico',
     tools: [
-      { id: 'undo',   icon: '↩', tooltip: 'Desfazer (Ctrl+Z)' },
-      { id: 'redo',   icon: '↪', tooltip: 'Refazer (Ctrl+Y)' },
-    ],
-  },
-  {
-    label: 'Câmera',
-    tools: [
-      { id: 'orbit',  icon: '⟳', tooltip: 'Orbitar' },
-      { id: 'pan',    icon: '✋', tooltip: 'Panorâmico' },
-      { id: 'zoom',   icon: '🔍', tooltip: 'Zoom' },
-      { id: 'home',   icon: '⌂',  tooltip: 'Vista Padrão' },
-      { id: 'top',    icon: '⊤',  tooltip: 'Vista Superior' },
-      { id: 'front',  icon: '↑',  tooltip: 'Vista Frontal' },
-      { id: 'iso',    icon: '◈',  tooltip: 'Vista Isométrica' },
+      { id: 'undo',   icon: 'undo', tooltip: 'Desfazer (Ctrl+Z)' },
+      { id: 'redo',   icon: 'redo', tooltip: 'Refazer (Ctrl+Y)' },
     ],
   },
   {
     label: 'Estilo',
     tools: [
-      { id: 'solid',      icon: '■',   tooltip: 'Sólido' },
-      { id: 'wireframe',  icon: '□',   tooltip: 'Arame' },
-      { id: 'xray',       icon: '▧',  tooltip: 'Raio-X' },
-      { id: 'textured',   icon: '▣',  tooltip: 'Com Textura' },
-    ],
-  },
-  {
-    label: 'Seccionar',
-    tools: [
-      { id: 'section',    icon: '✂', tooltip: 'Plano de Corte' },
-      { id: 'shadow',     icon: '☀', tooltip: 'Sombras' },
+      { id: 'solid',      icon: 'solid',   tooltip: 'Sólido' },
+      { id: 'wireframe',  icon: 'wireframe', tooltip: 'Arame' },
+      { id: 'xray',       icon: 'xray',    tooltip: 'Raio-X' },
+      { id: 'monochrome', icon: 'monochrome', tooltip: 'Monocromático' },
     ],
   },
 ];
@@ -436,7 +417,7 @@ function App() {
                 id={`toolbar-${tool.id}`}
                 title={tool.tooltip}
               >
-                {tool.icon}
+                <CadIcon name={tool.icon} />
               </button>
             ))}
           </div>
@@ -473,7 +454,7 @@ function App() {
               id={`sidebar-${tool.id}`}
               title={tool.tooltip}
             >
-              {tool.icon}
+              <CadIcon name={tool.icon as string} />
             </button>
           )
         )}
