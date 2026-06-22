@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useCadStore } from '../store/useCadStore';
-import { MyProjectsModal } from './MyProjectsModal';
+import { MyProjectsModal } from '../components/MyProjectsModal';
 
 interface HeaderProps {
   projectName: string;
