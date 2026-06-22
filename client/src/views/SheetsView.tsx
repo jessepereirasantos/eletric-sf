@@ -938,10 +938,9 @@ export const SheetsView: React.FC<SheetsViewProps> = ({ activeTab, onTabChange }
             let vpContent = '';
 
             if (vp.type === 'planta') {
-              // Obter SVG literal da planta baixa
-              const svgElement = document.getElementById(`vp-svg-planta`);
-              const svgString = svgElement ? svgElement.outerHTML : '';
-              vpContent = svgString || `<div style="color: #64748b; font-size: 9px;">Desenho da Planta Baixa</div>`;
+              // Obter snapshot limpo em alta definição usando a engine exportada
+              const dataUrl = (window as any).captureCad2DSnapshot ? (window as any).captureCad2DSnapshot() : null;
+              vpContent = dataUrl ? `<img src="${dataUrl}" style="width: 100%; height: 100%; object-fit: contain; display: block;" />` : `<div style="color: #64748b; font-size: 9px; display: flex; align-items:center; justify-content:center; height: 100%;">Planta Baixa indisponível</div>`;
             } 
             else if (vp.type === 'unifilar') {
               // Obter SVG literal do unifilar

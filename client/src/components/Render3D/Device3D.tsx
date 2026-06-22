@@ -1765,7 +1765,11 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
      }
 
      return (
-       <group position={[device.x, device.y, z]} rotation={[Math.PI / 2, rotationRad, 0]}>
+       <group 
+         position={[device.x, device.y, z]} 
+         rotation={[Math.PI / 2, rotationRad, 0]}
+         onClick={(e) => { e.stopPropagation(); useCadStore.getState().setSelectedDeviceId(deviceProp.id); }}
+       >
           {model}
        </group>
      );
@@ -1773,7 +1777,11 @@ export const Device3D: React.FC<Device3DProps> = ({ device: deviceProp, isInner 
 
   // Fallback genérico para outros dispositivos
   return (
-    <group position={[device.x, device.y, z]} rotation={[0, 0, rotationRad]}>
+    <group 
+      position={[device.x, device.y, z]} 
+      rotation={[0, 0, rotationRad]}
+      onClick={(e) => { e.stopPropagation(); useCadStore.getState().setSelectedDeviceId(deviceProp.id); }}
+    >
       <group position={[0, yOffset, 0]}>
         <mesh>
           <boxGeometry args={[width, depth, height]} />

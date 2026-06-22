@@ -86,7 +86,68 @@ export const Cad2DView: React.FC<Cad2DViewProps> = ({ activeTab, onTabChange }) 
       }
     });
     ro.observe(containerRef.current);
-    return () => ro.disconnect();
+
+    // Exportar função de snapshot para as Pranchas (SheetsView) acessarem
+    (window as any).captureCad2DSnapshot = () => {
+      const stage = (window as any).cadStage;
+      if (!stage) return null;
+
+      try {
+        const stageW = stage.width();
+        const stageH = stage.height();
+        
+        let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
+        const addPoint = (x: number, y: number) => {
+          const px = x * useCadStore.getState().ppm;
+          const py = y * useCadStore.getState().ppm;
+          if (px < minX) minX = px; if (px > maxX) maxX = px;
+          if (py < minY) minY = py; if (py > maxY) maxY = py;
+        };
+        
+        useCadStore.getState().walls.forEach(w => { addPoint(w.p1.x, w.p1.y); addPoint(w.p2.x, w.p2.y); });
+        useCadStore.getState().devices.forEach(d => addPoint(d.x, d.y));
+        useCadStore.getState().texts.forEach(t => addPoint(t.x, t.y));
+        
+        if (minX === Infinity) { minX = 0; minY = 0; maxX = stageW; maxY = stageH; }
+        const safetyMargin = 40;
+        minX -= safetyMargin; minY -= safetyMargin; maxX += safetyMargin; maxY += safetyMargin;
+        const boxW = maxX - minX; const boxH = maxY - minY;
+        
+        const scaleX = stageW / boxW; const scaleY = stageH / boxH;
+        const fitScale = Math.min(scaleX, scaleY);
+        const centerX = minX + boxW / 2; const centerY = minY + boxH / 2;
+        const panX = stageW / 2 - centerX * fitScale;
+        const panY = stageH / 2 - centerY * fitScale;
+
+        const oldZoom = stage.scaleX(); const oldX = stage.x(); const oldY = stage.y();
+        
+        let transformerNode: any = null; const transformerNodes: any[] = [];
+        try {
+          transformerNode = stage.findOne('Transformer');
+          if (transformerNode) { transformerNodes.push(...transformerNode.nodes()); transformerNode.nodes([]); }
+        } catch (e) {}
+
+        stage.scale({ x: fitScale, y: fitScale });
+        stage.position({ x: panX, y: panY });
+        stage.batchDraw();
+
+        const dataUrl = stage.toDataURL({ x: 0, y: 0, width: stageW, height: stageH, pixelRatio: 2 });
+
+        stage.scale({ x: oldZoom, y: oldZoom });
+        stage.position({ x: oldX, y: oldY });
+        if (transformerNode && transformerNodes.length > 0) transformerNode.nodes(transformerNodes);
+        stage.batchDraw();
+
+        return dataUrl;
+      } catch (err) {
+        return null;
+      }
+    };
+
+    return () => {
+      ro.disconnect();
+      delete (window as any).captureCad2DSnapshot;
+    };
   }, []);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

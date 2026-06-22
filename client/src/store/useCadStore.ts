@@ -443,6 +443,7 @@ interface CadState {
   clipboard: unknown | null;                     // conteúdo copiado
   dispatchCommand: (commandId: string, payload?: unknown) => void;
   copySelection: () => void;
+  copyAll: () => void;
   pasteClipboard: () => void;
   deleteSelection: () => void;
 
@@ -2501,6 +2502,7 @@ export const useCadStore = create<CadState>()(
         case 'undo': store.undo(); break;
         case 'redo': store.redo(); break;
         case 'copy': store.copySelection(); break;
+        case 'copy_all': store.copyAll(); break;
         case 'paste': store.pasteClipboard(); break;
         case 'delete': store.deleteSelection(); break;
         default:
@@ -2519,10 +2521,51 @@ export const useCadStore = create<CadState>()(
       }
     },
 
+    copyAll: () => {
+      const { walls, devices, conduits, texts } = get();
+      set({ clipboard: { type: 'project', data: { walls, devices, conduits, texts } } });
+      alert('Planta inteira copiada! Use a opção Colar para duplicá-la ao lado.');
+    },
+
     pasteClipboard: () => {
-      const { clipboard } = get();
+      const { clipboard, walls, devices, texts } = get();
       if (!clipboard) return;
-      const cb = clipboard as { type: string; data: Record<string, unknown> };
+      const cb = clipboard as { type: string; data: any };
+      
+      if (cb.type === 'project' && cb.data) {
+        get().pushHistory();
+        const offset = 20; // 20 metros para a direita
+        
+        const newWalls = (cb.data.walls || []).map((w: any) => ({
+          ...w, 
+          id: `w_${Date.now()}_${Math.random().toString(36).substring(2,7)}`, 
+          p1: { x: w.p1.x + offset, y: w.p1.y }, 
+          p2: { x: w.p2.x + offset, y: w.p2.y }
+        }));
+        
+        const newDevices = (cb.data.devices || []).map((d: any) => ({
+          ...d, 
+          id: `d_${Date.now()}_${Math.random().toString(36).substring(2,7)}`, 
+          x: d.x + offset, 
+          y: d.y
+        }));
+        
+        const newTexts = (cb.data.texts || []).map((t: any) => ({
+          ...t, 
+          id: `t_${Date.now()}_${Math.random().toString(36).substring(2,7)}`, 
+          x: t.x + offset, 
+          y: t.y
+        }));
+        
+        set({
+          walls: [...walls, ...newWalls],
+          devices: [...devices, ...newDevices],
+          texts: [...texts, ...newTexts]
+        });
+        alert('Planta duplicada com sucesso (deslocada 20m). Crie uma nova Aba/Cena para organizá-la!');
+        return;
+      }
+
       if (cb.type === 'device' && cb.data) {
         get().pushHistory();
         const srcData = cb.data as Record<string, unknown>;

@@ -98,10 +98,12 @@ const MENUS = {
     { label: 'Desfazer', shortcut: 'Ctrl+Z', cmd: 'undo' },
     { label: 'Refazer', shortcut: 'Ctrl+Y', cmd: 'redo' },
     { sep: true },
-    { label: 'Cortar', shortcut: 'Ctrl+X', cmd: 'cut' },
     { label: 'Copiar', shortcut: 'Ctrl+C', cmd: 'copy' },
     { label: 'Colar', shortcut: 'Ctrl+V', cmd: 'paste' },
-    { label: 'Deletar', shortcut: 'Delete', cmd: 'delete' },
+    { label: 'Copiar Planta Inteira', cmd: 'copy_all' },
+    { label: 'Apagar', shortcut: 'Del', cmd: 'delete' },
+    { sep: true },
+    { label: 'Limpar Área de Trabalho', cmd: 'clear_all' },
     { sep: true },
     { label: 'Selecionar Tudo', shortcut: 'Ctrl+A', cmd: 'select_all' },
     { label: 'Inverter Seleção', cmd: 'invert_selection' },
@@ -480,6 +482,12 @@ function App() {
               key={scene.id}
               className={`su-scene-tab ${activeSceneId === scene.id ? 'active' : ''}`}
               onClick={() => activateScene(scene.id)}
+              onDoubleClick={() => {
+                const newName = window.prompt('Renomear Aba:', scene.name);
+                if (newName && newName.trim()) {
+                  useCadStore.getState().renameScene(scene.id, newName.trim());
+                }
+              }}
               id={`scene-tab-${scene.id}`}
             >
               {scene.name}
@@ -496,18 +504,18 @@ function App() {
 
         {/* Canvas */}
         <div className="su-canvas">
-          {activeTab === 'cad2d' && (
+          <div style={{ display: activeTab === 'cad2d' ? 'block' : 'none', width: '100%', height: '100%' }}>
             <Cad2DView activeTab={activeTab} onTabChange={setActiveTab} />
-          )}
-          {activeTab === 'render3d' && (
+          </div>
+          <div style={{ display: activeTab === 'render3d' ? 'block' : 'none', width: '100%', height: '100%' }}>
             <Render3DView activeTab={activeTab} onTabChange={setActiveTab} />
-          )}
-          {activeTab === 'unifilar' && (
+          </div>
+          <div style={{ display: activeTab === 'unifilar' ? 'block' : 'none', width: '100%', height: '100%' }}>
             <UnifilarView activeTab={activeTab} onTabChange={setActiveTab} />
-          )}
-          {activeTab === 'sheets' && (
+          </div>
+          <div style={{ display: activeTab === 'sheets' ? 'block' : 'none', width: '100%', height: '100%' }}>
             <SheetsView activeTab={activeTab} onTabChange={setActiveTab} />
-          )}
+          </div>
         </div>
       </div>
 
